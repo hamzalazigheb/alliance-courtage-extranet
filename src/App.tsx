@@ -27,12 +27,12 @@ function LoginPage({ onLogin }: { onLogin: () => void }) {
       <div className="max-w-md w-full px-6">
         {/* Logo */}
         <div className="text-center mb-12">
-          <div className="flex items-center justify-center mb-4">
-            <div className="flex space-x-1">
-              <div className="w-6 h-6 bg-gradient-to-br from-yellow-400 to-yellow-500 rounded transform rotate-12"></div>
-              <div className="w-6 h-6 bg-gradient-to-br from-blue-400 to-blue-500 rounded transform -rotate-6"></div>
-              <div className="w-6 h-6 bg-gradient-to-br from-red-400 to-red-500 rounded transform rotate-6"></div>
-            </div>
+          <div className="flex items-center justify-center mb-6">
+            <img 
+              src="/alliance-courtage-logo.svg" 
+              alt="Alliance Courtage Logo" 
+              className="h-16 w-auto"
+            />
           </div>
           <h1 className="text-4xl font-bold text-blue-900 mb-2">ALLIANCE COURTAGE</h1>
           <p className="text-sm text-gray-600">GROUPEMENT NATIONAL DES COURTIERS D'ASSURANCES</p>
@@ -149,10 +149,12 @@ function App() {
           <div className="flex items-center justify-between px-6 py-4">
             {/* Logo et Branding */}
             <div className="flex items-center space-x-4">
-              {/* Logo simple */}
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">A</span>
-              </div>
+              {/* Logo */}
+              <img 
+                src="/alliance-courtage-logo.svg" 
+                alt="Alliance Courtage Logo" 
+                className="h-12 w-auto"
+              />
               
               {/* Texte de marque */}
               <div>
