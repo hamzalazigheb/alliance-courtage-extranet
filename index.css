@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --azalee-navy: 217 40% 25%;
+  --azalee-yellow: 51 100% 67%;
+  --azalee-light-gray: 0 0% 96%;
+}
+
+.dark {
+  --azalee-navy: 217 40% 25%;
+  --azalee-yellow: 51 100% 67%;
+  --azalee-light-gray: 0 0% 15%;
+} 
