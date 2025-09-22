@@ -122,11 +122,11 @@ const ContactBar = () => {
         <div className="flex items-center justify-center lg:justify-end space-x-6 text-sm text-gray-600">
           <div className="flex items-center space-x-1">
             <span>📞</span>
-            <span>11 (555) 123-4567</span>
+            <span>07.45.06.43.88</span>
           </div>
           <div className="flex items-center space-x-1">
             <span>✉️</span>
-            <span>contact@azaleewealth.com</span>
+            <span>contact@alliance-courtage.fr</span>
           </div>
           <div className="hidden lg:flex items-center space-x-2 text-xs text-gray-500">
             <span>Non-agents</span>

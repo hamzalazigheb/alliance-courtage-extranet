@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import GammeFinancierePage from './GammeFinancierePage';
+import ProduitsStructuresPage from './ProduitsStructuresPage';
 
 // Types pour les utilisateurs et fichiers
 interface User {
@@ -1532,10 +1533,6 @@ function ReglementairePage() {
 
 // Produits Structurés Page Component
 function ProduitsStructuresPage() {
-  const [selectedSection, setSelectedSection] = useState('commercialisation');
-  const [selectedTab, setSelectedTab] = useState('details');
-  const [selectedProduct, setSelectedProduct] = useState<any>(null);
-
   // Données des produits en cours de commercialisation
   const produitsCommercialisation = [
     {
@@ -1548,14 +1545,7 @@ function ProduitsStructuresPage() {
       commercialisation: "08/05/2024 au 10/09/2025",
       finCommercialisation: "dans 17 jours",
       montantEnveloppe: "5 000 000€",
-      enveloppeRestante: "0€",
-      documents: [
-        { nom: "Note d'information", type: "PDF", taille: "2.3 MB" },
-        { nom: "Prospectus", type: "PDF", taille: "1.8 MB" },
-        { nom: "Document d'information clé", type: "PDF", taille: "0.5 MB" },
-        { nom: "Conditions générales", type: "PDF", taille: "1.2 MB" },
-        { nom: "Fiche produit", type: "PDF", taille: "0.8 MB" }
-      ]
+      enveloppeRestante: "0€"
     },
     {
       id: 2,
@@ -1567,13 +1557,7 @@ function ProduitsStructuresPage() {
       commercialisation: "15/06/2024 au 20/09/2025",
       finCommercialisation: "dans 24 jours",
       montantEnveloppe: "3 000 000€",
-      enveloppeRestante: "520 880€",
-      documents: [
-        { nom: "Note d'information", type: "PDF", taille: "2.1 MB" },
-        { nom: "Prospectus", type: "PDF", taille: "1.9 MB" },
-        { nom: "Document d'information clé", type: "PDF", taille: "0.6 MB" },
-        { nom: "Conditions générales", type: "PDF", taille: "1.4 MB" }
-      ]
+      enveloppeRestante: "520 880€"
     },
     {
       id: 3,
@@ -1585,17 +1569,8 @@ function ProduitsStructuresPage() {
       commercialisation: "20/07/2024 au 25/09/2025",
       finCommercialisation: "dans 29 jours",
       montantEnveloppe: "2 500 000€",
-      enveloppeRestante: "150 000€",
-      documents: [
-        { nom: "Note d'information", type: "PDF", taille: "2.0 MB" },
-        { nom: "Prospectus", type: "PDF", taille: "1.7 MB" },
-        { nom: "Document d'information clé", type: "PDF", taille: "0.4 MB" }
-      ]
-    }
-  ];
-
-  // Données des produits commercialisation terminée
-  const produitsTermines = [
+      enveloppeRestante: "150 000€"
+    },
     {
       id: 4,
       logo: "🟥",
@@ -1603,16 +1578,10 @@ function ProduitsStructuresPage() {
       title: "Stratégie Patrimoine S Taux Juin 2025",
       sousJacent: "S&P 500",
       coupon: "4% / an",
-      dateFinCommercialisation: "30/09/2025",
-      montantCollecte: "4 000 000€",
-      nombreSouscripteurs: "125",
-      documents: [
-        { nom: "Note d'information", type: "PDF", taille: "2.2 MB" },
-        { nom: "Prospectus", type: "PDF", taille: "1.6 MB" },
-        { nom: "Document d'information clé", type: "PDF", taille: "0.5 MB" },
-        { nom: "Conditions générales", type: "PDF", taille: "1.3 MB" },
-        { nom: "Rapport de clôture", type: "PDF", taille: "0.9 MB" }
-      ]
+      commercialisation: "10/08/2024 au 30/09/2025",
+      finCommercialisation: "dans 34 jours",
+      montantEnveloppe: "4 000 000€",
+      enveloppeRestante: "800 000€"
     },
     {
       id: 5,
@@ -1621,15 +1590,60 @@ function ProduitsStructuresPage() {
       title: "Stratégie Patrimoine S Dividende Juillet 2025",
       sousJacent: "DAX",
       coupon: "2.8% / an",
-      dateFinCommercialisation: "05/10/2025",
-      montantCollecte: "3 500 000€",
-      nombreSouscripteurs: "98",
-      documents: [
-        { nom: "Note d'information", type: "PDF", taille: "2.4 MB" },
-        { nom: "Prospectus", type: "PDF", taille: "1.8 MB" },
-        { nom: "Document d'information clé", type: "PDF", taille: "0.6 MB" },
-        { nom: "Conditions générales", type: "PDF", taille: "1.1 MB" }
-      ]
+      commercialisation: "25/08/2024 au 05/10/2025",
+      finCommercialisation: "dans 39 jours",
+      montantEnveloppe: "3 500 000€",
+      enveloppeRestante: "1 200 000€"
+    },
+    {
+      id: 6,
+      logo: "🟧",
+      company: "CARDIF",
+      title: "Stratégie Patrimoine S Taux Août 2025",
+      sousJacent: "FTSE 100",
+      coupon: "3.2% / an",
+      commercialisation: "01/09/2024 au 10/10/2025",
+      finCommercialisation: "dans 44 jours",
+      montantEnveloppe: "2 800 000€",
+      enveloppeRestante: "950 000€"
+    },
+    {
+      id: 7,
+      logo: "🟦",
+      company: "abeille ASSURANCES",
+      title: "Stratégie Patrimoine S Dividende Septembre 2025",
+      sousJacent: "Nikkei 225",
+      coupon: "2.7% / an",
+      commercialisation: "05/09/2024 au 15/10/2025",
+      finCommercialisation: "dans 49 jours",
+      montantEnveloppe: "3 200 000€",
+      enveloppeRestante: "1 500 000€"
+    }
+  ];
+
+  // Données des produits en cours de vie
+  const produitsEnCours = [
+    {
+      id: 8,
+      logo: "🟦",
+      company: "SwissLife",
+      title: "Stratégie Patrimoine S Taux Mai 2025",
+      sousJacent: "Euro Stoxx 50",
+      cours: "43.40",
+      performance: "-7.56%",
+      prochaineConstatation: "28/05/2026",
+      prochaineConstatationDans: "275 jours"
+    },
+    {
+      id: 9,
+      logo: "🟩",
+      company: "abeille ASSURANCES",
+      title: "Stratégie Patrimoine S Dividende Avril 2025",
+      sousJacent: "CAC 40",
+      cours: "38.75",
+      performance: "2.34%",
+      prochaineConstatation: "15/06/2026",
+      prochaineConstatationDans: "293 jours"
     }
   ];
 
@@ -1643,265 +1657,155 @@ function ProduitsStructuresPage() {
         </p>
       </div>
 
-      {/* Section Selection */}
-      <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
-        <div className="flex space-x-4">
-          <button
-            onClick={() => {
-              setSelectedSection('commercialisation');
-              setSelectedTab('details');
-              setSelectedProduct(null);
-            }}
-            className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 ${
-              selectedSection === 'commercialisation'
-                ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-            }`}
-          >
-            En cours de commercialisation
-          </button>
-          <button
-            onClick={() => {
-              setSelectedSection('termines');
-              setSelectedTab('details');
-              setSelectedProduct(null);
-            }}
-            className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 ${
-              selectedSection === 'termines'
-                ? "bg-gradient-to-r from-gray-500 to-gray-600 text-white shadow-lg"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-            }`}
-          >
-            Commercialisation terminée
-          </button>
-        </div>
-      </div>
-
-      {/* Sub-tabs */}
-      <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
-        <div className="flex space-x-4">
-          <button
-            onClick={() => setSelectedTab('details')}
-            className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-              selectedTab === 'details'
-                ? "bg-indigo-500 text-white"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-            }`}
-          >
-            Détails
-          </button>
-          <button
-            onClick={() => setSelectedTab('documents')}
-            className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-              selectedTab === 'documents'
-                ? "bg-indigo-500 text-white"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-            }`}
-          >
-            Documents
-          </button>
-          {selectedSection === 'commercialisation' && (
-            <button
-              onClick={() => setSelectedTab('reserver')}
-              className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-                selectedTab === 'reserver'
-                  ? "bg-indigo-500 text-white"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
-            >
-              Réserver
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Content based on selected tab */}
-      {selectedTab === 'details' && (
-        <div className="space-y-6">
-          {selectedSection === 'commercialisation' ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {produitsCommercialisation.map((produit) => (
-                <div key={produit.id} className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-6 hover:shadow-xl transition-all duration-300">
-                  <div className="flex items-start space-x-4 mb-4">
-                    <div className="text-4xl">{produit.logo}</div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold text-gray-800 mb-2">{produit.company}</h3>
-                      <h4 className="text-sm font-medium text-gray-700 leading-tight">{produit.title}</h4>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-3 mb-6">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Sous jacent:</span>
-                      <span className="text-sm font-medium text-gray-800">{produit.sousJacent}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Coupon:</span>
-                      <span className="text-sm font-medium text-gray-800">{produit.coupon}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Commercialisation:</span>
-                      <span className="text-sm font-medium text-gray-800">{produit.commercialisation}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Fin de commercialisation:</span>
-                      <span className="text-sm font-medium text-gray-800">{produit.finCommercialisation}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Montant enveloppe:</span>
-                      <span className="text-sm font-medium text-gray-800">{produit.montantEnveloppe}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Enveloppe restante:</span>
-                      <span className="text-sm font-medium text-gray-800">{produit.enveloppeRestante}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="flex space-x-3">
-                    <button 
-                      onClick={() => {
-                        setSelectedProduct(produit);
-                        setSelectedTab('documents');
-                      }}
-                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg transition-colors font-medium"
-                    >
-                      Documents
-                    </button>
-                    <button 
-                      onClick={() => {
-                        setSelectedProduct(produit);
-                        setSelectedTab('reserver');
-                      }}
-                      className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg transition-colors font-medium"
-                    >
-                      Réserver
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {produitsTermines.map((produit) => (
-                <div key={produit.id} className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-6 hover:shadow-xl transition-all duration-300">
-                  <div className="flex items-start space-x-4 mb-4">
-                    <div className="text-4xl">{produit.logo}</div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold text-gray-800 mb-2">{produit.company}</h3>
-                      <h4 className="text-sm font-medium text-gray-700 leading-tight">{produit.title}</h4>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-3 mb-6">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Sous jacent:</span>
-                      <span className="text-sm font-medium text-gray-800">{produit.sousJacent}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Coupon:</span>
-                      <span className="text-sm font-medium text-gray-800">{produit.coupon}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Date fin commercialisation:</span>
-                      <span className="text-sm font-medium text-gray-800">{produit.dateFinCommercialisation}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Montant collecté:</span>
-                      <span className="text-sm font-medium text-gray-800">{produit.montantCollecte}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Nombre de souscripteurs:</span>
-                      <span className="text-sm font-medium text-gray-800">{produit.nombreSouscripteurs}</span>
-                    </div>
-                  </div>
-                  
-                  <button 
-                    onClick={() => {
-                      setSelectedProduct(produit);
-                      setSelectedTab('documents');
-                    }}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg transition-colors font-medium"
-                  >
-                    Documents
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {selectedTab === 'documents' && selectedProduct && (
-        <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
-          <div className="flex items-center space-x-4 mb-6">
-            <div className="text-3xl">{selectedProduct.logo}</div>
-            <div>
-              <h2 className="text-xl font-bold text-gray-800">{selectedProduct.company}</h2>
-              <p className="text-sm text-gray-600">{selectedProduct.title}</p>
+      {/* Section EN COURS DE COMMERCIALISATION */}
+      <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden border border-white/20">
+        <div className="bg-gradient-to-r from-blue-800 to-blue-900 p-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold text-white">EN COURS DE COMMERCIALISATION</h2>
+            <div className="flex space-x-2">
+              <button className="text-white hover:bg-white/10 p-2 rounded-lg transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                </svg>
+              </button>
+              <button className="text-white hover:bg-white/10 p-2 rounded-lg transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                </svg>
+              </button>
             </div>
           </div>
-          
-          <div className="space-y-3">
-            {selectedProduct.documents.map((doc, index) => (
-              <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-red-500 rounded-lg flex items-center justify-center">
-                    <span className="text-white text-xs font-bold">PDF</span>
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-gray-800">{doc.nom}</h3>
-                    <p className="text-sm text-gray-600">{doc.type} • {doc.taille}</p>
+        </div>
+        
+        <div className="p-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {produitsCommercialisation.map((produit) => (
+              <div key={produit.id} className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all duration-300">
+                {/* En-tête avec logo et titre */}
+                <div className="flex items-start space-x-4 mb-4">
+                  <div className="text-4xl">{produit.logo}</div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold text-gray-800 mb-2">{produit.company}</h3>
+                    <h4 className="text-sm font-medium text-gray-700 leading-tight">{produit.title}</h4>
                   </div>
                 </div>
-                <button className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors text-sm">
-                  Télécharger
-                </button>
+                
+                {/* Détails du produit */}
+                <div className="space-y-3 mb-6">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Sous jacent:</span>
+                    <span className="text-sm font-medium text-gray-800">{produit.sousJacent}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Coupon:</span>
+                    <span className="text-sm font-medium text-gray-800">{produit.coupon}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Commercialisation:</span>
+                    <span className="text-sm font-medium text-gray-800">{produit.commercialisation}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Fin de commercialisation:</span>
+                    <span className="text-sm font-medium text-gray-800">{produit.finCommercialisation}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Montant enveloppe:</span>
+                    <span className="text-sm font-medium text-gray-800">{produit.montantEnveloppe}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Enveloppe restante:</span>
+                    <span className="text-sm font-medium text-gray-800">{produit.enveloppeRestante}</span>
+                  </div>
+                </div>
+                
+                {/* Boutons d'action */}
+                <div className="flex space-x-3">
+                  <button className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg transition-colors font-medium">
+                    Détails
+                  </button>
+                  <button className="flex-1 bg-blue-800 hover:bg-blue-900 text-white py-2 px-4 rounded-lg transition-colors font-medium">
+                    Réserver
+                  </button>
+                </div>
               </div>
             ))}
           </div>
         </div>
-      )}
+      </div>
 
-      {selectedTab === 'reserver' && selectedProduct && (
-        <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
-          <div className="flex items-center space-x-4 mb-6">
-            <div className="text-3xl">{selectedProduct.logo}</div>
-            <div>
-              <h2 className="text-xl font-bold text-gray-800">{selectedProduct.company}</h2>
-              <p className="text-sm text-gray-600">{selectedProduct.title}</p>
-            </div>
-          </div>
-          
-          <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-green-800 mb-4">Formulaire de Réservation</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Montant à investir</label>
-                <input type="number" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="Montant en €" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Date de souscription souhaitée</label>
-                <input type="date" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Commentaires</label>
-                <textarea rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" placeholder="Commentaires additionnels..."></textarea>
-              </div>
-            </div>
-            <div className="mt-6 flex space-x-4">
-              <button className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg transition-colors font-medium">
-                Confirmer la réservation
+      {/* Section EN COURS DE VIE */}
+      <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden border border-white/20">
+        <div className="bg-gradient-to-r from-blue-800 to-blue-900 p-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold text-white">EN COURS DE VIE</h2>
+            <div className="flex space-x-2">
+              <button className="text-white hover:bg-white/10 p-2 rounded-lg transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                </svg>
               </button>
-              <button 
-                onClick={() => setSelectedTab('details')}
-                className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg transition-colors font-medium"
-              >
-                Annuler
+              <button className="text-white hover:bg-white/10 p-2 rounded-lg transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                </svg>
               </button>
             </div>
           </div>
         </div>
-      )}
+        
+        <div className="p-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {produitsEnCours.map((produit) => (
+              <div key={produit.id} className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all duration-300">
+                {/* En-tête avec logo et titre */}
+                <div className="flex items-start space-x-4 mb-4">
+                  <div className="text-4xl">{produit.logo}</div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold text-gray-800 mb-2">{produit.company}</h3>
+                    <h4 className="text-sm font-medium text-gray-700 leading-tight">{produit.title}</h4>
+                  </div>
+                </div>
+                
+                {/* Détails du produit */}
+                <div className="space-y-3 mb-6">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Sous jacent:</span>
+                    <span className="text-sm font-medium text-gray-800">{produit.sousJacent}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Cours au 14/08/2025:</span>
+                    <span className="text-sm font-medium text-gray-800">{produit.cours}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Performance au 14/08/2025:</span>
+                    <span className={`text-sm font-medium ${produit.performance.startsWith('-') ? 'text-red-600' : 'text-green-600'}`}>
+                      {produit.performance}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Prochaine constatation le:</span>
+                    <span className="text-sm font-medium text-gray-800">{produit.prochaineConstatation}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Prochaine constatation dans:</span>
+                    <span className="text-sm font-medium text-gray-800">{produit.prochaineConstatationDans}</span>
+                  </div>
+                </div>
+                
+                {/* Boutons d'action */}
+                <div className="flex space-x-3">
+                  <button className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg transition-colors font-medium">
+                    Détails
+                  </button>
+                  <button className="flex-1 bg-blue-800 hover:bg-blue-900 text-white py-2 px-4 rounded-lg transition-colors font-medium">
+                    Réserver
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
