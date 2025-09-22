@@ -149,10 +149,15 @@ function App() {
     return validPages.includes(hash) ? hash : 'accueil';
   });
 
+  // État pour le menu mobile
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
   // Function to change page and update URL
   const changePage = (page: string) => {
     setCurrentPage(page);
     window.location.hash = page;
+    // Fermer le menu mobile après navigation
+    setIsMobileMenuOpen(false);
   };
 
   // Initialize URL hash and listen for hash changes
@@ -357,14 +362,24 @@ function App() {
       {/* Header */}
       <header className="bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between px-6 py-4">
+          <div className="flex items-center justify-between px-4 sm:px-6 py-4">
             {/* Logo et Branding */}
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 sm:space-x-4">
+              {/* Menu Hamburger pour mobile */}
+              <button
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="lg:hidden p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+              
               {/* Logo */}
               <img 
                 src="/alliance-courtage-logo.svg" 
                 alt="Alliance Courtage Logo" 
-                className="h-20 w-auto"
+                className="h-12 sm:h-16 md:h-20 w-auto"
               />
               
               {/* Texte de marque */}
@@ -373,8 +388,8 @@ function App() {
             </div>
             
             {/* User Info */}
-            <div className="flex items-center space-x-4">
-              <div className="text-right">
+            <div className="flex items-center space-x-2 sm:space-x-4">
+              <div className="text-right hidden sm:block">
                 <div className="text-sm font-medium text-gray-900">{currentUser?.name}</div>
                 <div className="text-xs text-gray-500">
                   {currentUser?.role === 'admin' ? 'Super Admin' : 'Utilisateur'}
@@ -391,19 +406,42 @@ function App() {
                   localStorage.removeItem('isLoggedIn');
                   localStorage.removeItem('currentUser');
                 }}
-                className="text-gray-500 hover:text-gray-700 text-sm font-medium"
+                className="text-gray-500 hover:text-gray-700 text-xs sm:text-sm font-medium"
               >
-                Déconnexion
+                <span className="hidden sm:inline">Déconnexion</span>
+                <span className="sm:hidden">Déco</span>
               </button>
             </div>
           </div>
         </div>
       </header>
 
-      <div className="flex">
+      <div className="flex flex-col lg:flex-row">
+        {/* Overlay pour mobile */}
+        {isMobileMenuOpen && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+        )}
+        
         {/* Sidebar */}
-        <aside className="w-72 bg-white/80 backdrop-blur-sm border-r border-gray-200 min-h-screen">
-          <nav className="p-6">
+        <aside className={`w-full lg:w-72 bg-white/80 backdrop-blur-sm border-r border-gray-200 lg:min-h-screen transition-transform duration-300 ease-in-out ${
+          isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        } fixed lg:relative z-50 lg:z-auto h-full lg:h-auto`}>
+          <nav className="p-4 sm:p-6">
+            {/* Bouton fermer pour mobile */}
+            <div className="flex justify-between items-center mb-4 lg:hidden">
+              <h2 className="text-lg font-semibold text-gray-800">Menu</h2>
+              <button
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
             <ul className="space-y-3">
               <li>
                 <button 
@@ -580,24 +618,24 @@ function App() {
 // Home Page Component
 function HomePage() {
   return (
-    <div className="max-w-5xl mx-auto space-y-8">
+    <div className="max-w-5xl mx-auto space-y-6 sm:space-y-8 px-4 sm:px-6 lg:px-8">
       {/* Welcome Section */}
-      <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-white/20">
-        <h1 className="text-3xl font-bold text-gray-800 mb-4">Bienvenue chez Alliance Courtage</h1>
+      <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 sm:p-8 border border-white/20">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-4">Bienvenue chez Alliance Courtage</h1>
       </div>
 
       {/* News Section */}
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden border border-white/20">
-        <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-6">
-          <h2 className="text-2xl font-bold text-white">Actualités</h2>
+        <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-4 sm:p-6">
+          <h2 className="text-xl sm:text-2xl font-bold text-white">Actualités</h2>
         </div>
-        <div className="p-6 space-y-6">
+        <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
           {/* News Item 1 */}
-          <div className="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg">
-            <div className="w-3 h-3 bg-indigo-500 rounded-full mt-2"></div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-gray-800 mb-2">Nouvelle réglementation assurance-vie</h3>
-              <p className="text-gray-600 text-sm mb-2">
+          <div className="flex items-start space-x-3 sm:space-x-4 p-3 sm:p-4 bg-gray-50 rounded-lg">
+            <div className="w-3 h-3 bg-indigo-500 rounded-full mt-2 flex-shrink-0"></div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-gray-800 mb-2 text-sm sm:text-base">Nouvelle réglementation assurance-vie</h3>
+              <p className="text-gray-600 text-xs sm:text-sm mb-2">
                 Découvrez les dernières modifications de la réglementation sur l'assurance-vie et leurs impacts sur vos contrats.
               </p>
               <span className="text-xs text-gray-500">15/01/2025</span>
@@ -605,11 +643,11 @@ function HomePage() {
           </div>
 
           {/* News Item 2 */}
-          <div className="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg">
-            <div className="w-3 h-3 bg-purple-500 rounded-full mt-2"></div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-gray-800 mb-2">Évolution des taux d'intérêt</h3>
-              <p className="text-gray-600 text-sm mb-2">
+          <div className="flex items-start space-x-3 sm:space-x-4 p-3 sm:p-4 bg-gray-50 rounded-lg">
+            <div className="w-3 h-3 bg-purple-500 rounded-full mt-2 flex-shrink-0"></div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-gray-800 mb-2 text-sm sm:text-base">Évolution des taux d'intérêt</h3>
+              <p className="text-gray-600 text-xs sm:text-sm mb-2">
                 Analyse des tendances actuelles des taux d'intérêt et conseils pour optimiser vos placements.
               </p>
               <span className="text-xs text-gray-500">12/01/2025</span>
@@ -617,11 +655,11 @@ function HomePage() {
           </div>
 
           {/* News Item 3 */}
-          <div className="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg">
-            <div className="w-3 h-3 bg-pink-500 rounded-full mt-2"></div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-gray-800 mb-2">Nouveaux produits de prévoyance</h3>
-              <p className="text-gray-600 text-sm mb-2">
+          <div className="flex items-start space-x-3 sm:space-x-4 p-3 sm:p-4 bg-gray-50 rounded-lg">
+            <div className="w-3 h-3 bg-pink-500 rounded-full mt-2 flex-shrink-0"></div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-gray-800 mb-2 text-sm sm:text-base">Nouveaux produits de prévoyance</h3>
+              <p className="text-gray-600 text-xs sm:text-sm mb-2">
                 Présentation de nos nouveaux contrats de prévoyance adaptés aux besoins des entreprises.
               </p>
               <span className="text-xs text-gray-500">10/01/2025</span>
@@ -631,10 +669,10 @@ function HomePage() {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
-          <h3 className="text-xl font-semibold text-gray-800 mb-4">Nos Services</h3>
-          <ul className="space-y-2 text-gray-600">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+        <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-4 sm:p-6 border border-white/20">
+          <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-3 sm:mb-4">Nos Services</h3>
+          <ul className="space-y-1 sm:space-y-2 text-gray-600 text-sm sm:text-base">
             <li>• Epargne et retraite</li>
             <li>• Prévoyance et santé</li>
             <li>• Assurances collectives</li>
@@ -642,12 +680,21 @@ function HomePage() {
           </ul>
         </div>
 
-        <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
-          <h3 className="text-xl font-semibold text-gray-800 mb-4">Contact</h3>
-          <div className="space-y-2 text-gray-600">
-            <p>📞 07.45.06.43.88</p>
-            <p>✉️ contact@alliance-courtage.fr</p>
-            <p>📍 Paris, France</p>
+        <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-4 sm:p-6 border border-white/20">
+          <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-3 sm:mb-4">Contact</h3>
+          <div className="space-y-1 sm:space-y-2 text-gray-600 text-sm sm:text-base">
+            <p className="flex items-center">
+              <span className="mr-2">📞</span>
+              <a href="tel:0745064388" className="hover:text-indigo-600 transition-colors">07.45.06.43.88</a>
+            </p>
+            <p className="flex items-center">
+              <span className="mr-2">✉️</span>
+              <a href="mailto:contact@alliance-courtage.fr" className="hover:text-indigo-600 transition-colors">contact@alliance-courtage.fr</a>
+            </p>
+            <p className="flex items-center">
+              <span className="mr-2">📍</span>
+              Paris, France
+            </p>
           </div>
         </div>
       </div>
@@ -961,6 +1008,36 @@ function PartenairesPage() {
           { nom: "Convention de distribution 2024", date: "15/03/2024", type: "Convention" },
           { nom: "Avenant produits d'investissement", date: "05/05/2024", type: "Avenant" }
         ]
+      },
+      {
+        id: 23,
+        nom: "OPENSTONE",
+        logo: "/long_logo.ace9390ed94d50561700.png",
+        site: "https://app.openstone.com/sign-up/partners",
+        documents: [
+          { nom: "Convention de distribution 2024", date: "20/03/2024", type: "Convention" },
+          { nom: "Avenant produits financiers", date: "10/05/2024", type: "Avenant" }
+        ]
+      },
+      {
+        id: 24,
+        nom: "VATEL CAPITAL",
+        logo: "/logoeuq.png",
+        site: "https://www.vatelcapital.com/espaceclients/",
+        documents: [
+          { nom: "Convention de distribution 2024", date: "25/03/2024", type: "Convention" },
+          { nom: "Avenant produits financiers", date: "15/05/2024", type: "Avenant" }
+        ]
+      },
+      {
+        id: 25,
+        nom: "WENIMMO",
+        logo: "/logo.632b013d489863f49f857abc40020291.svg",
+        site: "https://app.wenimmo.com/login",
+        documents: [
+          { nom: "Convention de distribution 2024", date: "30/03/2024", type: "Convention" },
+          { nom: "Avenant produits immobiliers", date: "20/05/2024", type: "Avenant" }
+        ]
       }
     ]
   };
@@ -1040,7 +1117,7 @@ function PartenairesPage() {
                         style={{ maxHeight: '80px' }}
                       />
                     ) : (
-                      <div className="text-6xl">{partenaire.logo}</div>
+                    <div className="text-6xl">{partenaire.logo}</div>
                     )}
                   </div>
                   
@@ -1098,7 +1175,7 @@ function PartenairesPage() {
                         style={{ maxHeight: '80px' }}
                       />
                     ) : (
-                      <div className="text-6xl">{partenaire.logo}</div>
+                    <div className="text-6xl">{partenaire.logo}</div>
                     )}
                   </div>
                   
@@ -1567,7 +1644,7 @@ function ReglementairePage() {
                   {isCompleted && (
                     <div className="text-xs mt-1">✓ Complété</div>
                   )}
-                </button>
+            </button>
               );
             })}
           </div>
@@ -1657,8 +1734,8 @@ function ReglementairePage() {
                   <tr>
                     <td className="border border-gray-300 px-4 py-2 text-gray-500" colSpan={7}>
                       Aucune formation enregistrée pour {selectedCategory === 'all' ? 'cette année' : selectedCategory} en {selectedYear}
-                    </td>
-                  </tr>
+                  </td>
+                </tr>
                 )}
               </tbody>
             </table>
@@ -1863,7 +1940,7 @@ function ProduitsStructuresPage() {
             }`}
           >
             En cours de commercialisation
-          </button>
+              </button>
           <button
             onClick={() => {
               setSelectedSection('termines');
@@ -1877,8 +1954,8 @@ function ProduitsStructuresPage() {
             }`}
           >
             Commercialisation terminée
-          </button>
-        </div>
+              </button>
+            </div>
       </div>
 
       {/* Sub-tabs */}
@@ -1916,52 +1993,52 @@ function ProduitsStructuresPage() {
               Réserver
             </button>
           )}
+          </div>
         </div>
-      </div>
-
+        
       {/* Content based on selected tab */}
       {selectedTab === 'details' && (
         <div className="space-y-6">
           {selectedSection === 'commercialisation' ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {produitsCommercialisation.map((produit) => (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {produitsCommercialisation.map((produit) => (
                 <div key={produit.id} className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-6 hover:shadow-xl transition-all duration-300">
-                  <div className="flex items-start space-x-4 mb-4">
-                    <div className="text-4xl">{produit.logo}</div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold text-gray-800 mb-2">{produit.company}</h3>
-                      <h4 className="text-sm font-medium text-gray-700 leading-tight">{produit.title}</h4>
-                    </div>
+                <div className="flex items-start space-x-4 mb-4">
+                  <div className="text-4xl">{produit.logo}</div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold text-gray-800 mb-2">{produit.company}</h3>
+                    <h4 className="text-sm font-medium text-gray-700 leading-tight">{produit.title}</h4>
                   </div>
-                  
-                  <div className="space-y-3 mb-6">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Sous jacent:</span>
-                      <span className="text-sm font-medium text-gray-800">{produit.sousJacent}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Coupon:</span>
-                      <span className="text-sm font-medium text-gray-800">{produit.coupon}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Commercialisation:</span>
-                      <span className="text-sm font-medium text-gray-800">{produit.commercialisation}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Fin de commercialisation:</span>
-                      <span className="text-sm font-medium text-gray-800">{produit.finCommercialisation}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Montant enveloppe:</span>
-                      <span className="text-sm font-medium text-gray-800">{produit.montantEnveloppe}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Enveloppe restante:</span>
-                      <span className="text-sm font-medium text-gray-800">{produit.enveloppeRestante}</span>
-                    </div>
+                </div>
+                
+                <div className="space-y-3 mb-6">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Sous jacent:</span>
+                    <span className="text-sm font-medium text-gray-800">{produit.sousJacent}</span>
                   </div>
-                  
-                  <div className="flex space-x-3">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Coupon:</span>
+                    <span className="text-sm font-medium text-gray-800">{produit.coupon}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Commercialisation:</span>
+                    <span className="text-sm font-medium text-gray-800">{produit.commercialisation}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Fin de commercialisation:</span>
+                    <span className="text-sm font-medium text-gray-800">{produit.finCommercialisation}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Montant enveloppe:</span>
+                    <span className="text-sm font-medium text-gray-800">{produit.montantEnveloppe}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Enveloppe restante:</span>
+                    <span className="text-sm font-medium text-gray-800">{produit.enveloppeRestante}</span>
+                  </div>
+                </div>
+                
+                <div className="flex space-x-3">
                     <button 
                       onClick={() => {
                         setSelectedProduct(produit);
@@ -1970,7 +2047,7 @@ function ProduitsStructuresPage() {
                       className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg transition-colors font-medium"
                     >
                       Documents
-                    </button>
+                  </button>
                     <button 
                       onClick={() => {
                         setSelectedProduct(produit);
@@ -1978,47 +2055,47 @@ function ProduitsStructuresPage() {
                       }}
                       className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg transition-colors font-medium"
                     >
-                      Réserver
-                    </button>
-                  </div>
+                    Réserver
+                  </button>
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
+          </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {produitsTermines.map((produit) => (
                 <div key={produit.id} className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-6 hover:shadow-xl transition-all duration-300">
-                  <div className="flex items-start space-x-4 mb-4">
-                    <div className="text-4xl">{produit.logo}</div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold text-gray-800 mb-2">{produit.company}</h3>
-                      <h4 className="text-sm font-medium text-gray-700 leading-tight">{produit.title}</h4>
-                    </div>
+                <div className="flex items-start space-x-4 mb-4">
+                  <div className="text-4xl">{produit.logo}</div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold text-gray-800 mb-2">{produit.company}</h3>
+                    <h4 className="text-sm font-medium text-gray-700 leading-tight">{produit.title}</h4>
                   </div>
-                  
-                  <div className="space-y-3 mb-6">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Sous jacent:</span>
-                      <span className="text-sm font-medium text-gray-800">{produit.sousJacent}</span>
-                    </div>
-                    <div className="flex justify-between">
+                </div>
+                
+                <div className="space-y-3 mb-6">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Sous jacent:</span>
+                    <span className="text-sm font-medium text-gray-800">{produit.sousJacent}</span>
+                  </div>
+                  <div className="flex justify-between">
                       <span className="text-sm text-gray-600">Coupon:</span>
                       <span className="text-sm font-medium text-gray-800">{produit.coupon}</span>
-                    </div>
-                    <div className="flex justify-between">
+                  </div>
+                  <div className="flex justify-between">
                       <span className="text-sm text-gray-600">Date fin commercialisation:</span>
                       <span className="text-sm font-medium text-gray-800">{produit.dateFinCommercialisation}</span>
-                    </div>
-                    <div className="flex justify-between">
+                  </div>
+                  <div className="flex justify-between">
                       <span className="text-sm text-gray-600">Montant collecté:</span>
                       <span className="text-sm font-medium text-gray-800">{produit.montantCollecte}</span>
-                    </div>
-                    <div className="flex justify-between">
+                  </div>
+                  <div className="flex justify-between">
                       <span className="text-sm text-gray-600">Nombre de souscripteurs:</span>
                       <span className="text-sm font-medium text-gray-800">{produit.nombreSouscripteurs}</span>
-                    </div>
                   </div>
-                  
+                </div>
+                
                   <button 
                     onClick={() => {
                       setSelectedProduct(produit);
@@ -2073,7 +2150,7 @@ function ProduitsStructuresPage() {
             <div>
               <h2 className="text-xl font-bold text-gray-800">{selectedProduct.company}</h2>
               <p className="text-sm text-gray-600">{selectedProduct.title}</p>
-            </div>
+      </div>
           </div>
           
           <div className="bg-green-50 border border-green-200 rounded-lg p-6">
