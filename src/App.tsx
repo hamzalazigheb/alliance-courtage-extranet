@@ -1294,12 +1294,118 @@ function RencontresPage() {
 // Règlementaire Page Component
 function ReglementairePage() {
   const [expandedFolders, setExpandedFolders] = useState<{[key: string]: boolean}>({});
+  const [selectedYear, setSelectedYear] = useState('2025');
+  const [selectedFormationType, setSelectedFormationType] = useState('validantes'); // 'validantes' ou 'obligatoires'
+  const [selectedCategory, setSelectedCategory] = useState('all'); // 'all', 'CIF', 'IAS', 'IOB', 'IMMOBILIER'
 
   const toggleFolder = (folderId: string) => {
     setExpandedFolders(prev => ({
       ...prev,
       [folderId]: !prev[folderId]
     }));
+  };
+
+  // Données des formations par année et catégorie
+  const formationsData = {
+    '2024': {
+      validantes: [
+        {
+          id: 1,
+          date: '15/03/2024',
+          statut: 'Validée',
+          heures: 7,
+          delivreePar: 'Formation Pro',
+          nomDocument: 'Formation CIF - Gestion de portefeuille',
+          categories: ['CIF'],
+          documentUrl: '#'
+        },
+        {
+          id: 2,
+          date: '22/06/2024',
+          statut: 'Validée',
+          heures: 5,
+          delivreePar: 'Institut IAS',
+          nomDocument: 'Formation IAS - Nouvelles réglementations',
+          categories: ['IAS'],
+          documentUrl: '#'
+        },
+        {
+          id: 3,
+          date: '10/09/2024',
+          statut: 'Validée',
+          heures: 8,
+          delivreePar: 'Centre Formation',
+          nomDocument: 'Formation Multi-catégories - Conformité',
+          categories: ['CIF', 'IAS', 'IOB'],
+          documentUrl: '#'
+        }
+      ],
+      obligatoires: {
+        CIF: 12,
+        IAS: 8,
+        IOB: 6,
+        IMMOBILIER: 4
+      }
+    },
+    '2025': {
+      validantes: [
+        {
+          id: 4,
+          date: '18/01/2025',
+          statut: 'En cours',
+          heures: 6,
+          delivreePar: 'Formation Pro',
+          nomDocument: 'Formation CIF 2025 - Marchés financiers',
+          categories: ['CIF'],
+          documentUrl: '#'
+        },
+        {
+          id: 5,
+          date: '25/02/2025',
+          statut: 'Validée',
+          heures: 4,
+          delivreePar: 'Institut IAS',
+          nomDocument: 'Formation IAS - Mise à jour réglementaire',
+          categories: ['IAS'],
+          documentUrl: '#'
+        }
+      ],
+      obligatoires: {
+        CIF: 8,
+        IAS: 6,
+        IOB: 4,
+        IMMOBILIER: 3
+      }
+    },
+    '2026': {
+      validantes: [],
+      obligatoires: {
+        CIF: 0,
+        IAS: 0,
+        IOB: 0,
+        IMMOBILIER: 0
+      }
+    }
+  };
+
+  // Années disponibles
+  const availableYears = ['2024', '2025', '2026'];
+
+  // Filtrer les formations selon la catégorie sélectionnée
+  const getFilteredFormations = () => {
+    const formations = formationsData[selectedYear as keyof typeof formationsData]?.validantes || [];
+    if (selectedCategory === 'all') {
+      return formations;
+    }
+    return formations.filter(formation => formation.categories.includes(selectedCategory));
+  };
+
+  // Calculer le total d'heures par catégorie pour l'année sélectionnée
+  const getTotalHoursByCategory = (category: string) => {
+    const formations = formationsData[selectedYear as keyof typeof formationsData]?.validantes || [];
+    return formations
+      .filter(formation => formation.categories.includes(category))
+      .reduce((total, formation) => total + formation.heures, 0);
   };
 
   // Structure des 10 dossiers avec documents
@@ -1407,29 +1513,63 @@ function ReglementairePage() {
         </p>
       </div>
 
+      {/* Navigation par Année */}
+      <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-gray-800">Sélection de l'Année</h2>
+          <div className="flex space-x-2">
+            {availableYears.map((year) => (
+              <button
+                key={year}
+                onClick={() => setSelectedYear(year)}
+                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+                  selectedYear === year
+                    ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                {year}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* Section Formations Obligatoires */}
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden border border-white/20">
-        <div className="bg-gradient-to-r from-blue-800 to-blue-900 p-6">
-          <h2 className="text-2xl font-bold text-white">MES FORMATIONS OBLIGATOIRES</h2>
+        <div className="bg-gradient-to-r from-red-800 to-red-900 p-6">
+          <h2 className="text-2xl font-bold text-white">MES FORMATIONS OBLIGATOIRES {selectedYear}</h2>
         </div>
         <div className="p-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <button className="bg-red-600 hover:bg-red-700 text-white p-4 rounded-lg transition-colors">
-              <div className="text-lg font-semibold">IAS</div>
-                  <div className="text-sm opacity-90">0h</div>
-            </button>
-            <button className="bg-red-600 hover:bg-red-700 text-white p-4 rounded-lg transition-colors">
-              <div className="text-lg font-semibold">CIF</div>
-              <div className="text-sm opacity-90">0h</div>
-            </button>
-            <button className="bg-red-600 hover:bg-red-700 text-white p-4 rounded-lg transition-colors">
-              <div className="text-lg font-semibold">IOB</div>
-              <div className="text-sm opacity-90">0h</div>
-            </button>
-            <button className="bg-red-600 hover:bg-red-700 text-white p-4 rounded-lg transition-colors">
-              <div className="text-lg font-semibold">IMMOBILIER</div>
-              <div className="text-sm opacity-90">0h</div>
-            </button>
+            {['IAS', 'CIF', 'IOB', 'IMMOBILIER'].map((category) => {
+              const requiredHours = formationsData[selectedYear as keyof typeof formationsData]?.obligatoires?.[category as keyof typeof formationsData['2024']['obligatoires']] || 0;
+              const completedHours = getTotalHoursByCategory(category);
+              const isCompleted = completedHours >= requiredHours;
+              
+              return (
+                <button 
+                  key={category}
+                  onClick={() => {
+                    setSelectedFormationType('obligatoires');
+                    setSelectedCategory(category);
+                  }}
+                  className={`p-4 rounded-lg transition-colors ${
+                    isCompleted 
+                      ? "bg-green-600 hover:bg-green-700 text-white" 
+                      : "bg-red-600 hover:bg-red-700 text-white"
+                  }`}
+                >
+                  <div className="text-lg font-semibold">{category}</div>
+                  <div className="text-sm opacity-90">
+                    {completedHours}h / {requiredHours}h
+                  </div>
+                  {isCompleted && (
+                    <div className="text-xs mt-1">✓ Complété</div>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -1437,7 +1577,34 @@ function ReglementairePage() {
       {/* Section Formations Validantes */}
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden border border-white/20">
         <div className="bg-gradient-to-r from-blue-800 to-blue-900 p-6">
-          <h2 className="text-2xl font-bold text-white">MES FORMATIONS VALIDANTES 2025</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold text-white">MES FORMATIONS VALIDANTES {selectedYear}</h2>
+            <div className="flex space-x-2">
+              <button
+                onClick={() => setSelectedCategory('all')}
+                className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                  selectedCategory === 'all'
+                    ? "bg-white text-blue-800"
+                    : "bg-blue-600 text-white hover:bg-blue-700"
+                }`}
+              >
+                Toutes
+              </button>
+              {['CIF', 'IAS', 'IOB', 'IMMOBILIER'].map((category) => (
+                <button
+                  key={category}
+                  onClick={() => setSelectedCategory(category)}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                    selectedCategory === category
+                      ? "bg-white text-blue-800"
+                      : "bg-blue-600 text-white hover:bg-blue-700"
+                  }`}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
         <div className="p-6">
           <div className="overflow-x-auto">
@@ -1447,17 +1614,52 @@ function ReglementairePage() {
                   <th className="border border-gray-300 px-4 py-2 text-left font-semibold">Date</th>
                   <th className="border border-gray-300 px-4 py-2 text-left font-semibold">Statut</th>
                   <th className="border border-gray-300 px-4 py-2 text-left font-semibold">Nb d'heures</th>
+                  <th className="border border-gray-300 px-4 py-2 text-left font-semibold">Catégories</th>
                   <th className="border border-gray-300 px-4 py-2 text-left font-semibold">Délivrée par</th>
                   <th className="border border-gray-300 px-4 py-2 text-left font-semibold">Nom document</th>
                   <th className="border border-gray-300 px-4 py-2 text-left font-semibold">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td className="border border-gray-300 px-4 py-2 text-gray-500" colSpan={6}>
-                    Aucune formation enregistrée
-                  </td>
-                </tr>
+                {getFilteredFormations().length > 0 ? (
+                  getFilteredFormations().map((formation) => (
+                    <tr key={formation.id}>
+                      <td className="border border-gray-300 px-4 py-2">{formation.date}</td>
+                      <td className="border border-gray-300 px-4 py-2">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          formation.statut === 'Validée' 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {formation.statut}
+                        </span>
+                      </td>
+                      <td className="border border-gray-300 px-4 py-2 font-medium">{formation.heures}h</td>
+                      <td className="border border-gray-300 px-4 py-2">
+                        <div className="flex flex-wrap gap-1">
+                          {formation.categories.map((category) => (
+                            <span key={category} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                              {category}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="border border-gray-300 px-4 py-2">{formation.delivreePar}</td>
+                      <td className="border border-gray-300 px-4 py-2">{formation.nomDocument}</td>
+                      <td className="border border-gray-300 px-4 py-2">
+                        <button className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm transition-colors">
+                          Télécharger
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td className="border border-gray-300 px-4 py-2 text-gray-500" colSpan={7}>
+                      Aucune formation enregistrée pour {selectedCategory === 'all' ? 'cette année' : selectedCategory} en {selectedYear}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -1465,7 +1667,9 @@ function ReglementairePage() {
             <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors">
               Ajouter une formation
             </button>
-            <span className="text-gray-600 font-medium">TELECHARGEMENTS</span>
+            <div className="text-gray-600 font-medium">
+              Total heures {selectedCategory === 'all' ? 'toutes catégories' : selectedCategory}: {getFilteredFormations().reduce((total, formation) => total + formation.heures, 0)}h
+            </div>
           </div>
         </div>
       </div>
