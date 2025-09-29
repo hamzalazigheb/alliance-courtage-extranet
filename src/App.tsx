@@ -942,7 +942,7 @@ function PartenairesPage() {
       {
         id: 10,
         nom: "MMA",
-        logo: "/logo-mm.png",
+        logo: "/mmm.jpg",
         site: "https://sso.connective-software.fr/error/direct-access",
         documents: [
           { nom: "Protocole de partenariat 2024", date: "10/02/2024", type: "Protocole" },
@@ -952,7 +952,7 @@ function PartenairesPage() {
       {
         id: 11,
         nom: "SELENCIA",
-        logo: "/selenciq.svg",
+        logo: "/s.jpg",
         site: "https://www.selencia-patrimoine.fr/",
         documents: [
           { nom: "Protocole de partenariat 2024", date: "15/02/2024", type: "Protocole" },
@@ -1064,7 +1064,7 @@ function PartenairesPage() {
       {
         id: 23,
         nom: "OPENSTONE",
-        logo: "/long_logo.ace9390ed94d50561700.png",
+        logo: "/open.jpg",
         site: "https://app.openstone.com/sign-up/partners",
         documents: [
           { nom: "Convention de distribution 2024", date: "20/03/2024", type: "Convention" },

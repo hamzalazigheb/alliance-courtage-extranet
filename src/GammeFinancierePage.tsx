@@ -102,223 +102,195 @@ const GammeFinancierePage = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8">
+    <div className="max-w-7xl mx-auto space-y-6">
       {/* Page Header */}
-      <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-white/20">
-        <h1 className="text-3xl font-bold text-gray-800 mb-4">Gamme Financière</h1>
-        <p className="text-gray-600 text-lg">
-          Découvrez notre sélection de supports financiers recommandés pour vos investissements
+      <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-2">Gamme Financière</h1>
+        <p className="text-gray-600">
+          Tableau synthétique de nos supports financiers recommandés
         </p>
       </div>
 
-      {/* Filtres et Recherche */}
-      <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      {/* Filtres compacts */}
+      <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-4 border border-white/20">
+        <div className="flex flex-wrap items-center gap-4">
           {/* Recherche */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Rechercher</label>
+          <div className="flex-1 min-w-64">
             <input
               type="text"
-              placeholder="Nom, ISIN, Gestionnaire..."
+              placeholder="Rechercher un produit..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             />
           </div>
 
           {/* Catégorie */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Catégorie</label>
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            >
-              <option value="tous">Toutes les catégories</option>
-              <option value="fonds-euro">Fonds en Euro</option>
-              <option value="opci-sci">OPCI/SCI</option>
-              <option value="unites-compte">Unités de Compte</option>
-            </select>
-          </div>
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          >
+            <option value="tous">Toutes catégories</option>
+            <option value="fonds-euro">Fonds Euro</option>
+            <option value="opci-sci">OPCI/SCI</option>
+            <option value="unites-compte">Unités de Compte</option>
+          </select>
 
           {/* Tri */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Trier par</label>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            >
-              <option value="nom">Nom</option>
-              <option value="performance">Performance</option>
-              <option value="frais">Frais</option>
-              <option value="volatilite">Volatilité</option>
-            </select>
-          </div>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          >
+            <option value="nom">Nom</option>
+            <option value="performance">Performance</option>
+            <option value="frais">Frais</option>
+            <option value="volatilite">Volatilité</option>
+          </select>
 
           {/* Ordre */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Ordre</label>
-            <select
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            >
-              <option value="asc">Croissant</option>
-              <option value="desc">Décroissant</option>
-            </select>
-          </div>
-        </div>
+          <select
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value)}
+            className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          >
+            <option value="asc">↑</option>
+            <option value="desc">↓</option>
+          </select>
 
-        {/* Filtres supplémentaires */}
-        <div className="flex space-x-4">
-          <label className="flex items-center">
-            <input
-              type="checkbox"
-              checked={showPEAOnly}
-              onChange={(e) => setShowPEAOnly(e.target.checked)}
-              className="mr-2"
-            />
-            <span className="text-sm text-gray-700">Éligible PEA uniquement</span>
-          </label>
-          <label className="flex items-center">
-            <input
-              type="checkbox"
-              checked={showISROnly}
-              onChange={(e) => setShowISROnly(e.target.checked)}
-              className="mr-2"
-            />
-            <span className="text-sm text-gray-700">ISR/ESG uniquement</span>
-          </label>
-        </div>
-      </div>
-
-      {/* Statistiques */}
-      <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="text-center">
-            <div className="text-2xl font-bold text-indigo-600">{filteredProducts.length}</div>
-            <div className="text-sm text-gray-600">Produits trouvés</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-green-600">
-              {filteredProducts.filter(p => p.category === 'Fonds en Euro').length}
-            </div>
-            <div className="text-sm text-gray-600">Fonds en Euro</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-blue-600">
-              {filteredProducts.filter(p => p.category === 'OPCI/SCI').length}
-            </div>
-            <div className="text-sm text-gray-600">OPCI/SCI</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-purple-600">
-              {filteredProducts.filter(p => p.category === 'Unités de Compte').length}
-            </div>
-            <div className="text-sm text-gray-600">Unités de Compte</div>
+          {/* Filtres rapides */}
+          <div className="flex items-center space-x-3">
+            <label className="flex items-center text-sm">
+              <input
+                type="checkbox"
+                checked={showPEAOnly}
+                onChange={(e) => setShowPEAOnly(e.target.checked)}
+                className="mr-1"
+              />
+              <span className="text-gray-700">PEA</span>
+            </label>
+            <label className="flex items-center text-sm">
+              <input
+                type="checkbox"
+                checked={showISROnly}
+                onChange={(e) => setShowISROnly(e.target.checked)}
+                className="mr-1"
+              />
+              <span className="text-gray-700">ISR</span>
+            </label>
           </div>
         </div>
       </div>
 
-      {/* Liste des produits */}
-      <div className="space-y-4">
-        {filteredProducts.map((product) => (
-          <div key={product.id} className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 overflow-hidden">
-            <div className="p-6">
-              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-4">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-3 mb-2">
-                    <h3 className="text-xl font-semibold text-gray-800">{product.nom}</h3>
-                    {product.pea && (
-                      <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
-                        PEA
-                      </span>
+      {/* Statistiques compactes */}
+      <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-4 border border-white/20">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center space-x-6">
+            <div className="text-center">
+              <div className="text-lg font-bold text-indigo-600">{filteredProducts.length}</div>
+              <div className="text-xs text-gray-600">Total</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-green-600">
+                {filteredProducts.filter(p => p.category === 'Fonds en Euro').length}
+              </div>
+              <div className="text-xs text-gray-600">Fonds Euro</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-blue-600">
+                {filteredProducts.filter(p => p.category === 'OPCI/SCI').length}
+              </div>
+              <div className="text-xs text-gray-600">OPCI/SCI</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-purple-600">
+                {filteredProducts.filter(p => p.category === 'Unités de Compte').length}
+              </div>
+              <div className="text-xs text-gray-600">UC</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Tableau synthétique */}
+      <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gestionnaire</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Catégorie</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Performance 2024</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Performance Cumulée</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Frais</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Volatilité 3 ans</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Labels</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {filteredProducts.map((product) => (
+                <tr key={product.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-4 whitespace-nowrap">
+                    <div className="text-sm font-medium text-gray-900">{product.nom}</div>
+                    {product.isin && (
+                      <div className="text-xs text-gray-500">ISIN: {product.isin}</div>
                     )}
-                    {product.isr && (
-                      <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
-                        ISR
-                      </span>
-                    )}
-                    {product.esg > 0 && (
-                      <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded-full">
-                        ESG {product.esg}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-gray-600 mb-1">{product.gestionnaire}</p>
-                  {product.isin && (
-                    <p className="text-sm text-gray-500">ISIN: {product.isin}</p>
-                  )}
-                </div>
-                <div className="mt-4 lg:mt-0 lg:ml-6">
-                  <div className={`px-4 py-2 rounded-lg border ${getPerformanceBgColor(product.performances.cumul2017)}`}>
-                    <div className="text-sm text-gray-600">Performance cumulée depuis 2017</div>
-                    <div className={`text-lg font-bold ${getPerformanceColor(product.performances.cumul2017)}`}>
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900">{product.gestionnaire}</div>
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap text-center">
+                    <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                      product.category === 'Fonds en Euro' ? 'bg-green-100 text-green-800' :
+                      product.category === 'OPCI/SCI' ? 'bg-blue-100 text-blue-800' :
+                      'bg-purple-100 text-purple-800'
+                    }`}>
+                      {product.category === 'Fonds en Euro' ? 'Fonds Euro' :
+                       product.category === 'OPCI/SCI' ? 'OPCI/SCI' : 'UC'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap text-center">
+                    <div className={`text-sm font-medium ${getPerformanceColor(product.performances['2024'])}`}>
+                      {product.performances['2024']}
+                    </div>
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap text-center">
+                    <div className={`text-sm font-medium ${getPerformanceColor(product.performances.cumul2017)}`}>
                       {product.performances.cumul2017}
                     </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Détails des performances */}
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-4">
-                <div className="text-center">
-                  <div className="text-sm text-gray-600">2024</div>
-                  <div className={`font-semibold ${getPerformanceColor(product.performances['2024'])}`}>
-                    {product.performances['2024']}
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-sm text-gray-600">2023</div>
-                  <div className={`font-semibold ${getPerformanceColor(product.performances['2023'])}`}>
-                    {product.performances['2023']}
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-sm text-gray-600">2022</div>
-                  <div className={`font-semibold ${getPerformanceColor(product.performances['2022'])}`}>
-                    {product.performances['2022']}
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-sm text-gray-600">2021</div>
-                  <div className={`font-semibold ${getPerformanceColor(product.performances['2021'])}`}>
-                    {product.performances['2021']}
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-sm text-gray-600">2020</div>
-                  <div className={`font-semibold ${getPerformanceColor(product.performances['2020'])}`}>
-                    {product.performances['2020']}
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-sm text-gray-600">2019</div>
-                  <div className={`font-semibold ${getPerformanceColor(product.performances['2019'])}`}>
-                    {product.performances['2019']}
-                  </div>
-                </div>
-              </div>
-
-              {/* Informations complémentaires */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-gray-200">
-                <div className="text-center">
-                  <div className="text-sm text-gray-600">Frais de gestion</div>
-                  <div className="font-semibold text-gray-800">{product.frais}</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-sm text-gray-600">Volatilité 3 ans</div>
-                  <div className="font-semibold text-gray-800">{product.volatilite3ans}</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-sm text-gray-600">Volatilité 5 ans</div>
-                  <div className="font-semibold text-gray-800">{product.volatilite5ans}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap text-center">
+                    <div className="text-sm text-gray-900">{product.frais}</div>
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap text-center">
+                    <div className="text-sm text-gray-900">{product.volatilite3ans}</div>
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap text-center">
+                    <div className="flex justify-center space-x-1">
+                      {product.pea && (
+                        <span className="inline-flex px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+                          PEA
+                        </span>
+                      )}
+                      {product.isr && (
+                        <span className="inline-flex px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                          ISR
+                        </span>
+                      )}
+                      {product.esg > 0 && (
+                        <span className="inline-flex px-2 py-1 text-xs font-medium bg-purple-100 text-purple-800 rounded-full">
+                          ESG {product.esg}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {filteredProducts.length === 0 && (
