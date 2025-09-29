@@ -665,6 +665,58 @@ function HomePage() {
               <span className="text-xs text-gray-500">10/01/2025</span>
             </div>
           </div>
+
+          {/* Newsletter patrimoniale */}
+          <div className="relative overflow-hidden bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl border border-green-200 shadow-sm hover:shadow-md transition-all duration-300">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-green-100 rounded-full -mr-10 -mt-10 opacity-50"></div>
+            <div className="absolute bottom-0 left-0 w-16 h-16 bg-emerald-100 rounded-full -ml-8 -mb-8 opacity-30"></div>
+            
+            <div className="relative p-4 sm:p-6">
+              <div className="flex items-start space-x-4">
+                <div className="flex-shrink-0">
+                  <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                </div>
+                
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <h3 className="text-lg font-bold text-gray-800">Newsletter patrimoniale</h3>
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      Rentrée 2025
+                    </span>
+                  </div>
+                  
+                  <p className="text-gray-600 text-sm mb-4 leading-relaxed">
+                    Découvrez notre newsletter patrimoniale spéciale rentrée 2025 avec les dernières tendances et conseils d'investissement pour optimiser votre patrimoine.
+                  </p>
+                  
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <a 
+                      href="/Newsletter patrimoniale - Rentrée 2025.pdf" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-medium rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                    >
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Télécharger le PDF
+                    </a>
+                    
+                    <div className="flex items-center text-xs text-gray-500">
+                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Publication récente
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -728,7 +780,7 @@ function GammeProduitsPage() {
         retraite: ["PER"],
         prevoyance: ["Assurance décès / invalidité / incapacité", "Assurance emprunteur"],
         sante: ["Mutuelle santé"],
-        cif: ["Conseil en investissement", "Gestion de portefeuille", "Placements financiers", "Stratégies d'investissement"]
+        cif: ["SCPI", "Private Equity", "Défiscalisation", "Diversification"]
       },
       professionnel: {
         epargne: ["Capitalisation", "PEE"],
