@@ -139,7 +139,8 @@ function App() {
   // État de connexion avec persistance
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     const savedLoginState = localStorage.getItem('isLoggedIn');
-    return savedLoginState === 'true';
+    const savedUser = localStorage.getItem('currentUser');
+    return savedLoginState === 'true' && savedUser !== null;
   });
   
   const [currentPage, setCurrentPage] = useState(() => {
@@ -182,13 +183,19 @@ function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     const savedUser = localStorage.getItem('currentUser');
     if (savedUser) {
-      const user = JSON.parse(savedUser);
-      // Update cached user if it's VALOSA to use new name
-      if (user.name === 'VALOSA') {
-        user.name = 'JEAN MARTIN';
-        localStorage.setItem('currentUser', JSON.stringify(user));
+      try {
+        const user = JSON.parse(savedUser);
+        // Update cached user if it's VALOSA to use new name
+        if (user.name === 'VALOSA') {
+          user.name = 'JEAN MARTIN';
+          localStorage.setItem('currentUser', JSON.stringify(user));
+        }
+        return user;
+      } catch (error) {
+        console.error('Error parsing saved user:', error);
+        localStorage.removeItem('currentUser');
+        return null;
       }
-      return user;
     }
     return null;
   });
