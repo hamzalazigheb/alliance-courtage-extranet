@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  alliance-courtage:
+    build: .
+    ports:
+      - "80:80"
+    restart: unless-stopped
+    container_name: alliance-courtage-extranet
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - ./logs:/var/log/nginx
+    networks:
+      - alliance-network
+
+networks:
+  alliance-network:
+    driver: bridge
