@@ -31,9 +31,9 @@ services:
     environment:
       # Ensure service name for DB resolution
       DB_HOST: mysql
-      PORT: 4000
+      PORT: 3000
     ports:
-      - "4000:4000"
+      - "3000:3000"
     volumes:
       - api_uploads:/app/uploads
 

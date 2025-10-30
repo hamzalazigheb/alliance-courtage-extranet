@@ -24,8 +24,8 @@ docker compose up -d --build
 ### 3) Health checks
 
 ```bash
-curl -i http://localhost:80/            # frontend
-curl -i http://localhost:4000/api/health  # backend
+curl -i http://localhost:80/               # frontend
+curl -i http://localhost:3000/api/health   # backend
 ```
 
 ### 4) Database initialization
@@ -34,7 +34,7 @@ If your app expects tables (e.g., `user_sessions`, `cms_content`, `bordereaux`),
 
 ### 5) Configure frontend API base URL
 
-Ensure your frontend uses `VITE_API_BASE_URL` pointing to `http://<EC2_PUBLIC_IP>:4000` (or domain). Build-time variable.
+Ensure your frontend uses `VITE_API_BASE_URL` pointing to `http://<EC2_PUBLIC_IP>:3000` (or domain). Build-time variable.
 
 ### 6) EC2 setup (Ubuntu)
 
