@@ -467,7 +467,7 @@ function App() {
                   <div className={`w-4 h-4 rounded-md ${
                     currentPage === "gamme-financiere" ? "bg-white/20" : "border-2 border-gray-400"
                   }`}></div>
-                  <span className={currentPage === "gamme-financiere" ? "font-semibold" : ""}>Gamme FinanciÃ¨re</span>
+                  <span className={currentPage === "gamme-financiere" ? "font-semibold" : ""}>Gamme Financière</span>
                 </button>
               </li>
               <li>

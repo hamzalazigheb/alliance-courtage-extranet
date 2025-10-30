@@ -1,7 +1,26 @@
 import React, { useState, useEffect } from "react";
 import GammeFinancierePage from './GammeFinancierePage';
+import StructuredProductsDashboard from './StructuredProductsDashboard';
+import AdminDashboard from './AdminDashboard';
+import ProduitsStructuresPageComponent from './ProduitsStructuresPage';
+import NosArchivesPage from './NosArchivesPage';
+import ManagePage from './ManagePage';
+import { authAPI } from './api';
 
 // Types pour les utilisateurs et fichiers
+interface AuthUserRecord {
+  id: number | string;
+  nom: string;
+  prenom: string;
+  email: string;
+  role: 'admin' | 'user' | string;
+}
+
+interface LoginResponse {
+  token: string;
+  user: AuthUserRecord;
+}
+
 interface User {
   id: string;
   name: string;
@@ -30,21 +49,29 @@ function LoginPage({ onLogin, users }: { onLogin: (user: User) => void, users: U
     e.preventDefault();
     setIsLoading(true);
     
-    // Simulation de connexion
-    setTimeout(() => {
+    try {
+      // Connexion via l'API backend
+      const response: LoginResponse = await authAPI.login(email, password);
+      
+      // Sauvegarder le token et nettoyer les anciennes clés legacy
+      localStorage.setItem('token', response.token);
+      localStorage.removeItem('user');
+      localStorage.removeItem('manageAuth');
+      
+      // Créer l'objet utilisateur pour onLogin
+      const user: User = {
+        id: response.user.id.toString(),
+        name: `${response.user.prenom} ${response.user.nom}`,
+        email: response.user.email,
+        role: response.user.role === 'admin' ? 'admin' : 'user'
+      };
+      
       setIsLoading(false);
-      if (email && password) {
-        // Trouver l'utilisateur correspondant
-        const user = users.find(u => u.email === email);
-        if (user) {
-          onLogin(user);
-        } else {
-          alert("Utilisateur non trouvé");
-        }
-      } else {
-        alert("Veuillez remplir tous les champs");
-      }
-    }, 1500);
+      onLogin(user);
+    } catch (error) {
+      setIsLoading(false);
+      alert(error instanceof Error ? error.message : "Erreur de connexion");
+    }
   };
 
   return (
@@ -89,6 +116,40 @@ function LoginPage({ onLogin, users }: { onLogin: (user: User) => void, users: U
               />
             </div>
 
+            {/* Forgot Password Link */}
+            <div className="text-right">
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!email) {
+                    alert('Veuillez d\'abord entrer votre email');
+                    return;
+                  }
+                  
+                  try {
+                    const response = await fetch('http://localhost:3001/api/password-reset/request', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ email })
+                    });
+
+                    const data = await response.json();
+                    if (response.ok) {
+                      alert('✅ Demande envoyée ! Un administrateur va réinitialiser votre mot de passe.');
+                    } else {
+                      alert(data.error || 'Erreur lors de la demande de réinitialisation');
+                    }
+                  } catch (error) {
+                    console.error('Error:', error);
+                    alert('Erreur de connexion');
+                  }
+                }}
+                className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+              >
+                Mot de passe oublié ?
+              </button>
+            </div>
+
             {/* Login Button */}
             <button
               type="submit"
@@ -109,12 +170,6 @@ function LoginPage({ onLogin, users }: { onLogin: (user: User) => void, users: U
                 />
                 <span>Se souvenir de moi</span>
               </label>
-              <button
-                type="button"
-                className="text-gray-500 hover:text-gray-700 bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded-lg transition-colors"
-              >
-                Mot de passe oublié ?
-              </button>
             </div>
           </form>
         </div>
@@ -146,7 +201,7 @@ function App() {
   const [currentPage, setCurrentPage] = useState(() => {
     // Get page from URL hash or default to accueil
     const hash = window.location.hash.slice(1); // Remove the # symbol
-    const validPages = ['accueil', 'gamme-produits', 'partenaires', 'rencontres', 'reglementaire', 'produits-structures', 'simulateurs', 'comptabilite', 'gestion-utilisateurs'];
+    const validPages = ['accueil', 'gamme-produits', 'partenaires', 'rencontres', 'reglementaire', 'produits-structures', 'simulateurs', 'comptabilite', 'gestion-comptabilite', 'nos-archives', 'manage'];
     return validPages.includes(hash) ? hash : 'accueil';
   });
 
@@ -170,7 +225,7 @@ function App() {
 
     const handleHashChange = () => {
       const hash = window.location.hash.slice(1);
-      const validPages = ['accueil', 'gamme-produits', 'partenaires', 'rencontres', 'reglementaire', 'produits-structures', 'simulateurs', 'comptabilite', 'gestion-utilisateurs'];
+      const validPages = ['accueil', 'gamme-produits', 'partenaires', 'rencontres', 'reglementaire', 'produits-structures', 'simulateurs', 'comptabilite', 'gestion-comptabilite', 'nos-archives', 'manage'];
       if (validPages.includes(hash)) {
         setCurrentPage(hash);
       }
@@ -200,30 +255,8 @@ function App() {
     return null;
   });
   
-  // Données utilisateurs (simulation)
-  const users: User[] = [
-    { id: '1', name: 'JEAN MARTIN', email: 'admin@alliance.com', role: 'admin' },
-    { id: '2', name: 'MARTIN', email: 'martin@alliance.com', role: 'user' },
-    { id: '3', name: 'DUPONT', email: 'dupont@alliance.com', role: 'user' },
-    { id: '4', name: 'BERNARD', email: 'bernard@alliance.com', role: 'user' },
-    { id: '5', name: 'THOMAS', email: 'thomas@alliance.com', role: 'user' },
-    { id: '6', name: 'PETIT', email: 'petit@alliance.com', role: 'user' },
-    { id: '7', name: 'ROBERT', email: 'robert@alliance.com', role: 'user' },
-    { id: '8', name: 'RICHARD', email: 'richard@alliance.com', role: 'user' },
-    { id: '9', name: 'DURAND', email: 'durand@alliance.com', role: 'user' },
-    { id: '10', name: 'DUBOIS', email: 'dubois@alliance.com', role: 'user' },
-    { id: '11', name: 'MOREAU', email: 'moreau@alliance.com', role: 'user' },
-    { id: '12', name: 'LAURENT', email: 'laurent@alliance.com', role: 'user' },
-    { id: '13', name: 'SIMON', email: 'simon@alliance.com', role: 'user' },
-    { id: '14', name: 'MICHEL', email: 'michel@alliance.com', role: 'user' },
-    { id: '15', name: 'LEFEBVRE', email: 'lefebvre@alliance.com', role: 'user' },
-    { id: '16', name: 'LEROY', email: 'leroy@alliance.com', role: 'user' },
-    { id: '17', name: 'ROUX', email: 'roux@alliance.com', role: 'user' },
-    { id: '18', name: 'DAVID', email: 'david@alliance.com', role: 'user' },
-    { id: '19', name: 'BERTRAND', email: 'bertrand@alliance.com', role: 'user' },
-    { id: '20', name: 'MOREL', email: 'morel@alliance.com', role: 'user' },
-    { id: '21', name: 'FOURNIER', email: 'fournier@alliance.com', role: 'user' }
-  ];
+  // Users loaded from database - no static users needed
+  const users: User[] = [];
 
   // Données bordereaux (simulation) - VIDÉES POUR LE TEST
   const [bordereaux, setBordereaux] = useState<BordereauFile[]>([]);
@@ -341,13 +374,17 @@ function App() {
       case "reglementaire":
         return <ReglementairePage />;
       case "produits-structures":
-        return <ProduitsStructuresPage />;
+        return <ProduitsStructuresPageComponent />;
       case "simulateurs":
         return <SimulateursPage />;
       case "comptabilite":
         return <ComptabilitePage currentUser={currentUser} bordereaux={bordereaux} />;
-      case "gestion-utilisateurs":
-        return <GestionUtilisateursPage users={users} onFileUpload={handleFileUpload} clearAllBordereaux={clearAllBordereaux} />;
+      case "gestion-comptabilite":
+        return <GestionComptabilitePage currentUser={currentUser} />;
+      case "nos-archives":
+        return <NosArchivesPageComponent />;
+              case "manage":
+        return <ManagePage />;
       default:
         return <HomePage />;
     }
@@ -362,6 +399,11 @@ function App() {
       localStorage.setItem('isLoggedIn', 'true');
       localStorage.setItem('currentUser', JSON.stringify(user));
     }} users={users} />;
+  }
+
+  // Render ManagePage independently without sidebar
+  if (currentPage === "manage") {
+    return <ManagePage />;
   }
 
   return (
@@ -381,14 +423,12 @@ function App() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               </button>
-              
-              {/* Logo */}
+              {/* Logo placed above Accueil (left of header) */}
               <img 
                 src="/alliance-courtage-logo.svg" 
                 alt="Alliance Courtage Logo" 
                 className="h-12 sm:h-16 md:h-20 w-auto"
               />
-              
               {/* Texte de marque */}
               <div>
               </div>
@@ -412,6 +452,9 @@ function App() {
                   // Nettoyer localStorage lors de la déconnexion
                   localStorage.removeItem('isLoggedIn');
                   localStorage.removeItem('currentUser');
+                  localStorage.removeItem('token');
+                  localStorage.removeItem('user');
+                  localStorage.removeItem('manageAuth');
                 }}
                 className="text-gray-500 hover:text-gray-700 text-xs sm:text-sm font-medium"
               >
@@ -449,13 +492,14 @@ function App() {
                 </svg>
               </button>
             </div>
+            
             <ul className="space-y-3">
               <li>
                 <button 
                   onClick={() => changePage("accueil")}
                   className={`w-full flex items-center space-x-4 px-4 py-3 rounded-xl transition-all duration-200 ${
                     currentPage === "accueil" 
-                      ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg" 
+                      ? "bg-gradient-to-r from-[#0B1220] to-[#1D4ED8] text-white shadow-lg" 
                       : "text-gray-700 hover:bg-gradient-to-r hover:from-gray-100 hover:to-gray-200"
                   }`}
                 >
@@ -470,7 +514,7 @@ function App() {
                   onClick={() => changePage("gamme-produits")}
                   className={`w-full flex items-center space-x-4 px-4 py-3 rounded-xl transition-all duration-200 ${
                     currentPage === "gamme-produits" 
-                      ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg" 
+                      ? "bg-gradient-to-r from-[#0B1220] to-[#1D4ED8] text-white shadow-lg" 
                       : "text-gray-700 hover:bg-gradient-to-r hover:from-gray-100 hover:to-gray-200"
                   }`}
                 >
@@ -489,7 +533,7 @@ function App() {
                   }}
                   className={`w-full flex items-center space-x-4 px-4 py-3 rounded-xl transition-all duration-200 ${
                     currentPage === "partenaires" 
-                      ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg" 
+                      ? "bg-gradient-to-r from-[#0B1220] to-[#1D4ED8] text-white shadow-lg" 
                       : "text-gray-700 hover:bg-gradient-to-r hover:from-gray-100 hover:to-gray-200"
                   }`}
                 >
@@ -504,7 +548,7 @@ function App() {
                   onClick={() => changePage("gamme-financiere")}
                   className={`w-full flex items-center space-x-4 px-4 py-3 rounded-xl transition-all duration-200 ${
                     currentPage === "gamme-financiere" 
-                      ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg" 
+                      ? "bg-gradient-to-r from-[#0B1220] to-[#1D4ED8] text-white shadow-lg" 
                       : "text-gray-700 hover:bg-gradient-to-r hover:from-gray-100 hover:to-gray-200"
                   }`}
                 >
@@ -519,7 +563,7 @@ function App() {
                   onClick={() => changePage("produits-structures")}
                   className={`w-full flex items-center space-x-4 px-4 py-3 rounded-xl transition-all duration-200 ${
                     currentPage === "produits-structures" 
-                      ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg" 
+                      ? "bg-gradient-to-r from-[#0B1220] to-[#1D4ED8] text-white shadow-lg" 
                       : "text-gray-700 hover:bg-gradient-to-r hover:from-gray-100 hover:to-gray-200"
                   }`}
                 >
@@ -534,7 +578,7 @@ function App() {
                   onClick={() => changePage("simulateurs")}
                   className={`w-full flex items-center space-x-4 px-4 py-3 rounded-xl transition-all duration-200 ${
                     currentPage === "simulateurs" 
-                      ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg" 
+                      ? "bg-gradient-to-r from-[#0B1220] to-[#1D4ED8] text-white shadow-lg" 
                       : "text-gray-700 hover:bg-gradient-to-r hover:from-gray-100 hover:to-gray-200"
                   }`}
                 >
@@ -549,7 +593,7 @@ function App() {
                   onClick={() => changePage("rencontres")}
                   className={`w-full flex items-center space-x-4 px-4 py-3 rounded-xl transition-all duration-200 ${
                     currentPage === "rencontres" 
-                      ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg" 
+                      ? "bg-gradient-to-r from-[#0B1220] to-[#1D4ED8] text-white shadow-lg" 
                       : "text-gray-700 hover:bg-gradient-to-r hover:from-gray-100 hover:to-gray-200"
                   }`}
                 >
@@ -565,7 +609,7 @@ function App() {
                   onClick={() => changePage("comptabilite")}
                   className={`w-full flex items-center space-x-4 px-4 py-3 rounded-xl transition-all duration-200 ${
                     currentPage === "comptabilite" 
-                      ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg" 
+                      ? "bg-gradient-to-r from-[#0B1220] to-[#1D4ED8] text-white shadow-lg" 
                       : "text-gray-700 hover:bg-gradient-to-r hover:from-gray-100 hover:to-gray-200"
                   }`}
                 >
@@ -575,31 +619,30 @@ function App() {
                   <span className={currentPage === "comptabilite" ? "font-semibold" : ""}>Comptabilité</span>
                 </button>
               </li>
-              
-              {/* Menu Admin seulement visible pour les admins */}
               {currentUser?.role === 'admin' && (
                 <li>
                   <button 
-                    onClick={() => changePage("gestion-utilisateurs")}
+                    onClick={() => changePage("gestion-comptabilite")}
                     className={`w-full flex items-center space-x-4 px-4 py-3 rounded-xl transition-all duration-200 ${
-                      currentPage === "gestion-utilisateurs" 
-                        ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg" 
+                      currentPage === "gestion-comptabilite" 
+                        ? "bg-gradient-to-r from-[#0B1220] to-[#1D4ED8] text-white shadow-lg" 
                         : "text-gray-700 hover:bg-gradient-to-r hover:from-gray-100 hover:to-gray-200"
                     }`}
                   >
                     <div className={`w-4 h-4 rounded-md ${
-                      currentPage === "gestion-utilisateurs" ? "bg-white/20" : "border-2 border-gray-400"
+                      currentPage === "gestion-comptabilite" ? "bg-white/20" : "border-2 border-gray-400"
                     }`}></div>
-                    <span className={currentPage === "gestion-utilisateurs" ? "font-semibold" : ""}>👥 Gestion Utilisateurs</span>
+                    <span className={currentPage === "gestion-comptabilite" ? "font-semibold" : ""}>Gestion Comptabilité</span>
                   </button>
                 </li>
               )}
+              
               <li>
                 <button 
                   onClick={() => changePage("reglementaire")}
                   className={`w-full flex items-center space-x-4 px-4 py-3 rounded-xl transition-all duration-200 ${
                     currentPage === "reglementaire" 
-                      ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg" 
+                      ? "bg-gradient-to-r from-[#0B1220] to-[#1D4ED8] text-white shadow-lg" 
                       : "text-gray-700 hover:bg-gradient-to-r hover:from-gray-100 hover:to-gray-200"
                   }`}
                 >
@@ -607,6 +650,21 @@ function App() {
                     currentPage === "reglementaire" ? "bg-white/20" : "border-2 border-gray-400"
                   }`}></div>
                   <span className={currentPage === "reglementaire" ? "font-semibold" : ""}>Règlementaire</span>
+                </button>
+              </li>
+              <li>
+                <button 
+                  onClick={() => changePage("nos-archives")}
+                  className={`w-full flex items-center space-x-4 px-4 py-3 rounded-xl transition-all duration-200 ${
+                    currentPage === "nos-archives" 
+                      ? "bg-gradient-to-r from-[#0B1220] to-[#1D4ED8] text-white shadow-lg" 
+                      : "text-gray-700 hover:bg-gradient-to-r hover:from-gray-100 hover:to-gray-200"
+                  }`}
+                >
+                  <div className={`w-4 h-4 rounded-md ${
+                    currentPage === "nos-archives" ? "bg-white/20" : "border-2 border-gray-400"
+                  }`}></div>
+                  <span className={currentPage === "nos-archives" ? "font-semibold" : ""}>Nos Archives</span>
                 </button>
               </li>
             </ul>
@@ -622,58 +680,85 @@ function App() {
   );
 }
 
-// Home Page Component
+// Home Page Component - Now loads content dynamically from CMS
 function HomePage() {
+  interface HomePageContent {
+    welcomeTitle: string;
+    news: Array<{ title: string; content: string; date: string; color: string }>;
+    newsletter: { title: string; badge: string; description: string; filePath: string; isRecent: boolean } | null;
+    services: Array<{ name: string }>;
+    contact: { phone: string; email: string; location: string };
+  }
+
+  const [content, setContent] = useState<HomePageContent>({
+    welcomeTitle: 'Bienvenue chez Alliance Courtage',
+    news: [],
+    newsletter: null,
+    services: [],
+    contact: { phone: '07.45.06.43.88', email: 'contact@alliance-courtage.fr', location: 'Paris, France' }
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadContent();
+  }, []);
+
+  const loadContent = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:3001/api/cms/home', {
+        headers: { 'x-auth-token': token || '' }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.content) setContent(JSON.parse(data.content));
+      }
+    } catch (error) {
+      console.error('Error loading CMS:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getColorClass = (color: string) => {
+    const colors: { [key: string]: string } = { indigo: 'bg-indigo-500', purple: 'bg-purple-500', pink: 'bg-pink-500', green: 'bg-green-500', blue: 'bg-blue-500' };
+    return colors[color] || 'bg-indigo-500';
+  };
+
+  if (loading) {
+    return (
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto"></div>
+        <p className="mt-4 text-gray-600">Chargement...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-5xl mx-auto space-y-6 sm:space-y-8 px-4 sm:px-6 lg:px-8">
       {/* Welcome Section */}
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 sm:p-8 border border-white/20">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-4">Bienvenue chez Alliance Courtage</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-4">{content.welcomeTitle}</h1>
       </div>
 
       {/* News Section */}
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden border border-white/20">
-        <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-4 sm:p-6">
+        <div className="bg-gradient-to-r from-[#0B1220] to-[#1D4ED8] p-4 sm:p-6">
           <h2 className="text-xl sm:text-2xl font-bold text-white">Actualités</h2>
         </div>
         <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-          {/* News Item 1 */}
-          <div className="flex items-start space-x-3 sm:space-x-4 p-3 sm:p-4 bg-gray-50 rounded-lg">
-            <div className="w-3 h-3 bg-indigo-500 rounded-full mt-2 flex-shrink-0"></div>
-            <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-gray-800 mb-2 text-sm sm:text-base">Nouvelle réglementation assurance-vie</h3>
-              <p className="text-gray-600 text-xs sm:text-sm mb-2">
-                Découvrez les dernières modifications de la réglementation sur l'assurance-vie et leurs impacts sur vos contrats.
-              </p>
-              <span className="text-xs text-gray-500">15/01/2025</span>
+          {content.news && content.news.length > 0 ? (
+            content.news.map((newsItem, index) => (
+              <div key={index} className="p-3 sm:p-4 bg-gray-50 rounded-lg">
+            <div className="min-w-0">
+                  <h3 className="font-semibold text-gray-800 mb-2 text-sm sm:text-base">{newsItem.title}</h3>
+                  <p className="text-gray-600 text-xs sm:text-sm mb-2">{newsItem.content}</p>
+                  <span className="text-xs text-gray-500">{newsItem.date}</span>
             </div>
           </div>
-
-          {/* News Item 2 */}
-          <div className="flex items-start space-x-3 sm:space-x-4 p-3 sm:p-4 bg-gray-50 rounded-lg">
-            <div className="w-3 h-3 bg-purple-500 rounded-full mt-2 flex-shrink-0"></div>
-            <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-gray-800 mb-2 text-sm sm:text-base">Évolution des taux d'intérêt</h3>
-              <p className="text-gray-600 text-xs sm:text-sm mb-2">
-                Analyse des tendances actuelles des taux d'intérêt et conseils pour optimiser vos placements.
-              </p>
-              <span className="text-xs text-gray-500">12/01/2025</span>
-            </div>
-          </div>
-
-          {/* News Item 3 */}
-          <div className="flex items-start space-x-3 sm:space-x-4 p-3 sm:p-4 bg-gray-50 rounded-lg">
-            <div className="w-3 h-3 bg-pink-500 rounded-full mt-2 flex-shrink-0"></div>
-            <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-gray-800 mb-2 text-sm sm:text-base">Nouveaux produits de prévoyance</h3>
-              <p className="text-gray-600 text-xs sm:text-sm mb-2">
-                Présentation de nos nouveaux contrats de prévoyance adaptés aux besoins des entreprises.
-              </p>
-              <span className="text-xs text-gray-500">10/01/2025</span>
-            </div>
-          </div>
-
-          {/* Newsletter patrimoniale */}
+            ))
+          ) : null}
+          {content.newsletter && (
           <div className="relative overflow-hidden bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl border border-green-200 shadow-sm hover:shadow-md transition-all duration-300">
             <div className="absolute top-0 right-0 w-20 h-20 bg-green-100 rounded-full -mr-10 -mt-10 opacity-50"></div>
             <div className="absolute bottom-0 left-0 w-16 h-16 bg-emerald-100 rounded-full -ml-8 -mb-8 opacity-30"></div>
@@ -724,18 +809,20 @@ function HomePage() {
               </div>
             </div>
           </div>
+          )}
         </div>
       </div>
 
-      {/* Quick Actions */}
+      {/* Services and Contact Section */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
         <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-4 sm:p-6 border border-white/20">
           <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-3 sm:mb-4">Nos Services</h3>
           <ul className="space-y-1 sm:space-y-2 text-gray-600 text-sm sm:text-base">
-            <li>• Epargne et retraite</li>
-            <li>• Prévoyance et santé</li>
-            <li>• Assurances collectives</li>
-            <li>• Investissement financier (CIF)</li>
+            {content.services && content.services.length > 0 ? (
+              content.services.map((service, index) => (
+                <li key={index}>• {service.name}</li>
+              ))
+            ) : null}
           </ul>
         </div>
 
@@ -744,15 +831,15 @@ function HomePage() {
           <div className="space-y-1 sm:space-y-2 text-gray-600 text-sm sm:text-base">
             <p className="flex items-center">
               <span className="mr-2">📞</span>
-              <a href="tel:0745064388" className="hover:text-indigo-600 transition-colors">07.45.06.43.88</a>
+              <a href={`tel:${content.contact.phone.replace(/\./g, '')}`} className="hover:text-indigo-600 transition-colors">{content.contact.phone}</a>
             </p>
             <p className="flex items-center">
               <span className="mr-2">✉️</span>
-              <a href="mailto:contact@alliance-courtage.fr" className="hover:text-indigo-600 transition-colors">contact@alliance-courtage.fr</a>
+              <a href={`mailto:${content.contact.email}`} className="hover:text-indigo-600 transition-colors">{content.contact.email}</a>
             </p>
             <p className="flex items-center">
               <span className="mr-2">📍</span>
-              Paris, France
+              {content.contact.location}
             </p>
           </div>
         </div>
@@ -765,6 +852,8 @@ function HomePage() {
 function GammeProduitsPage() {
   const [selectedClientType, setSelectedClientType] = useState("particulier");
   const [selectedProductType, setSelectedProductType] = useState("epargne");
+  const [cmsProducts, setCmsProducts] = useState<any | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
   const clientTypes = [
     { id: "particulier", name: "Particulier", icon: "👤" },
@@ -773,15 +862,36 @@ function GammeProduitsPage() {
   ];
 
   const productTypes = [
-    { id: "epargne", name: "Épargne", icon: "💰" },
-    { id: "retraite", name: "Retraite", icon: "🏖️" },
-    { id: "prevoyance", name: "Prévoyance", icon: "🛡️" },
-    { id: "sante", name: "Santé", icon: "🏥" },
-    { id: "cif", name: "Conseil en investissement financier", icon: "📈" }
+    { id: "epargne", name: "Épargne" },
+    { id: "retraite", name: "Retraite" },
+    { id: "prevoyance", name: "Prévoyance" },
+    { id: "sante", name: "Santé" },
+    { id: "cif", name: "Conseil en investissement financier" }
   ];
 
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const resp = await fetch('http://localhost:3001/api/cms/gamme-produits', {
+          headers: { 'x-auth-token': localStorage.getItem('token') || '' }
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data?.content) {
+            setCmsProducts(JSON.parse(data.content));
+          }
+        }
+      } catch {
+        // ignore and fallback
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
   const getProducts = () => {
-    const products = {
+    const fallback = {
       particulier: {
         epargne: ["Assurance vie", "Capitalisation", "PEA assurance"],
         retraite: ["PER"],
@@ -804,17 +914,28 @@ function GammeProduitsPage() {
         cif: ["Conseil d'entreprise", "Investissements corporatifs", "Gestion financière", "Stratégies d'investissement"]
       }
     };
-    return products[selectedClientType][selectedProductType] || [];
+    const matrix = cmsProducts?.products || fallback;
+    return (matrix[selectedClientType] && matrix[selectedClientType][selectedProductType]) || [];
   };
+
+  // Resolve catalogue URL from CMS (safe for hash routing)
+  const catalogUrl = (() => {
+    const url = cmsProducts?.catalogue?.fileUrl || '';
+    if (!url) return '';
+    if (/^https?:\/\//i.test(url)) return url; // absolute
+    return url.startsWith('/') ? url : `/${url}`; // make absolute path
+  })();
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
       {/* Page Header */}
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-white/20">
-        <h1 className="text-3xl font-bold text-gray-800 mb-4">Gamme Produits</h1>
+        <h1 className="text-3xl font-bold text-gray-800 mb-4">{cmsProducts?.title || 'Gamme Produits'}</h1>
+        {!loading && (
         <p className="text-gray-600 text-lg">
-          Découvrez nos solutions adaptées à chaque type de client et de produit
+            {cmsProducts?.subtitle || 'Découvrez nos solutions adaptées à chaque type de client et de produit'}
         </p>
+        )}
       </div>
 
       {/* Client Type Selection */}
@@ -831,7 +952,6 @@ function GammeProduitsPage() {
                   : "border-gray-200 hover:border-gray-300"
               }`}
             >
-              <div className="text-3xl mb-2">{type.icon}</div>
               <div className="font-medium text-gray-800">{type.name}</div>
             </button>
           ))}
@@ -842,7 +962,10 @@ function GammeProduitsPage() {
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
         <h2 className="text-xl font-semibold text-gray-800 mb-4">Type de Produit</h2>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          {productTypes.map((type) => (
+          {(cmsProducts?.products && Object.keys(cmsProducts.products[selectedClientType] || {}).length > 0
+            ? Object.keys(cmsProducts.products[selectedClientType] || {}).map((k: string) => ({ id: k, name: k }))
+            : productTypes
+          ).map((type: any) => (
             <button
               key={type.id}
               onClick={() => setSelectedProductType(type.id)}
@@ -852,7 +975,6 @@ function GammeProduitsPage() {
                   : "border-gray-200 hover:border-gray-300"
               }`}
             >
-              <div className="text-2xl mb-2">{type.icon}</div>
               <div className="font-medium text-gray-800 text-sm">{type.name}</div>
             </button>
           ))}
@@ -862,7 +984,11 @@ function GammeProduitsPage() {
       {/* Products Display */}
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
         <h2 className="text-xl font-semibold text-gray-800 mb-4">
-          Produits {clientTypes.find(t => t.id === selectedClientType)?.name} - {productTypes.find(t => t.id === selectedProductType)?.name}
+          Produits {clientTypes.find(t => t.id === selectedClientType)?.name} - {(
+            cmsProducts?.products && cmsProducts.products[selectedClientType] && cmsProducts.products[selectedClientType][selectedProductType]
+              ? selectedProductType
+              : productTypes.find(t => t.id === selectedProductType)?.name
+          )}
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {getProducts().map((product, index) => (
@@ -875,6 +1001,67 @@ function GammeProduitsPage() {
           ))}
         </div>
       </div>
+
+      {/* Download Block Footer */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-slate-800 to-blue-700 rounded-xl border border-white/20 shadow-sm hover:shadow-md transition-all duration-300">
+        <div className="p-4 sm:p-6">
+          <div className="flex items-start space-x-4">
+            <div className="flex-shrink-0">
+              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+            </div>
+            
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center space-x-2 mb-2">
+                <h3 className="text-lg font-bold text-white">{cmsProducts?.catalogue?.title || 'Téléchargez notre catalogue produits'}</h3>
+                {cmsProducts?.catalogue?.badge && (
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-white/20 text-white">
+                    {cmsProducts.catalogue.badge}
+                </span>
+                )}
+              </div>
+              
+              {(
+              <p className="text-white/80 text-sm mb-4 leading-relaxed">
+                  {cmsProducts?.catalogue?.description || "Découvrez notre gamme complète de produits d'assurance et d'investissement pour tous vos besoins."}
+              </p>
+              )}
+              
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                {catalogUrl ? (
+                  <a href={catalogUrl} target="_blank" rel="noopener noreferrer" download className="inline-flex items-center justify-center px-4 py-2 bg-white/20 text-white text-sm font-medium rounded-lg hover:bg-white/30 transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5">
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  {cmsProducts?.catalogue?.downloadLabel || 'Télécharger le PDF'}
+                </a>
+                ) : (
+                  <button disabled className="inline-flex items-center justify-center px-4 py-2 bg-white/10 text-white/70 text-sm font-medium rounded-lg cursor-not-allowed">
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    {cmsProducts?.catalogue?.downloadLabel || 'Télécharger le PDF'}
+                </button>
+                )}
+                
+                <div className="flex items-center text-xs text-white/60">
+                  <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  {cmsProducts?.catalogue?.updatedAtLabel || 'Mise à jour 2025'}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Decorative elements */}
+        <div className="absolute top-0 right-0 w-20 h-20 bg-white/5 rounded-full -translate-y-10 translate-x-10"></div>
+        <div className="absolute bottom-0 left-0 w-16 h-16 bg-white/5 rounded-full translate-y-8 -translate-x-8"></div>
+      </div>
     </div>
   );
 }
@@ -882,224 +1069,37 @@ function GammeProduitsPage() {
 // Partenaires Page Component
 function PartenairesPage() {
   const [selectedCategory, setSelectedCategory] = useState("tous");
+  const [partenaires, setPartenaires] = useState({ coa: [], cif: [] });
+  const [loading, setLoading] = useState(true);
 
-  // Données des partenaires
-  const partenaires = {
-    coa: [
-      {
-        id: 5,
-        nom: "ABEILLE VIE",
-        logo: "/abeille-assurances-logo.svg",
-        site: "https://www.abeille-assurances.fr",
-        documents: [
-          { nom: "Protocole de partenariat 2024", date: "15/01/2024", type: "Protocole" },
-          { nom: "Convention vie", date: "10/06/2023", type: "Convention" }
-        ]
-      },
-      {
-        id: 6,
-        nom: "AG2R",
-        logo: "/AG2R.png",
-        site: "https://inscription-partenaires.ag2rlamondiale.fr/#/home",
-        documents: [
-          { nom: "Protocole de partenariat 2024", date: "20/01/2024", type: "Protocole" },
-          { nom: "Convention retraite", date: "15/05/2024", type: "Convention" }
-        ]
-      },
-      {
-        id: 4,
-        nom: "CNP Assurances",
-        logo: "🟡",
-        site: "https://www.cnp.fr",
-        documents: [
-          { nom: "Protocole de partenariat 2024", date: "30/01/2024", type: "Protocole" },
-          { nom: "Avenant retraite", date: "18/04/2024", type: "Avenant" }
-        ]
-      },
-      {
-        id: 7,
-        nom: "CARDIF",
-        logo: "/cqrdif.svg",
-        site: "https://finagora.cardif.fr/fr/web/finagora/login",
-        documents: [
-          { nom: "Protocole de partenariat 2024", date: "25/01/2024", type: "Protocole" },
-          { nom: "Convention Finagora", date: "18/06/2024", type: "Convention" }
-        ]
-      },
-      {
-        id: 8,
-        nom: "CARDIF Luxembourg",
-        logo: "/CARLV_BL_F_Q.webp",
-        site: "https://cardifluxvie.com/",
-        documents: [
-          { nom: "Protocole de partenariat 2024", date: "30/01/2024", type: "Protocole" },
-          { nom: "Convention Wealth Management", date: "20/06/2024", type: "Convention" }
-        ]
-      },
-      {
-        id: 9,
-        nom: "GENERALI PATRIMOINE",
-        logo: "/general.png",
-        site: "https://www.ssogf.generali.fr/user/auth/dologin?tabId=976550373",
-        documents: [
-          { nom: "Protocole de partenariat 2024", date: "05/02/2024", type: "Protocole" },
-          { nom: "Convention Patrimoine", date: "25/06/2024", type: "Convention" }
-        ]
-      },
-      {
-        id: 10,
-        nom: "MMA",
-        logo: "/mmm.jpg",
-        site: "https://sso.connective-software.fr/error/direct-access",
-        documents: [
-          { nom: "Protocole de partenariat 2024", date: "10/02/2024", type: "Protocole" },
-          { nom: "Convention MMA", date: "30/06/2024", type: "Convention" }
-        ]
-      },
-      {
-        id: 11,
-        nom: "SELENCIA",
-        logo: "/s.jpg",
-        site: "https://www.selencia-patrimoine.fr/",
-        documents: [
-          { nom: "Protocole de partenariat 2024", date: "15/02/2024", type: "Protocole" },
-          { nom: "Convention Patrimoine", date: "05/07/2024", type: "Convention" }
-        ]
-      },
-      {
-        id: 12,
-        nom: "SWISSLIFE",
-        logo: "/swiss.svg",
-        site: "https://www.swisslifeone.fr/index-swisslifeOne.html",
-        documents: [
-          { nom: "Protocole de partenariat 2024", date: "20/02/2024", type: "Protocole" },
-          { nom: "Convention SwissLife One", date: "10/07/2024", type: "Convention" }
-        ]
-      },
-      {
-        id: 13,
-        nom: "UAF PATRIMOINE",
-        logo: "/vie.svg",
-        site: "https://portal.oriadys.fr/web/cgpi/login",
-        documents: [
-          { nom: "Protocole de partenariat 2024", date: "25/02/2024", type: "Protocole" },
-          { nom: "Convention Oriadys", date: "15/07/2024", type: "Convention" }
-        ]
+  // Charger les partenaires depuis l'API
+  useEffect(() => {
+    const loadPartenaires = async () => {
+      try {
+        // Load all partners (including inactive for testing)
+        const response = await fetch('http://localhost:3001/api/partners?active=false');
+        const data = await response.json();
+        
+        console.log('📊 Partners loaded from API:', data.length);
+        
+        // Organiser par catégorie (only active partners for display)
+        const coa = data.filter((p: any) => p.is_active && (p.category === 'coa' || p.category?.toLowerCase() === 'coa'));
+        const cif = data.filter((p: any) => p.is_active && (p.category === 'cif' || p.category?.toLowerCase() === 'cif'));
+        
+        setPartenaires({ coa, cif });
+        
+        console.log(`✅ Active COA: ${coa.length}, Active CIF: ${cif.length}`);
+        console.log('COA Partners:', coa.map((p: any) => p.nom));
+        console.log('CIF Partners:', cif.map((p: any) => p.nom));
+      } catch (error) {
+        console.error('Erreur chargement partenaires:', error);
+      } finally {
+        setLoading(false);
       }
-    ],
-    cif: [
-      {
-        id: 15,
-        nom: "AESTIAM",
-        logo: "/logo-aestiam-2025-blanc.svg",
-        site: "https://www.aestiam.com/",
-        documents: [
-          { nom: "Convention de distribution 2024", date: "10/02/2024", type: "Convention" },
-          { nom: "Avenant SCPI", date: "30/03/2024", type: "Avenant" }
-        ]
-      },
-      {
-        id: 16,
-        nom: "ALTAREA IM",
-        logo: "/ALTAREA_IM_LOGO_RVB_coul_hd-990x983.webp",
-        site: "https://altarea-im.com/",
-        documents: [
-          { nom: "Convention de distribution 2024", date: "15/02/2024", type: "Convention" },
-          { nom: "Avenant SCPI Alta Convictions", date: "05/04/2024", type: "Avenant" }
-        ]
-      },
-      {
-        id: 17,
-        nom: "ATLAND VOISIN",
-        logo: "/atlandpng.png",
-        site: "https://extranet.atland-voisin.com/index.php",
-        documents: [
-          { nom: "Convention de distribution 2024", date: "20/02/2024", type: "Convention" },
-          { nom: "Avenant produits immobiliers", date: "10/04/2024", type: "Avenant" }
-        ]
-      },
-      {
-        id: 18,
-        nom: "EURYALE",
-        logo: "/eura.svg",
-        site: "https://www.euryale-am.fr/",
-        documents: [
-          { nom: "Convention de distribution 2024", date: "25/02/2024", type: "Convention" },
-          { nom: "Avenant SCPI Santé", date: "15/04/2024", type: "Avenant" }
-        ]
-      },
-      {
-        id: 19,
-        nom: "ECOFIP",
-        logo: "/Logo-ECOFIP-Orange.svg",
-        site: "https://www.ecofip.com/",
-        documents: [
-          { nom: "Convention de distribution 2024", date: "28/02/2024", type: "Convention" },
-          { nom: "Avenant Loi Girardin", date: "20/04/2024", type: "Avenant" }
-        ]
-      },
-      {
-        id: 20,
-        nom: "EPSENS",
-        logo: "/logo_malakoff_humanis_epargne.png",
-        site: "https://www.partenaires-epargnesalariale.com/accueil-groupes-reseaux-1-e/@fd/index.php?ctrl=logout&nu=1&su=&idu=",
-        documents: [
-          { nom: "Convention de distribution 2024", date: "05/03/2024", type: "Convention" },
-          { nom: "Avenant épargne salariale", date: "25/04/2024", type: "Avenant" }
-        ]
-      },
-      {
-        id: 21,
-        nom: "NORMA CAPITAL",
-        logo: "/normalcapital.png",
-        site: "https://normacapital.mipise.fr/fr/users/sign_in",
-        documents: [
-          { nom: "Convention de distribution 2024", date: "10/03/2024", type: "Convention" },
-          { nom: "Avenant produits financiers", date: "30/04/2024", type: "Avenant" }
-        ]
-      },
-      {
-        id: 22,
-        nom: "OPALE CAPITALE",
-        logo: "/opale-blue-d-721jGM.png",
-        site: "https://partner.opalecapital.com/login",
-        documents: [
-          { nom: "Convention de distribution 2024", date: "15/03/2024", type: "Convention" },
-          { nom: "Avenant produits d'investissement", date: "05/05/2024", type: "Avenant" }
-        ]
-      },
-      {
-        id: 23,
-        nom: "OPENSTONE",
-        logo: "/open.jpg",
-        site: "https://app.openstone.com/sign-up/partners",
-        documents: [
-          { nom: "Convention de distribution 2024", date: "20/03/2024", type: "Convention" },
-          { nom: "Avenant produits financiers", date: "10/05/2024", type: "Avenant" }
-        ]
-      },
-      {
-        id: 24,
-        nom: "VATEL CAPITAL",
-        logo: "/logoeuq.png",
-        site: "https://www.vatelcapital.com/espaceclients/",
-        documents: [
-          { nom: "Convention de distribution 2024", date: "25/03/2024", type: "Convention" },
-          { nom: "Avenant produits financiers", date: "15/05/2024", type: "Avenant" }
-        ]
-      },
-      {
-        id: 25,
-        nom: "WENIMMO",
-        logo: "/logo.632b013d489863f49f857abc40020291.svg",
-        site: "https://app.wenimmo.com/login",
-        documents: [
-          { nom: "Convention de distribution 2024", date: "30/03/2024", type: "Convention" },
-          { nom: "Avenant produits immobiliers", date: "20/05/2024", type: "Avenant" }
-        ]
-      }
-    ]
-  };
+    };
+    
+    loadPartenaires();
+  }, []);
 
   const getFilteredPartenaires = () => {
     if (selectedCategory === "coa") return partenaires.coa;
@@ -1164,11 +1164,24 @@ function PartenairesPage() {
               Partenaires Courtiers en Assurances
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {partenaires.coa.map((partenaire) => (
-                <div key={partenaire.id} className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden hover:shadow-xl transition-all duration-300">
+              {partenaires.coa.map((partenaire, index) => (
+                <div key={`coa-${partenaire.id}-${index}`} className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden hover:shadow-xl transition-all duration-300">
                   {/* Logo */}
                   <div className={`h-32 flex items-center justify-center ${partenaire.nom === 'AESTIAM' ? 'bg-gray-800' : 'bg-gradient-to-br from-gray-50 to-gray-100'}`}>
-                    {partenaire.logo.startsWith('/') ? (
+                    {partenaire.logo_url && partenaire.logo_url.startsWith('/uploads/') ? (
+                      <img 
+                        src={`http://localhost:3001${partenaire.logo_url}`} 
+                        alt={`Logo ${partenaire.nom}`}
+                        className="h-20 w-auto object-contain max-w-full"
+                        style={{ maxHeight: '80px' }}
+                        onError={(e) => {
+                          console.error('Image failed to load:', partenaire.logo_url);
+                          (e.target as HTMLImageElement).style.display = 'none';
+                          (e.target as HTMLImageElement).parentElement!.innerHTML = `<div class="w-20 h-20 bg-gradient-to-br from-blue-400 to-purple-400 rounded-lg flex items-center justify-center text-white font-bold text-2xl">${partenaire.nom.charAt(0)}</div>`;
+                        }}
+                      />
+                    ) : partenaire.logo ? (
+                      partenaire.logo.startsWith('http') ? (
                       <img 
                         src={partenaire.logo} 
                         alt={`Logo ${partenaire.nom}`}
@@ -1176,7 +1189,21 @@ function PartenairesPage() {
                         style={{ maxHeight: '80px' }}
                       />
                     ) : (
-                    <div className="text-6xl">{partenaire.logo}</div>
+                        <img 
+                          src={partenaire.logo} 
+                          alt={`Logo ${partenaire.nom}`}
+                          className="h-20 w-auto object-contain max-w-full"
+                          style={{ maxHeight: '80px' }}
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                            (e.target as HTMLImageElement).parentElement!.innerHTML = `<div class="w-20 h-20 bg-gradient-to-br from-blue-400 to-purple-400 rounded-lg flex items-center justify-center text-white font-bold text-2xl">${partenaire.nom.charAt(0)}</div>`;
+                          }}
+                        />
+                      )
+                    ) : (
+                      <div className="w-20 h-20 bg-gradient-to-br from-blue-400 to-purple-400 rounded-lg flex items-center justify-center text-white font-bold text-2xl">
+                        {partenaire.nom.charAt(0)}
+                      </div>
                     )}
                   </div>
                   
@@ -1186,7 +1213,7 @@ function PartenairesPage() {
                     
                     {/* Lien vers le site */}
                     <a
-                      href={partenaire.site}
+                      href={partenaire.website || partenaire.site}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="block text-center text-indigo-600 hover:text-indigo-800 text-sm font-medium hover:underline"
@@ -1194,10 +1221,11 @@ function PartenairesPage() {
                       🌐 Visiter le site
                     </a>
                     
-                    {/* Documents contractuels */}
+                    {/* Documents contractuels (seulement pour les fallback avec documents) */}
+                    {partenaire.documents && Array.isArray(partenaire.documents) && partenaire.documents.length > 0 && (
                     <div className="space-y-2">
                       <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Documents récents</h4>
-                      {partenaire.documents.slice(0, 2).map((doc, index) => (
+                        {partenaire.documents.slice(0, 2).map((doc: any, index: number) => (
                         <div key={index} className="text-xs text-gray-600 bg-gray-50 p-2 rounded">
                           <div className="font-medium">{doc.nom}</div>
                           <div className="flex justify-between text-gray-500">
@@ -1207,6 +1235,12 @@ function PartenairesPage() {
                         </div>
                       ))}
                     </div>
+                    )}
+                    
+                    {/* Description (seulement pour les partenaires de la DB) */}
+                    {(!partenaire.documents || !Array.isArray(partenaire.documents)) && partenaire.description && (
+                      <p className="text-xs text-gray-600 text-center line-clamp-2">{partenaire.description}</p>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1222,11 +1256,24 @@ function PartenairesPage() {
               Partenaires Conseillers en Investissements Financiers
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {partenaires.cif.map((partenaire) => (
-                <div key={partenaire.id} className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden hover:shadow-xl transition-all duration-300">
+              {partenaires.cif.map((partenaire, index) => (
+                <div key={`cif-${partenaire.id}-${index}`} className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden hover:shadow-xl transition-all duration-300">
                   {/* Logo */}
                   <div className={`h-32 flex items-center justify-center ${partenaire.nom === 'AESTIAM' ? 'bg-gray-800' : 'bg-gradient-to-br from-gray-50 to-gray-100'}`}>
-                    {partenaire.logo.startsWith('/') ? (
+                    {partenaire.logo_url && partenaire.logo_url.startsWith('/uploads/') ? (
+                      <img 
+                        src={`http://localhost:3001${partenaire.logo_url}`} 
+                        alt={`Logo ${partenaire.nom}`}
+                        className="h-20 w-auto object-contain max-w-full"
+                        style={{ maxHeight: '80px' }}
+                        onError={(e) => {
+                          console.error('Image failed to load:', partenaire.logo_url);
+                          (e.target as HTMLImageElement).style.display = 'none';
+                          (e.target as HTMLImageElement).parentElement!.innerHTML = `<div class="w-20 h-20 bg-gradient-to-br from-blue-400 to-purple-400 rounded-lg flex items-center justify-center text-white font-bold text-2xl">${partenaire.nom.charAt(0)}</div>`;
+                        }}
+                      />
+                    ) : partenaire.logo ? (
+                      partenaire.logo.startsWith('http') ? (
                       <img 
                         src={partenaire.logo} 
                         alt={`Logo ${partenaire.nom}`}
@@ -1234,7 +1281,21 @@ function PartenairesPage() {
                         style={{ maxHeight: '80px' }}
                       />
                     ) : (
-                    <div className="text-6xl">{partenaire.logo}</div>
+                        <img 
+                          src={partenaire.logo} 
+                          alt={`Logo ${partenaire.nom}`}
+                          className="h-20 w-auto object-contain max-w-full"
+                          style={{ maxHeight: '80px' }}
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                            (e.target as HTMLImageElement).parentElement!.innerHTML = `<div class="w-20 h-20 bg-gradient-to-br from-purple-400 to-pink-400 rounded-lg flex items-center justify-center text-white font-bold text-2xl">${partenaire.nom.charAt(0)}</div>`;
+                          }}
+                        />
+                      )
+                    ) : (
+                      <div className="w-20 h-20 bg-gradient-to-br from-purple-400 to-pink-400 rounded-lg flex items-center justify-center text-white font-bold text-2xl">
+                        {partenaire.nom.charAt(0)}
+                      </div>
                     )}
                   </div>
                   
@@ -1244,7 +1305,7 @@ function PartenairesPage() {
                     
                     {/* Lien vers le site */}
                     <a
-                      href={partenaire.site}
+                      href={partenaire.website || partenaire.site}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="block text-center text-purple-600 hover:text-purple-800 text-sm font-medium hover:underline"
@@ -1252,10 +1313,11 @@ function PartenairesPage() {
                       🌐 Visiter le site
                     </a>
                     
-                    {/* Documents contractuels */}
+                    {/* Documents contractuels (seulement pour les fallback avec documents) */}
+                    {partenaire.documents && Array.isArray(partenaire.documents) && partenaire.documents.length > 0 && (
                     <div className="space-y-2">
                       <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Documents récents</h4>
-                      {partenaire.documents.slice(0, 2).map((doc, index) => (
+                        {partenaire.documents.slice(0, 2).map((doc: any, index: number) => (
                         <div key={index} className="text-xs text-gray-600 bg-gray-50 p-2 rounded">
                           <div className="font-medium">{doc.nom}</div>
                           <div className="flex justify-between text-gray-500">
@@ -1265,6 +1327,12 @@ function PartenairesPage() {
                         </div>
                       ))}
                     </div>
+                    )}
+                    
+                    {/* Description (seulement pour les partenaires de la DB) */}
+                    {(!partenaire.documents || !Array.isArray(partenaire.documents)) && partenaire.description && (
+                      <p className="text-xs text-gray-600 text-center line-clamp-2">{partenaire.description}</p>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1277,11 +1345,13 @@ function PartenairesPage() {
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
         <h2 className="text-2xl font-bold text-gray-800 mb-6">Protocoles et Documents Contractuels</h2>
         <div className="space-y-4">
-          {getFilteredPartenaires().map((partenaire) => (
+          {getFilteredPartenaires()
+            .filter((partenaire) => partenaire.documents && Array.isArray(partenaire.documents) && partenaire.documents.length > 0)
+            .map((partenaire) => (
             <div key={partenaire.id} className="border border-gray-200 rounded-lg p-4">
               <h3 className="font-semibold text-gray-800 mb-3">{partenaire.nom}</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {partenaire.documents.map((doc, index) => (
+                {partenaire.documents.map((doc: any, index: number) => (
                   <div key={index} className="bg-gray-50 p-3 rounded border border-gray-200">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-medium text-gray-600 bg-white px-2 py-1 rounded">
@@ -2421,6 +2491,28 @@ function ComptabilitePage({ currentUser, bordereaux }: { currentUser: User | nul
   const [smsCode, setSmsCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [selectedYear, setSelectedYear] = useState("2025");
+  const [userFiles, setUserFiles] = useState<any[]>([]);
+  
+  // Load files from database for current user
+  useEffect(() => {
+    const loadUserFiles = async () => {
+      if (!currentUser?.id) return;
+      try {
+        const response = await fetch(`http://localhost:3001/api/archives?user_id=${currentUser.id}`, {
+          headers: {
+            'x-auth-token': localStorage.getItem('token') || ''
+          }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setUserFiles(data);
+        }
+      } catch (error) {
+        console.error('Error loading user files:', error);
+      }
+    };
+    loadUserFiles();
+  }, [currentUser?.id]);
   
   // Debug simple pour vérifier le chargement
   console.log('ComptabilitePage loaded for user:', currentUser?.name);
@@ -2497,14 +2589,29 @@ Alliance Courtage - Extranet
     bordereau.userId === currentUser?.id && bordereau.year === selectedYear
   );
 
-  // Grouper par mois
-  const bordereauxByMonth = userBordereaux.reduce((acc, bordereau) => {
-    if (!acc[bordereau.month]) {
-      acc[bordereau.month] = [];
+  // Combine database files with bordereaux
+  const displayFiles = userFiles.map(file => ({
+    id: `db_${file.id}`,
+    fileName: file.title || file.file_path?.split('/').pop() || 'Unknown',
+    uploadDate: file.created_at,
+    month: file.created_at ? new Date(file.created_at).toLocaleString('fr-FR', { month: 'long' }) : 'Unknown',
+    year: file.year || new Date().getFullYear().toString(),
+    userId: file.uploaded_by?.toString() || '',
+    uploadedBy: file.uploaded_by_nom && file.uploaded_by_prenom ? `${file.uploaded_by_prenom} ${file.uploaded_by_nom}` : 'Admin',
+    file_path: file.file_path
+  }));
+  
+  // Combine both sources
+  const allUserFiles = [...userBordereaux, ...displayFiles];
+
+  // Grouper par mois (including files from database)
+  const bordereauxByMonth = allUserFiles.reduce((acc, file) => {
+    if (!acc[file.month]) {
+      acc[file.month] = [];
     }
-    acc[bordereau.month].push(bordereau);
+    acc[file.month].push(file);
     return acc;
-  }, {} as Record<string, BordereauFile[]>);
+  }, {} as Record<string, any[]>);
 
   // Debug: Afficher les données dans la console
   console.log('🔍 Debug Comptabilité pour', currentUser?.name, ':', {
@@ -2715,25 +2822,31 @@ Alliance Courtage - Extranet
                           <span className="truncate font-medium text-sm">{file.fileName}</span>
                         </div>
                         <div className="text-xs text-gray-500">
-                          Uploadé le: {file.uploadDate} par {file.uploadedBy}
+                          Uploadé le: {new Date(file.uploadDate).toLocaleDateString('fr-FR')} par {file.uploadedBy}
                         </div>
                       </div>
                       
                       <div className="flex space-x-2">
+                        {file.id?.startsWith('db_') && file.file_path ? (
+                          <a 
+                            href={`http://localhost:3001${file.file_path}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-3 rounded-lg transition-colors text-sm font-medium text-center"
+                          >
+                            Télécharger
+                          </a>
+                        ) : (
                         <button 
                           onClick={(e) => {
                             e.preventDefault();
-                            console.log('🖱️ Bouton télécharger cliqué pour:', file.fileName);
-                            alert(`Tentative de téléchargement de: ${file.fileName}`);
                             handleDownload(file.fileName);
                           }}
                           className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-3 rounded-lg transition-colors text-sm font-medium"
                         >
                           Télécharger
                         </button>
-                        <button className="bg-green-600 hover:bg-green-700 text-white py-2 px-3 rounded-lg transition-colors text-sm font-medium">
-                          📁
-                        </button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -2756,7 +2869,7 @@ Alliance Courtage - Extranet
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="text-center p-4 bg-blue-50 rounded-lg">
             <div className="text-2xl font-bold text-blue-600">
-              {userBordereaux.length}
+              {allUserFiles.length}
             </div>
             <div className="text-sm text-gray-600">Total bordereaux</div>
           </div>
@@ -2773,6 +2886,498 @@ Alliance Courtage - Extranet
             <div className="text-sm text-gray-600">Mois en attente</div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Gestion Comptabilité Page Component - Display all users for admin
+function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) {
+  const [users, setUsers] = useState<Array<{
+    id: number;
+    email: string;
+    nom: string;
+    prenom: string;
+    role: string;
+    is_active: boolean;
+    created_at: string;
+  }>>([]);
+  const [loading, setLoading] = useState(false);
+  // Bulk upload state
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [invalidNamedFiles, setInvalidNamedFiles] = useState<string[]>([]);
+  const [fileUserMapping, setFileUserMapping] = useState<{fileIndex: number, userId: number, score: number}[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [selectedUserIdForBulk, setSelectedUserIdForBulk] = useState<number | ''>('');
+  const [recentUploads, setRecentUploads] = useState<Array<{ archiveId: number; fileUrl: string; title: string; userId: number; userLabel: string; createdAt: string }>>([]);
+
+  useEffect(() => {
+    if (currentUser?.role === 'admin') {
+      loadUsers();
+      // Load recent uploads from backend so they persist across sessions
+      (async () => {
+        try {
+          const res = await fetch('http://localhost:3001/api/archives/recent?limit=20', {
+            headers: { 'x-auth-token': localStorage.getItem('token') || '' }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setRecentUploads(data);
+          }
+        } catch {}
+      })();
+    }
+  }, [currentUser]);
+
+  const loadUsers = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('http://localhost:3001/api/users', {
+        headers: {
+          'x-auth-token': localStorage.getItem('token') || ''
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(data);
+      } else {
+        console.error('Failed to load users');
+      }
+    } catch (error) {
+      console.error('Error loading users:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Utilities for smart matching
+  const normalize = (s: string) =>
+    s
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\.[^/.]+$/, '') // remove extension
+      .replace(/[-_.()\s]+/g, ' ') // unify separators
+      .trim();
+
+  // Return best userId and a confidence score [0..100]
+  const matchFileToUser = (fileName: string): { userId: number | null, score: number } => {
+    const fileNorm = normalize(fileName);
+    let best: { userId: number | null, score: number } = { userId: null, score: 0 };
+
+    users.forEach((u) => {
+      const nom = normalize(u.nom);
+      const prenom = normalize(u.prenom);
+      const full1 = `${prenom} ${nom}`.trim();
+      const full2 = `${nom} ${prenom}`.trim();
+      const initials = `${prenom.charAt(0)}${nom.charAt(0)}`;
+      const emailLocal = normalize((u.email || '').split('@')[0] || '');
+
+      let score = 0;
+      if (fileNorm === full1 || fileNorm === full2) score = Math.max(score, 100);
+      if (fileNorm.includes(full1) || fileNorm.includes(full2)) score = Math.max(score, 95);
+      if (fileNorm.includes(prenom) && fileNorm.includes(nom)) score = Math.max(score, 90);
+      if (emailLocal && (emailLocal.includes(nom) || emailLocal.includes(prenom)) && fileNorm.includes(emailLocal)) score = Math.max(score, 85);
+      if (fileNorm.includes(initials)) score = Math.max(score, 75);
+      if (nom.length >= 3 && fileNorm.includes(nom.substring(0, 3))) score = Math.max(score, 70);
+      if (prenom.length >= 3 && fileNorm.includes(prenom.substring(0, 3))) score = Math.max(score, 70);
+
+      if (score > best.score) best = { userId: u.id, score };
+    });
+
+    // threshold
+    if (best.score < 80) return { userId: null, score: best.score };
+    return best;
+  };
+
+  // Handle bulk file selection
+  const handleBulkFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    // Enforce: filename must begin with a letter
+    const valid = files.filter(f => /^[A-Za-zÀ-ÿ]/.test(f.name));
+    const invalid = files.filter(f => !/^[A-Za-zÀ-ÿ]/.test(f.name)).map(f => f.name);
+    setSelectedFiles(valid);
+    setInvalidNamedFiles(invalid);
+    
+    // If a user is preselected, clear mapping; otherwise attempt auto-match
+    if (selectedUserIdForBulk) {
+      setFileUserMapping([]);
+    } else {
+      const mapping: {fileIndex: number, userId: number, score: number}[] = [];
+      valid.forEach((file, index) => {
+        const { userId, score } = matchFileToUser(file.name);
+        if (userId) mapping.push({ fileIndex: index, userId, score });
+      });
+      setFileUserMapping(mapping);
+    }
+  };
+
+  // Handle bulk upload
+  const handleBulkUpload = async () => {
+    if (selectedFiles.length === 0) {
+      alert('Veuillez sélectionner au moins un fichier');
+      return;
+    }
+
+    setUploading(true);
+    
+    try {
+      let successCount = 0;
+      let failCount = 0;
+      
+      // Upload each file with its matched user
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i];
+        const mapping = selectedUserIdForBulk
+          ? { fileIndex: i, userId: Number(selectedUserIdForBulk), score: 100 }
+          : fileUserMapping.find(m => m.fileIndex === i);
+        
+        if (!mapping) {
+          console.warn(`No user mapping found for file ${file.name}, skipping...`);
+          failCount++;
+          continue;
+        }
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('user_id', mapping.userId.toString());
+        
+        const response = await fetch('http://localhost:3001/api/archives', {
+          method: 'POST',
+          headers: {
+            'x-auth-token': localStorage.getItem('token') || ''
+          },
+          body: formData
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          const u = users.find(u => u.id === mapping.userId);
+          setRecentUploads(prev => [
+            {
+              archiveId: data.archiveId,
+              fileUrl: data.fileUrl || data.filePath,
+              title: data.title || file.name,
+              userId: mapping.userId,
+              userLabel: u ? `${u.nom} ${u.prenom}` : `#${mapping.userId}`,
+              createdAt: new Date().toISOString()
+            },
+            ...prev
+          ].slice(0, 20));
+          successCount++;
+        } else {
+          console.error(`Failed to upload file ${file.name}`);
+          failCount++;
+        }
+      }
+      
+      let message = `✅ ${successCount} fichier(s) uploadé(s) avec succès!`;
+      if (failCount > 0) {
+        message += `\n⚠️ ${failCount} fichier(s) n'ont pas pu être uploadé(s).`;
+      }
+      alert(message);
+      
+      setSelectedFiles([]);
+      setFileUserMapping([]);
+      setSelectedUserIdForBulk('');
+      setShowBulkUpload(false);
+    } catch (error) {
+      console.error('Error during bulk upload:', error);
+      alert('Erreur lors de l\'upload en masse');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // If not admin, show access denied
+  if (currentUser?.role !== 'admin') {
+    return (
+      <div className="p-8">
+        <div className="max-w-4xl mx-auto bg-red-50 border-2 border-red-200 rounded-xl p-6">
+          <h1 className="text-2xl font-bold text-red-800 mb-4">Accès refusé</h1>
+          <p className="text-red-600">Vous devez être administrateur pour accéder à cette page.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-8">
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Gestion Comptabilité</h1>
+            <p className="text-gray-600">Vue d'ensemble de tous les utilisateurs</p>
+          </div>
+          <button
+            onClick={() => setShowBulkUpload(true)}
+            className="px-6 py-3 bg-gradient-to-r from-[#0B1220] to-[#1D4ED8] hover:from-[#0b1428] hover:to-[#1E40AF] text-white rounded-lg font-medium shadow-lg hover:shadow-xl transition-all flex items-center space-x-2"
+          >
+            <span>📤</span>
+            <span>Upload en masse</span>
+          </button>
+        </div>
+
+        {recentUploads.length > 0 && (
+          <div className="mb-8 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+            <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-emerald-50 to-green-50">
+              <h3 className="text-xl font-bold text-gray-800">Derniers fichiers uploadés</h3>
+            </div>
+            <div className="divide-y divide-gray-200">
+              {recentUploads.map((r) => (
+                <div key={r.archiveId} className="p-4 flex items-center justify-between">
+                  <div>
+                    <div className="font-medium text-gray-900">{r.title}</div>
+                    <div className="text-sm text-gray-600">→ {r.userLabel}</div>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <a href={r.fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700">Ouvrir</a>
+                    <span className="text-xs text-gray-500">{new Date(r.createdAt).toLocaleString('fr-FR')}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+            <h3 className="text-xl font-bold text-gray-800">Liste des utilisateurs ({users.length})</h3>
+          </div>
+
+          {loading ? (
+            <div className="p-8 text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+              <p className="text-gray-500">Chargement...</p>
+            </div>
+          ) : users.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">
+              <div className="text-4xl mb-4">👥</div>
+              <p>Aucun utilisateur enregistré</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nom complet</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rôle</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date de création</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {users.map((user) => (
+                    <tr key={user.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">{user.nom} {user.prenom}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-600">{user.email}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                          user.role === 'admin' 
+                            ? 'bg-purple-100 text-purple-800' 
+                            : 'bg-blue-100 text-blue-800'
+                        }`}>
+                          {user.role === 'admin' ? 'Administrateur' : 'Utilisateur'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-3 py-1 text-xs font-medium rounded-full ${
+                          user.is_active
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {user.is_active ? '✓ Actif' : '✗ Inactif'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-500">
+                          {new Date(user.created_at).toLocaleDateString('fr-FR', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          })}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Bulk Upload Modal */}
+        {showBulkUpload && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl p-6 shadow-2xl border border-gray-200 max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-bold text-gray-900">📤 Upload en masse</h3>
+                <button
+                  onClick={() => {
+                    setShowBulkUpload(false);
+                    setSelectedFiles([]);
+                    setFileUserMapping([]);
+                  }}
+                  className="text-gray-400 hover:text-gray-600 text-2xl"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              <div className="space-y-6">
+                {/* Target user selection */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Sélectionner l'utilisateur destinataire</label>
+                  <select
+                    value={selectedUserIdForBulk}
+                    onChange={(e) => {
+                      const val = e.target.value ? Number(e.target.value) : '';
+                      setSelectedUserIdForBulk(val);
+                      // When a specific user is chosen, ignore auto-mapping
+                      if (val !== '') setFileUserMapping([]);
+                    }}
+                    className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 bg-white text-gray-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20"
+                  >
+                    <option value="">— Choisir un utilisateur (optionnel) —</option>
+                    {users.map(u => (
+                      <option key={u.id} value={u.id}>{u.nom} {u.prenom} — {u.email}</option>
+                    ))}
+                  </select>
+                  <p className="mt-2 text-xs text-gray-500">Si vous choisissez un utilisateur, tous les fichiers seront envoyés à celui‑ci.</p>
+                </div>
+
+                {/* Instructions */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-blue-800 text-sm">
+                    💡 <strong>Astuce:</strong> Vous pouvez soit sélectionner un utilisateur ci‑dessus pour envoyer tous les fichiers, soit laisser vide et nommer les fichiers avec le nom/initiales pour une association automatique.
+                  </p>
+                </div>
+
+                {/* File Input */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Sélectionner les fichiers
+                  </label>
+                  <input
+                    type="file"
+                    multiple
+                    onChange={handleBulkFileSelect}
+                    className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 bg-gray-50 text-gray-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20"
+                  />
+                  {selectedFiles.length > 0 && (
+                    <p className="mt-2 text-sm text-green-600">
+                      ✅ {selectedFiles.length} fichier(s) sélectionné(s)
+                    </p>
+                  )}
+                  {invalidNamedFiles.length > 0 && (
+                    <div className="mt-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                      ⚠ Certains fichiers ont été ignorés car leur nom ne commence pas par une lettre:
+                      <ul className="list-disc ml-5">
+                        {invalidNamedFiles.map((n, i) => <li key={i}>{n}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+
+                {/* Preview Mapping (shown only when no user is preselected) */}
+                {selectedFiles.length > 0 && !selectedUserIdForBulk && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                      Association fichiers ↔ utilisateurs:
+                    </h4>
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {selectedFiles.map((file, index) => {
+                        const mapping = fileUserMapping.find(m => m.fileIndex === index);
+                        const user = mapping ? users.find(u => u.id === mapping.userId) : null;
+                        
+                        return (
+                          <div
+                            key={index}
+                            className={`flex items-center justify-between p-3 rounded-lg ${
+                              user ? 'bg-green-50 border border-green-300' : 'bg-red-50 border border-red-300'
+                            }`}
+                          >
+                            <div className="flex-1">
+                              <p className="text-gray-900 font-medium">{file.name}</p>
+                              {user ? (
+                                <div className="flex items-center space-x-2 text-sm">
+                                  <p className="text-green-700">✓ → {user.nom} {user.prenom}</p>
+                                  <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-800 text-xs font-semibold">{Math.round(mapping?.score || 0)}%</span>
+                                </div>
+                              ) : (
+                                <p className="text-red-700 text-sm">
+                                  ⚠ Aucun utilisateur trouvé
+                                </p>
+                              )}
+                            </div>
+                            {/* Manual override */}
+                            <div className="ml-4 w-64">
+                              <select
+                                value={mapping?.userId || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value ? Number(e.target.value) : 0;
+                                  setFileUserMapping((prev) => {
+                                    const copy = prev.filter(m => m.fileIndex !== index);
+                                    if (val) copy.push({ fileIndex: index, userId: val, score: 100 });
+                                    return copy;
+                                  });
+                                }}
+                                className="w-full px-3 py-2 rounded-md border border-gray-300 bg-white text-gray-700"
+                              >
+                                <option value="">— Assigner manuellement —</option>
+                                {users.map(u => (
+                                  <option key={u.id} value={u.id}>{u.nom} {u.prenom}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    
+                    {selectedFiles.length > fileUserMapping.length && (
+                      <div className="mt-3 bg-amber-50 border border-amber-300 rounded-lg p-3">
+                        <p className="text-amber-800 text-sm">
+                          ⚠ {selectedFiles.length - fileUserMapping.length} fichier(s) non associé(s). 
+                          Vérifiez les noms de fichiers ou assignez-les manuellement.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex space-x-3 pt-4">
+                  <button
+                    onClick={handleBulkUpload}
+                    disabled={uploading || selectedFiles.length === 0 || fileUserMapping.length === 0}
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-[#0B1220] to-[#1D4ED8] hover:from-[#0b1428] hover:to-[#1E40AF] text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {uploading ? 'Upload en cours...' : '🚀 Uploader tous les fichiers'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowBulkUpload(false);
+                      setSelectedFiles([]);
+                      setFileUserMapping([]);
+                    }}
+                    className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium transition-all"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -2965,4 +3570,9 @@ function GestionUtilisateursPage({ users, onFileUpload, clearAllBordereaux }: { 
       </div>
     </div>
   );
-} 
+}
+
+// Nos Archives Page Component - Utilise maintenant le composant d'affichage des archives
+function NosArchivesPageComponent() {
+  return <NosArchivesPage />;
+}

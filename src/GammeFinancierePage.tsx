@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import financialProducts from './financialProducts.json';
+import { financialDocumentsAPI } from './api';
 
 const GammeFinancierePage = () => {
   const [selectedCategory, setSelectedCategory] = useState('tous');
@@ -8,24 +9,27 @@ const GammeFinancierePage = () => {
   const [sortOrder, setSortOrder] = useState('asc');
   const [showPEAOnly, setShowPEAOnly] = useState(false);
   const [showISROnly, setShowISROnly] = useState(false);
+  const [documents, setDocuments] = useState([]);
+  const [loadingDocuments, setLoadingDocuments] = useState(false);
+  const [selectedDocCategory, setSelectedDocCategory] = useState('');
 
   // Combiner tous les produits
   const allProducts = [
     ...financialProducts.fondsEuro.map(p => ({ ...p, category: 'Fonds en Euro' })),
     ...financialProducts.opciSci.map(p => ({ ...p, category: 'OPCI/SCI' })),
-    ...financialProducts.unitesCompte.map(p => ({ ...p, category: 'Unités de Compte' }))
+    ...financialProducts.unitesCompte.map(p => ({ ...p, category: 'UnitÃ©s de Compte' }))
   ];
 
   // Filtrer les produits
   const getFilteredProducts = () => {
     let filtered = allProducts;
 
-    // Filtre par catégorie
+    // Filtre par catÃ©gorie
     if (selectedCategory !== 'tous') {
       const categoryMap = {
         'fonds-euro': 'Fonds en Euro',
         'opci-sci': 'OPCI/SCI',
-        'unites-compte': 'Unités de Compte'
+        'unites-compte': 'UnitÃ©s de Compte'
       };
       filtered = filtered.filter(p => p.category === categoryMap[selectedCategory]);
     }
@@ -87,6 +91,23 @@ const GammeFinancierePage = () => {
 
   const filteredProducts = getFilteredProducts();
 
+  // Load documents from database
+  useEffect(() => {
+    const loadDocuments = async () => {
+      try {
+        setLoadingDocuments(true);
+        const params: any = {};
+        const data = await financialDocumentsAPI.getAll(params);
+        setDocuments(data);
+      } catch (error) {
+        console.error('Error loading documents:', error);
+      } finally {
+        setLoadingDocuments(false);
+      }
+    };
+    loadDocuments();
+  }, []);
+
   const getPerformanceColor = (performance) => {
     const value = parseFloat(performance.replace('%', '').replace(',', '.'));
     if (value > 0) return 'text-green-600';
@@ -107,7 +128,7 @@ const GammeFinancierePage = () => {
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-2">Gamme Financière</h1>
         <p className="text-gray-600">
-          Tableau synthétique de nos supports financiers recommandés
+          Tableau synthÃ©tique de nos supports financiers recommandÃ©s
         </p>
       </div>
 
@@ -125,16 +146,16 @@ const GammeFinancierePage = () => {
             />
           </div>
 
-          {/* Catégorie */}
+          {/* CatÃ©gorie */}
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
             className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
           >
-            <option value="tous">Toutes catégories</option>
+            <option value="tous">Toutes catÃ©gories</option>
             <option value="fonds-euro">Fonds Euro</option>
             <option value="opci-sci">OPCI/SCI</option>
-            <option value="unites-compte">Unités de Compte</option>
+            <option value="unites-compte">UnitÃ©s de Compte</option>
           </select>
 
           {/* Tri */}
@@ -146,7 +167,7 @@ const GammeFinancierePage = () => {
             <option value="nom">Nom</option>
             <option value="performance">Performance</option>
             <option value="frais">Frais</option>
-            <option value="volatilite">Volatilité</option>
+            <option value="volatilite">VolatilitÃ©</option>
           </select>
 
           {/* Ordre */}
@@ -155,8 +176,8 @@ const GammeFinancierePage = () => {
             onChange={(e) => setSortOrder(e.target.value)}
             className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
           >
-            <option value="asc">↑</option>
-            <option value="desc">↓</option>
+            <option value="asc">â†‘</option>
+            <option value="desc">â†“</option>
           </select>
 
           {/* Filtres rapides */}
@@ -205,7 +226,7 @@ const GammeFinancierePage = () => {
             </div>
             <div className="text-center">
               <div className="text-lg font-bold text-purple-600">
-                {filteredProducts.filter(p => p.category === 'Unités de Compte').length}
+                {filteredProducts.filter(p => p.category === 'UnitÃ©s de Compte').length}
               </div>
               <div className="text-xs text-gray-600">UC</div>
             </div>
@@ -213,7 +234,7 @@ const GammeFinancierePage = () => {
         </div>
       </div>
 
-      {/* Tableau synthétique */}
+      {/* Tableau synthÃ©tique */}
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -221,11 +242,11 @@ const GammeFinancierePage = () => {
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produit</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gestionnaire</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Catégorie</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">CatÃ©gorie</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Performance 2024</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Performance Cumulée</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Performance CumulÃ©e</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Frais</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Volatilité 3 ans</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">VolatilitÃ© 3 ans</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Labels</th>
               </tr>
             </thead>
@@ -295,7 +316,7 @@ const GammeFinancierePage = () => {
 
       {filteredProducts.length === 0 && (
         <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-white/20 text-center">
-          <div className="text-gray-500 text-lg">Aucun produit trouvé avec ces critères</div>
+          <div className="text-gray-500 text-lg">Aucun produit trouvÃ© avec ces critÃ¨res</div>
           <button
             onClick={() => {
               setSearchTerm('');
@@ -305,10 +326,71 @@ const GammeFinancierePage = () => {
             }}
             className="mt-4 px-6 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors"
           >
-            Réinitialiser les filtres
+            RÃ©initialiser les filtres
           </button>
         </div>
       )}
+
+      {/* Documents Section */}
+      <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
+        <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+          <span className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center text-white text-sm font-bold mr-3">ðŸ“„</span>
+          Documents Financiers
+        </h2>
+        
+        <div className="mb-4">
+          <select
+            value={selectedDocCategory}
+            onChange={(e) => setSelectedDocCategory(e.target.value)}
+            className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+          >
+            <option value="">Toutes catÃ©gories</option>
+            <option value="Fonds Euro">Fonds Euro</option>
+            <option value="OPCI/SCI">OPCI/SCI</option>
+            <option value="UnitÃ©s de Compte">UnitÃ©s de Compte</option>
+            <option value="Produits StructurÃ©s">Produits StructurÃ©s</option>
+          </select>
+        </div>
+
+        {loadingDocuments ? (
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+            <p className="text-gray-600 mt-4">Chargement des documents...</p>
+          </div>
+        ) : documents.length === 0 ? (
+          <div className="text-center py-8 text-gray-600">
+            Aucun document disponible
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {documents
+              .filter(doc => !selectedDocCategory || doc.category === selectedDocCategory)
+              .map((doc) => (
+              <div key={doc.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200 hover:shadow-md transition-shadow">
+                <div className="flex items-start space-x-3">
+                  <div className="text-3xl">ðŸ“„</div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-gray-800 text-sm mb-1">{doc.title}</h3>
+                    <p className="text-xs text-gray-600 mb-2">{doc.description}</p>
+                    <div className="flex items-center space-x-2 text-xs text-gray-500 mb-2">
+                      <span>ðŸ“ {doc.category}</span>
+                      <span>ðŸ“… {doc.year}</span>
+                    </div>
+                    <a
+                      href={`http://localhost:3001${doc.file_path}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center px-3 py-1 bg-indigo-500 text-white text-xs rounded hover:bg-indigo-600 transition-colors"
+                    >
+                      TÃ©lÃ©charger
+                    </a>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
