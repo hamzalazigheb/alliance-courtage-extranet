@@ -1,6 +1,59 @@
 version: '3.8'
 
 services:
+  mysql:
+    image: mysql:8.0
+    container_name: acx-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: change_me_root
+      MYSQL_DATABASE: alliance_courtage
+      MYSQL_USER: alliance
+      MYSQL_PASSWORD: change_me_db
+    command: --default-authentication-plugin=mysql_native_password
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$${MYSQL_ROOT_PASSWORD} || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    image: acx-backend
+    depends_on:
+      mysql:
+        condition: service_healthy
+    env_file:
+      - backend/.env
+    environment:
+      # Ensure service name for DB resolution
+      DB_HOST: mysql
+      PORT: 4000
+    ports:
+      - "4000:4000"
+    volumes:
+      - api_uploads:/app/uploads
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    image: acx-frontend
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
+volumes:
+  db_data:
+  api_uploads:
+
+version: '3.8'
+
+services:
   alliance-courtage:
     build: .
     ports:
