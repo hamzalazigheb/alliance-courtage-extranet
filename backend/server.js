@@ -20,6 +20,9 @@ const cmsRoutes = require('./routes/cms');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Behind reverse proxy (nginx) so trust X-Forwarded-* headers
+app.set('trust proxy', 1);
+
 // Middleware de sécurité
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
