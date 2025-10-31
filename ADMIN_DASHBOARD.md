@@ -194,3 +194,5 @@ ALTER TABLE archives ADD COLUMN assurance VARCHAR(100);
 
 
 
+
+

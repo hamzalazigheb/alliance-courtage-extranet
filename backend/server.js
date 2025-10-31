@@ -3,7 +3,12 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
-require('dotenv').config({ path: './config.env' });
+// Charger les variables d'environnement (peut ne pas exister en Docker)
+try {
+  require('dotenv').config({ path: './config.env' });
+} catch (e) {
+  // Ignorer si le fichier n'existe pas, utiliser les variables d'environnement système
+}
 
 const db = require('./config/database');
 const authRoutes = require('./routes/auth');

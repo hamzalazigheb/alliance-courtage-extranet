@@ -1,5 +1,11 @@
 const mysql = require('mysql2');
-require('dotenv').config({ path: './config.env' });
+// Charger les variables d'environnement (le fichier config.env peut ne pas exister en Docker)
+try {
+  require('dotenv').config({ path: './config.env' });
+} catch (e) {
+  // Ignorer si le fichier n'existe pas, utiliser les variables d'environnement système
+  console.log('ℹ️  config.env non trouvé, utilisation des variables d\'environnement système');
+}
 
 // Configuration de la connexion à la base de données
 const dbConfig = {
@@ -23,19 +29,48 @@ const pool = mysql.createPool({
   queueLimit: 0
 });
 
-// Créer une connexion simple pour les opérations de base
-const connection = mysql.createConnection(dbConfig);
+// Variable globale pour la connexion simple (créée lors du connect)
+let connection = null;
 
-// Fonction pour tester la connexion
-const connect = (callback) => {
-  connection.connect((err) => {
-    if (err) {
-      console.error('Erreur de connexion à MySQL:', err);
-      return callback(err);
-    }
-    console.log('✅ Connexion à MySQL établie');
-    callback(null);
-  });
+// Fonction pour tester la connexion avec retry
+const connect = (callback, retries = 5, delay = 2000) => {
+  const attemptConnection = (attempt) => {
+    console.log(`⏳ Tentative de connexion à MySQL (${attempt}/${retries})...`);
+    
+    // Créer une nouvelle connexion pour chaque tentative
+    const testConnection = mysql.createConnection(dbConfig);
+    
+    testConnection.connect((err) => {
+      if (err) {
+        testConnection.end();
+        
+        if (attempt >= retries) {
+          console.error('❌ Erreur de connexion à MySQL après', retries, 'tentatives:', err.message);
+          return callback(err);
+        }
+        
+        console.log(`⏸️  Échec de connexion, nouvelle tentative dans ${delay/1000}s...`);
+        setTimeout(() => {
+          attemptConnection(attempt + 1);
+        }, delay);
+        return;
+      }
+      
+      // Fermer la connexion de test et créer la connexion principale
+      testConnection.end();
+      connection = mysql.createConnection(dbConfig);
+      connection.connect((connectErr) => {
+        if (connectErr) {
+          console.error('❌ Erreur lors de l\'établissement de la connexion principale:', connectErr.message);
+          return callback(connectErr);
+        }
+        console.log('✅ Connexion à MySQL établie');
+        callback(null);
+      });
+    });
+  };
+  
+  attemptConnection(1);
 };
 
 // Fonction pour exécuter des requêtes avec le pool
@@ -55,6 +90,9 @@ const query = (sql, params = []) => {
 // Fonction pour exécuter des requêtes avec la connexion simple
 const querySync = (sql, params = []) => {
   return new Promise((resolve, reject) => {
+    if (!connection) {
+      return reject(new Error('Connexion non établie. Appelez connect() d\'abord.'));
+    }
     connection.execute(sql, params, (err, results) => {
       if (err) {
         console.error('Erreur SQL:', err);
@@ -68,7 +106,9 @@ const querySync = (sql, params = []) => {
 
 // Fonction pour fermer les connexions
 const close = () => {
-  connection.end();
+  if (connection) {
+    connection.end();
+  }
   pool.end();
 };
 

@@ -123,3 +123,5 @@ SELECT COUNT(*) FROM archives WHERE assurance IS NOT NULL;
 
 
 
+
+

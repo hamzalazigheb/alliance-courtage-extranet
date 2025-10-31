@@ -23,6 +23,6 @@ EXPOSE 3001
 ENV NODE_ENV=production
 ENV PORT=3001
 
-# Commande de démarrage
-CMD ["npm", "start"]
+# Commande de démarrage (attendre MySQL puis démarrer)
+CMD ["sh", "-c", "node scripts/wait-for-mysql.js && npm start"]
 
