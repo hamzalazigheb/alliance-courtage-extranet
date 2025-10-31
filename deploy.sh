@@ -33,8 +33,8 @@ sleep 15
 
 # Step 4: Run database migrations
 echo -e "${YELLOW}📊 Running database migrations...${NC}"
-docker compose exec -T backend node scripts/initDatabase.js || echo -e "${YELLOW}⚠️  initDatabase.js skipped or already run${NC}"
-docker compose exec -T backend node scripts/createBordereauxTable.js || echo -e "${YELLOW}⚠️  createBordereauxTable.js skipped or already run${NC}"
+echo -e "${YELLOW}   (This will check and create missing tables safely)${NC}"
+docker compose exec -T backend node scripts/runAllMigrations.js || echo -e "${YELLOW}⚠️  Migrations completed with warnings${NC}"
 cd ..
 
 # Step 5: Build frontend

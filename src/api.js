@@ -1,5 +1,8 @@
 // Configuration de l'API
-const API_BASE_URL = 'http://localhost:3001/api';
+// Use relative URL in production (nginx will proxy), or full URL in development
+const API_BASE_URL = import.meta.env.PROD 
+  ? '/api'  // Production: relative URL (nginx proxies to backend)
+  : 'http://localhost:3001/api';  // Development: direct backend URL
 
 // Fonction utilitaire pour les requêtes
 async function apiRequest(endpoint, options = {}) {
