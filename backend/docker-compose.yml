@@ -7,10 +7,10 @@ services:
     container_name: alliance-courtage-mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: alliance2024
-      MYSQL_DATABASE: alliance_courtage
-      MYSQL_USER: alliance_user
-      MYSQL_PASSWORD: alliance_pass
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-alliance2024Secure}
+      MYSQL_DATABASE: ${DB_NAME:-alliance_courtage}
+      MYSQL_USER: ${DB_USER:-alliance_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-alliance_pass2024}
     ports:
       - "3306:3306"
     volumes:
@@ -19,7 +19,7 @@ services:
     networks:
       - alliance-network
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-palliance2024"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-alliance2024Secure}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -36,17 +36,18 @@ services:
       NODE_ENV: production
       DB_HOST: mysql
       DB_PORT: 3306
-      DB_NAME: alliance_courtage
-      DB_USER: alliance_user
-      DB_PASSWORD: alliance_pass
-      JWT_SECRET: alliance_courtage_secret_key_2024
-      JWT_EXPIRES_IN: 24h
-      CORS_ORIGIN: http://localhost:5173
+      DB_NAME: ${DB_NAME:-alliance_courtage}
+      DB_USER: ${DB_USER:-alliance_user}
+      DB_PASSWORD: ${DB_PASSWORD:-alliance_pass2024}
+      JWT_SECRET: ${JWT_SECRET:-alliance_courtage_secret_key_change_me_2024}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
     depends_on:
       mysql:
         condition: service_healthy
     volumes:
       - ./uploads:/app/uploads
+      - ./config.env:/app/config.env:ro
     networks:
       - alliance-network
 

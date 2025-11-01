@@ -5,7 +5,7 @@ import AdminDashboard from './AdminDashboard';
 import ProduitsStructuresPageComponent from './ProduitsStructuresPage';
 import NosArchivesPage from './NosArchivesPage';
 import ManagePage from './ManagePage';
-import { authAPI } from './api';
+import { authAPI, formationsAPI } from './api';
 
 // Types pour les utilisateurs et fichiers
 interface AuthUserRecord {
@@ -126,7 +126,36 @@ function LoginPage({ onLogin, users }: { onLogin: (user: User) => void, users: U
                     return;
                   }
                   
+                  // Confirmer que l'utilisateur veut réinitialiser (surtout pour les admins)
+                  const isAdminReset = window.confirm(
+                    'Réinitialiser le mot de passe pour ' + email + '?\n\n' +
+                    '📧 Si c\'est un compte ADMIN, vous recevrez un email avec le nouveau mot de passe.\n\n' +
+                    'Cliquez sur OK pour continuer.'
+                  );
+                  
+                  if (!isAdminReset) {
+                    return;
+                  }
+                  
                   try {
+                    // Essayer d'abord la réinitialisation automatique pour admins (avec email)
+                    const adminResponse = await fetch('http://localhost:3001/api/admin-password-reset/request', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ email })
+                    });
+
+                    const adminData = await adminResponse.json();
+                    
+                    if (adminResponse.ok) {
+                      alert('✅ ' + adminData.message + '\n\n' +
+                        '📧 Vérifiez votre boîte de réception (et les spams).\n' +
+                        '🔐 Le nouveau mot de passe vous a été envoyé par email.\n\n' +
+                        '⚠️ Important : Changez votre mot de passe après la première connexion !');
+                      return;
+                    }
+                    
+                    // Si ce n'est pas un admin, essayer la méthode normale
                     const response = await fetch('http://localhost:3001/api/password-reset/request', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
@@ -135,17 +164,23 @@ function LoginPage({ onLogin, users }: { onLogin: (user: User) => void, users: U
 
                     const data = await response.json();
                     if (response.ok) {
-                      alert('✅ Demande envoyée ! Un administrateur va réinitialiser votre mot de passe.');
+                      alert('✅ Demande envoyée avec succès !\n\n' +
+                        '📋 Un administrateur va recevoir votre demande et réinitialiser votre mot de passe.\n\n' +
+                        '💡 Pour les comptes ADMIN : utilisez plutôt la réinitialisation automatique qui envoie un email.');
                     } else {
                       alert(data.error || 'Erreur lors de la demande de réinitialisation');
                     }
                   } catch (error) {
                     console.error('Error:', error);
-                    alert('Erreur de connexion');
+                    alert('❌ Erreur de connexion au serveur.\n\n' +
+                      'Vérifiez que le serveur backend est démarré.');
                   }
                 }}
-                className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                className="text-sm text-blue-600 hover:text-blue-800 hover:underline font-medium flex items-center justify-end w-full"
               >
+                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                </svg>
                 Mot de passe oublié ?
               </button>
             </div>
@@ -372,7 +407,7 @@ function App() {
       case "rencontres":
         return <RencontresPage />;
       case "reglementaire":
-        return <ReglementairePage />;
+        return <ReglementairePage currentUser={currentUser} />;
       case "produits-structures":
         return <ProduitsStructuresPageComponent />;
       case "simulateurs":
@@ -1498,11 +1533,26 @@ function RencontresPage() {
 }
 
 // Règlementaire Page Component
-function ReglementairePage() {
+function ReglementairePage({ currentUser }: { currentUser: User | null }) {
   const [expandedFolders, setExpandedFolders] = useState<{[key: string]: boolean}>({});
   const [selectedYear, setSelectedYear] = useState('2025');
   const [selectedFormationType, setSelectedFormationType] = useState('validantes'); // 'validantes' ou 'obligatoires'
   const [selectedCategory, setSelectedCategory] = useState('all'); // 'all', 'CIF', 'IAS', 'IOB', 'IMMOBILIER'
+  const [formations, setFormations] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  
+  // Form state
+  const [formData, setFormData] = useState({
+    nom_document: '',
+    date: '',
+    heures: '',
+    categories: [] as string[],
+    delivree_par: '',
+    year: '2025',
+    file: null as File | null
+  });
 
   const toggleFolder = (folderId: string) => {
     setExpandedFolders(prev => ({
@@ -1511,7 +1561,77 @@ function ReglementairePage() {
     }));
   };
 
-  // Données des formations par année et catégorie
+  // Load formations from API
+  useEffect(() => {
+    const loadFormations = async () => {
+      if (!currentUser?.id) return;
+      setLoading(true);
+      try {
+        const data = await formationsAPI.getAll({ year: selectedYear });
+        setFormations(data);
+      } catch (error) {
+        console.error('Error loading formations:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadFormations();
+  }, [selectedYear, currentUser?.id]);
+
+  // Handle form submission
+  const handleSubmitFormation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.file || !formData.nom_document || !formData.date || !formData.heures || formData.categories.length === 0) {
+      alert('Veuillez remplir tous les champs requis');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const formationData = {
+        file: formData.file,
+        nom_document: formData.nom_document,
+        date: formData.date,
+        heures: formData.heures,
+        categories: formData.categories,
+        delivree_par: formData.delivree_par,
+        year: formData.year
+      };
+
+      const data = await formationsAPI.create(formationData);
+      alert('✅ ' + data.message);
+      setShowAddForm(false);
+      setFormData({
+        nom_document: '',
+        date: '',
+        heures: '',
+        categories: [],
+        delivree_par: '',
+        year: selectedYear,
+        file: null
+      });
+      // Reload formations
+      const reloadData = await formationsAPI.getAll({ year: selectedYear });
+      setFormations(reloadData);
+    } catch (error: any) {
+      console.error('Error submitting formation:', error);
+      alert('Erreur: ' + (error.message || 'Erreur lors de la soumission de la formation'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Toggle category selection
+  const toggleCategory = (category: string) => {
+    setFormData(prev => ({
+      ...prev,
+      categories: prev.categories.includes(category)
+        ? prev.categories.filter(c => c !== category)
+        : [...prev.categories, category]
+    }));
+  };
+
+  // Données des formations par année et catégorie (pour les heures obligatoires)
   const formationsData = {
     '2024': {
       validantes: [
@@ -1599,19 +1719,20 @@ function ReglementairePage() {
 
   // Filtrer les formations selon la catégorie sélectionnée
   const getFilteredFormations = () => {
-    const formations = formationsData[selectedYear as keyof typeof formationsData]?.validantes || [];
+    // Use approved formations from API
+    const approvedFormations = formations.filter(f => f.statut === 'approved');
     if (selectedCategory === 'all') {
-      return formations;
+      return approvedFormations;
     }
-    return formations.filter(formation => formation.categories.includes(selectedCategory));
+    return approvedFormations.filter(formation => formation.categories.includes(selectedCategory));
   };
 
   // Calculer le total d'heures par catégorie pour l'année sélectionnée
   const getTotalHoursByCategory = (category: string) => {
-    const formations = formationsData[selectedYear as keyof typeof formationsData]?.validantes || [];
-    return formations
+    const approvedFormations = formations.filter(f => f.statut === 'approved');
+    return approvedFormations
       .filter(formation => formation.categories.includes(category))
-      .reduce((total, formation) => total + formation.heures, 0);
+      .reduce((total, formation) => total + (formation.heures || 0), 0);
   };
 
   // Structure des 10 dossiers avec documents
@@ -1827,42 +1948,60 @@ function ReglementairePage() {
                 </tr>
               </thead>
               <tbody>
-                {getFilteredFormations().length > 0 ? (
-                  getFilteredFormations().map((formation) => (
+                {loading ? (
+                  <tr>
+                    <td className="border border-gray-300 px-4 py-2 text-gray-500 text-center" colSpan={7}>
+                      Chargement...
+                    </td>
+                  </tr>
+                ) : getFilteredFormations().length > 0 ? (
+                  getFilteredFormations().map((formation) => {
+                    const dateStr = formation.date ? new Date(formation.date).toLocaleDateString('fr-FR') : '';
+                    return (
                     <tr key={formation.id}>
-                      <td className="border border-gray-300 px-4 py-2">{formation.date}</td>
+                        <td className="border border-gray-300 px-4 py-2">{dateStr}</td>
                       <td className="border border-gray-300 px-4 py-2">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          formation.statut === 'Validée' 
+                            formation.statut === 'approved' 
                             ? 'bg-green-100 text-green-800' 
-                            : 'bg-yellow-100 text-yellow-800'
+                              : formation.statut === 'pending'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-red-100 text-red-800'
                         }`}>
-                          {formation.statut}
+                            {formation.statut === 'approved' ? 'Validée' : formation.statut === 'pending' ? 'En attente' : 'Rejetée'}
                         </span>
                       </td>
                       <td className="border border-gray-300 px-4 py-2 font-medium">{formation.heures}h</td>
                       <td className="border border-gray-300 px-4 py-2">
                         <div className="flex flex-wrap gap-1">
-                          {formation.categories.map((category) => (
+                            {Array.isArray(formation.categories) ? formation.categories.map((category: string) => (
                             <span key={category} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
                               {category}
                             </span>
-                          ))}
+                            )) : null}
                         </div>
                       </td>
-                      <td className="border border-gray-300 px-4 py-2">{formation.delivreePar}</td>
-                      <td className="border border-gray-300 px-4 py-2">{formation.nomDocument}</td>
+                        <td className="border border-gray-300 px-4 py-2">{formation.delivree_par || '-'}</td>
+                        <td className="border border-gray-300 px-4 py-2">{formation.nom_document}</td>
                       <td className="border border-gray-300 px-4 py-2">
-                        <button className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm transition-colors">
+                          {formation.file_path && (
+                            <a 
+                              href={`http://localhost:3001${formation.file_path}`} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm transition-colors inline-block"
+                            >
                           Télécharger
-                        </button>
+                            </a>
+                          )}
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 ) : (
                   <tr>
                     <td className="border border-gray-300 px-4 py-2 text-gray-500" colSpan={7}>
-                      Aucune formation enregistrée pour {selectedCategory === 'all' ? 'cette année' : selectedCategory} en {selectedYear}
+                      Aucune formation approuvée enregistrée pour {selectedCategory === 'all' ? 'cette année' : selectedCategory} en {selectedYear}
                   </td>
                 </tr>
                 )}
@@ -1870,7 +2009,10 @@ function ReglementairePage() {
             </table>
           </div>
           <div className="mt-4 flex items-center justify-between">
-            <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors">
+            <button 
+              onClick={() => setShowAddForm(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors"
+            >
               Ajouter une formation
             </button>
             <div className="text-gray-600 font-medium">
@@ -1936,6 +2078,153 @@ function ReglementairePage() {
           </div>
         </div>
       </div>
+
+      {/* Modal pour ajouter une formation */}
+      {showAddForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-800">Ajouter une formation</h2>
+              <button
+                onClick={() => setShowAddForm(false)}
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitFormation} className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Nom du document <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.nom_document}
+                  onChange={(e) => setFormData({ ...formData, nom_document: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Ex: Formation CIF - Gestion de portefeuille"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={formData.date}
+                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Nombre d'heures <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    value={formData.heures}
+                    onChange={(e) => setFormData({ ...formData, heures: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Ex: 7"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Catégories <span className="text-red-500">*</span>
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {['CIF', 'IAS', 'IOB', 'IMMOBILIER'].map((category) => (
+                    <button
+                      key={category}
+                      type="button"
+                      onClick={() => toggleCategory(category)}
+                      className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                        formData.categories.includes(category)
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                    >
+                      {category}
+                    </button>
+                  ))}
+                </div>
+                {formData.categories.length === 0 && (
+                  <p className="text-red-500 text-sm mt-1">Sélectionnez au moins une catégorie</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Délivrée par
+                </label>
+                <input
+                  type="text"
+                  value={formData.delivree_par}
+                  onChange={(e) => setFormData({ ...formData, delivree_par: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Ex: Formation Pro, Institut IAS..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Année <span className="text-red-500">*</span>
+                </label>
+                <select
+                  required
+                  value={formData.year}
+                  onChange={(e) => setFormData({ ...formData, year: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="2024">2024</option>
+                  <option value="2025">2025</option>
+                  <option value="2026">2026</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Fichier (PDF, DOC, DOCX, etc.) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="file"
+                  required
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png"
+                  onChange={(e) => setFormData({ ...formData, file: e.target.files?.[0] || null })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end space-x-4 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowAddForm(false)}
+                  className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting || formData.categories.length === 0}
+                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submitting ? 'Envoi...' : 'Soumettre'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2318,6 +2607,8 @@ function ProduitsStructuresPage() {
 
 // Simulateurs Page Component
 function SimulateursPage() {
+  const [activeSimulator, setActiveSimulator] = useState<string | null>(null);
+
   return (
     <div className="max-w-7xl mx-auto space-y-8">
       {/* Page Header */}
@@ -2328,156 +2619,933 @@ function SimulateursPage() {
         </p>
       </div>
 
-      {/* Section Impôt sur le revenu */}
-      <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6">Impôt sur le revenu</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Direction Générale des Finances Publiques */}
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all duration-300">
+      {/* Grid des 4 simulateurs */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* 1. Simulateur IR */}
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8 hover:shadow-xl transition-all duration-300">
             <div className="flex items-center justify-center mb-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-blue-800 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-xl">P</span>
+            <div className="w-20 h-20 bg-gradient-to-br from-blue-600 to-blue-800 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-2xl">💰</span>
               </div>
             </div>
-            <h3 className="text-sm font-medium text-gray-800 text-center mb-2">DIRECTION GÉNÉRALE DES FINANCES PUBLIQUES</h3>
-            <button className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg transition-colors font-medium">
+          <h3 className="text-xl font-bold text-gray-800 text-center mb-2">Impôt sur le Revenu</h3>
+          <p className="text-gray-600 text-center text-sm mb-6">Calculez votre impôt sur le revenu selon les tranches d'imposition</p>
+          <button 
+            onClick={() => setActiveSimulator('ir')}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg transition-colors font-medium"
+          >
               Simulation IR
             </button>
           </div>
 
-          {/* abeille ASSURANCES */}
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all duration-300">
+        {/* 2. Simulateur IFI */}
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8 hover:shadow-xl transition-all duration-300">
             <div className="flex items-center justify-center mb-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-green-700 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-xl">🐝</span>
+            <div className="w-20 h-20 bg-gradient-to-br from-purple-600 to-purple-800 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-2xl">🏠</span>
               </div>
             </div>
-            <h3 className="text-sm font-medium text-gray-800 text-center mb-2">abeille ASSURANCES</h3>
-            <button className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg transition-colors font-medium">
-              Simulation IR
+          <h3 className="text-xl font-bold text-gray-800 text-center mb-2">Fortune Immobilière (IFI)</h3>
+          <p className="text-gray-600 text-center text-sm mb-6">Estimez votre impôt sur la fortune immobilière</p>
+          <button 
+            onClick={() => setActiveSimulator('ifi')}
+            className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 px-4 rounded-lg transition-colors font-medium"
+          >
+            Simulation IFI
             </button>
           </div>
 
-          {/* SwissLife */}
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all duration-300">
+        {/* 3. Simulateur Succession */}
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8 hover:shadow-xl transition-all duration-300">
             <div className="flex items-center justify-center mb-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-red-700 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-xl">S</span>
+            <div className="w-20 h-20 bg-gradient-to-br from-green-500 to-green-700 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-2xl">📋</span>
               </div>
             </div>
-            <h3 className="text-sm font-medium text-gray-800 text-center mb-2">SwissLife</h3>
-            <button className="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg transition-colors font-medium">
-              Simulateur IR
+          <h3 className="text-xl font-bold text-gray-800 text-center mb-2">Diagnostic Succession</h3>
+          <p className="text-gray-600 text-center text-sm mb-6">Calculez les droits de succession pour vos héritiers</p>
+          <button 
+            onClick={() => setActiveSimulator('succession')}
+            className="w-full bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg transition-colors font-medium"
+          >
+            Diagnostic Succession
             </button>
+      </div>
+
+        {/* 4. Simulateur Placement */}
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8 hover:shadow-xl transition-all duration-300">
+            <div className="flex items-center justify-center mb-4">
+            <div className="w-20 h-20 bg-gradient-to-br from-orange-500 to-orange-700 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-2xl">📈</span>
+              </div>
+            </div>
+          <h3 className="text-xl font-bold text-gray-800 text-center mb-2">Simulateur Placement</h3>
+          <p className="text-gray-600 text-center text-sm mb-6">Estimez le rendement et le capital accumulé de vos placements</p>
+          <button 
+            onClick={() => setActiveSimulator('placement')}
+            className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 px-4 rounded-lg transition-colors font-medium"
+          >
+            Simulateur Placement
+            </button>
+          </div>
+        </div>
+
+      {/* Modals pour chaque simulateur */}
+      {activeSimulator === 'ir' && (
+        <IRSimulator onClose={() => setActiveSimulator(null)} />
+      )}
+      {activeSimulator === 'ifi' && (
+        <IFISimulator onClose={() => setActiveSimulator(null)} />
+      )}
+      {activeSimulator === 'succession' && (
+        <SuccessionSimulator onClose={() => setActiveSimulator(null)} />
+      )}
+      {activeSimulator === 'placement' && (
+        <PlacementSimulator onClose={() => setActiveSimulator(null)} />
+      )}
+      </div>
+  );
+}
+
+// Simulateur IR - Amélioré avec sliders et calcul temps réel
+function IRSimulator({ onClose }: { onClose: () => void }) {
+  const [revenuNet, setRevenuNet] = useState(50000);
+  const [situation, setSituation] = useState('celibataire');
+  const [nbEnfants, setNbEnfants] = useState(0);
+  const [result, setResult] = useState<{impot: number, taux: number, tranches: any[], revenuApresImpot: number} | null>(null);
+
+  useEffect(() => {
+    const calculateIR = () => {
+      const revenu = revenuNet;
+      if (revenu <= 0) {
+        setResult(null);
+        return;
+      }
+
+      // Calcul du nombre de parts fiscales
+      let parts = 1;
+      if (situation === 'marie') {
+        parts = 2;
+      } else if (situation === 'pacse') {
+        parts = 2;
+      }
+      
+      parts += nbEnfants * 0.5;
+      if (situation === 'marie' && nbEnfants > 2) {
+        parts += (nbEnfants - 2) * 0.5;
+      }
+
+      const revenuImposable = revenu / parts;
+
+      // Barème 2024 (pour déclaration 2025)
+      const tranches: any[] = [];
+      let impot = 0;
+      
+      if (revenuImposable > 11088) {
+        const tranche1 = Math.min(revenuImposable, 28288) - 11088;
+        const impot1 = tranche1 * 0.11;
+        impot += impot1;
+        tranches.push({ montant: tranche1, taux: 11, impot: impot1, limite: 28288 });
+      }
+      if (revenuImposable > 28288) {
+        const tranche2 = Math.min(revenuImposable, 80624) - 28288;
+        const impot2 = tranche2 * 0.30;
+        impot += impot2;
+        tranches.push({ montant: tranche2, taux: 30, impot: impot2, limite: 80624 });
+      }
+      if (revenuImposable > 80624) {
+        const tranche3 = Math.min(revenuImposable, 173041) - 80624;
+        const impot3 = tranche3 * 0.41;
+        impot += impot3;
+        tranches.push({ montant: tranche3, taux: 41, impot: impot3, limite: 173041 });
+      }
+      if (revenuImposable > 173041) {
+        const tranche4 = revenuImposable - 173041;
+        const impot4 = tranche4 * 0.45;
+        impot += impot4;
+        tranches.push({ montant: tranche4, taux: 45, impot: impot4, limite: Infinity });
+      }
+
+      const impotTotal = impot * parts;
+      const taux = (impotTotal / revenu) * 100;
+      const revenuApresImpot = revenu - impotTotal;
+
+      setResult({ 
+        impot: Math.round(impotTotal), 
+        taux: Math.round(taux * 10) / 10,
+        tranches,
+        revenuApresImpot: Math.round(revenuApresImpot)
+      });
+    };
+
+    calculateIR();
+  }, [revenuNet, situation, nbEnfants]);
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-gray-800">Simulateur Impôt sur le Revenu</h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 text-2xl">×</button>
+              </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Paramètres */}
+          <div className="space-y-6">
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <label className="text-sm font-semibold text-gray-700">Revenu net imposable</label>
+                <span className="text-lg font-bold text-blue-600">{revenuNet.toLocaleString('fr-FR')} €</span>
+            </div>
+              <input
+                type="range"
+                min="0"
+                max="200000"
+                step="1000"
+                value={revenuNet}
+                onChange={(e) => setRevenuNet(parseInt(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+              />
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>0 €</span>
+                <span>200 000 €</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Situation familiale</label>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  onClick={() => setSituation('celibataire')}
+                  className={`py-2 px-3 rounded-lg font-medium transition-colors ${
+                    situation === 'celibataire'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Célibataire
+                </button>
+                <button
+                  onClick={() => setSituation('marie')}
+                  className={`py-2 px-3 rounded-lg font-medium transition-colors ${
+                    situation === 'marie'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Marié(e)
+                </button>
+                <button
+                  onClick={() => setSituation('pacse')}
+                  className={`py-2 px-3 rounded-lg font-medium transition-colors ${
+                    situation === 'pacse'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Pacsé(e)
+            </button>
+              </div>
+          </div>
+
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <label className="text-sm font-semibold text-gray-700">Nombre d'enfants</label>
+                <span className="text-lg font-bold text-blue-600">{nbEnfants}</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="5"
+                step="1"
+                value={nbEnfants}
+                onChange={(e) => setNbEnfants(parseInt(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+              />
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>0</span>
+                <span>5</span>
+            </div>
+            </div>
+          </div>
+
+          {/* Résultats */}
+          <div className="space-y-4">
+            {result ? (
+              <>
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200">
+                  <div className="text-center mb-4">
+                    <div className="text-sm text-gray-600 mb-1">Impôt à payer</div>
+                    <div className="text-4xl font-bold text-blue-700">{result.impot.toLocaleString('fr-FR')} €</div>
+              </div>
+                  
+                  <div className="space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Revenu annuel</span>
+                      <span className="font-medium">{revenuNet.toLocaleString('fr-FR')} €</span>
+            </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Taux moyen</span>
+                      <span className="font-medium">{result.taux}%</span>
+                    </div>
+                    <div className="flex justify-between text-sm font-semibold pt-2 border-t border-blue-200">
+                      <span>Revenu après impôt</span>
+                      <span className="text-green-600">{result.revenuApresImpot.toLocaleString('fr-FR')} €</span>
           </div>
         </div>
       </div>
 
-      {/* Section Fortune Immobilière */}
-      <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6">Fortune Immobilière</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* GNCA */}
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all duration-300">
-            <div className="flex items-center justify-center mb-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-purple-600 to-purple-800 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-xl">G</span>
+                {result.tranches.length > 0 && (
+                  <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                    <h4 className="font-semibold text-gray-800 mb-3 text-sm">Répartition par tranche</h4>
+                    <div className="space-y-2">
+                      {result.tranches.map((t, idx) => (
+                        <div key={idx} className="text-xs">
+                          <div className="flex justify-between mb-1">
+                            <span>Tranche {t.taux}%</span>
+                            <span className="font-medium">{Math.round(t.impot).toLocaleString('fr-FR')} €</span>
               </div>
+                          <div className="w-full bg-gray-200 rounded-full h-1.5">
+                            <div 
+                              className="bg-blue-500 h-1.5 rounded-full transition-all"
+                              style={{ width: `${(t.impot / result.impot) * 100}%` }}
+                            ></div>
             </div>
-            <h3 className="text-sm font-medium text-gray-800 text-center mb-2">GNCA</h3>
-            <button className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-lg transition-colors font-medium">
-              Simulation IFI
-            </button>
+          </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="bg-gray-50 rounded-xl p-8 text-center text-gray-500">
+                Ajustez les paramètres pour voir le calcul
+              </div>
+            )}
           </div>
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Section Succession */}
-      <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6">Succession</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* abeille ASSURANCES */}
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all duration-300">
-            <div className="flex items-center justify-center mb-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-green-700 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-xl">🐝</span>
+// Simulateur IFI - Amélioré avec sliders et calcul temps réel
+function IFISimulator({ onClose }: { onClose: () => void }) {
+  const [patrimoine, setPatrimoine] = useState(2000000);
+  const [dettes, setDettes] = useState(300000);
+  const [result, setResult] = useState<{ifi: number, base: number, patrimoineNet: number} | null>(null);
+
+  useEffect(() => {
+    const calculateIFI = () => {
+      const patrimoineBrut = patrimoine;
+      const dettesValue = dettes;
+      
+      if (patrimoineBrut <= 0) {
+        setResult(null);
+        return;
+      }
+
+      const patrimoineNet = patrimoineBrut - dettesValue;
+      const baseImposable = Math.max(0, patrimoineNet - 1300000); // Abattement de 1.3M€
+
+      if (baseImposable <= 0) {
+        setResult({ ifi: 0, base: 0, patrimoineNet });
+        return;
+      }
+
+      // Barème IFI 2024
+      let ifi = 0;
+      if (baseImposable > 800000) {
+        const tranche2 = baseImposable - 800000;
+        ifi += tranche2 * 0.007; // 0.70%
+      }
+
+      setResult({ ifi: Math.round(ifi), base: Math.round(baseImposable), patrimoineNet: Math.round(patrimoineNet) });
+    };
+
+    calculateIFI();
+  }, [patrimoine, dettes]);
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-gray-800">Simulateur IFI</h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 text-2xl">×</button>
               </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Paramètres */}
+          <div className="space-y-6">
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <label className="text-sm font-semibold text-gray-700">Valeur du patrimoine immobilier</label>
+                <span className="text-lg font-bold text-purple-600">{patrimoine.toLocaleString('fr-FR')} €</span>
             </div>
-            <h3 className="text-sm font-medium text-gray-800 text-center mb-2">abeille ASSURANCES</h3>
-            <button className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg transition-colors font-medium">
-              Diagnostic succession
-            </button>
+              <input
+                type="range"
+                min="0"
+                max="10000000"
+                step="50000"
+                value={patrimoine}
+                onChange={(e) => setPatrimoine(parseInt(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
+              />
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>0 €</span>
+                <span>10 M€</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">Valeur de tous vos biens immobiliers</p>
           </div>
 
-          {/* CARDIF GROUPE BNP PARIBAS */}
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all duration-300">
-            <div className="flex items-center justify-center mb-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-yellow-500 to-yellow-700 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-xl">C</span>
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <label className="text-sm font-semibold text-gray-700">Dettes immobilières</label>
+                <span className="text-lg font-bold text-purple-600">{dettes.toLocaleString('fr-FR')} €</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max={patrimoine}
+                step="10000"
+                value={dettes}
+                onChange={(e) => setDettes(parseInt(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
+              />
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>0 €</span>
+                <span>{patrimoine.toLocaleString('fr-FR')} €</span>
+            </div>
+            </div>
+
+            <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
+              <div className="text-sm text-gray-700">
+                <div className="flex justify-between mb-1">
+                  <span>Patrimoine net:</span>
+                  <span className="font-semibold">{result?.patrimoineNet.toLocaleString('fr-FR') || '...'} €</span>
+                </div>
+                <div className="flex justify-between mb-1">
+                  <span>Abattement (1.3M€):</span>
+                  <span className="font-semibold">1 300 000 €</span>
+                </div>
+                <div className="flex justify-between pt-2 border-t border-purple-300">
+                  <span>Base imposable:</span>
+                  <span className="font-bold text-purple-700">{result?.base.toLocaleString('fr-FR') || '0'} €</span>
+                </div>
               </div>
             </div>
-            <h3 className="text-sm font-medium text-gray-800 text-center mb-2">CARDIF GROUPE BNP PARIBAS</h3>
-            <button className="w-full bg-yellow-600 hover:bg-yellow-700 text-white py-2 px-4 rounded-lg transition-colors font-medium">
-              Diagnostic succession
-            </button>
           </div>
 
-          {/* SwissLife */}
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all duration-300">
-            <div className="flex items-center justify-center mb-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-red-700 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-xl">S</span>
+          {/* Résultats */}
+          <div className="space-y-4">
+            {result ? (
+              <>
+                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 border border-purple-200">
+                  <div className="text-center mb-4">
+                    <div className="text-sm text-gray-600 mb-1">IFI à payer</div>
+                    <div className="text-4xl font-bold text-purple-700">
+                      {result.ifi === 0 ? '0 €' : `${result.ifi.toLocaleString('fr-FR')} €`}
+                    </div>
+                  </div>
+                  
+                  {result.ifi === 0 ? (
+                    <div className="text-center py-4">
+                      <div className="text-green-600 font-semibold mb-2">✅ Vous n'êtes pas soumis à l'IFI</div>
+                      <p className="text-xs text-gray-600">Votre patrimoine net est inférieur au seuil de 1.3M€</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Taux IFI</span>
+                        <span className="font-medium">0.70%</span>
+                      </div>
+                      <div className="flex justify-between text-sm pt-2 border-t border-purple-200">
+                        <span>Patrimoine net après IFI</span>
+                        <span className="font-semibold text-green-600">
+                          {(result.patrimoineNet - result.ifi).toLocaleString('fr-FR')} €
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {result.ifi > 0 && (
+                  <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                    <h4 className="font-semibold text-gray-800 mb-3 text-sm">Détails du calcul</h4>
+                    <div className="space-y-2 text-xs">
+                      <div className="flex justify-between">
+                        <span>Patrimoine net</span>
+                        <span className="font-medium">{result.patrimoineNet.toLocaleString('fr-FR')} €</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>- Abattement</span>
+                        <span className="font-medium">- 1 300 000 €</span>
+                      </div>
+                      <div className="flex justify-between pt-1 border-t border-gray-300">
+                        <span>Base imposable</span>
+                        <span className="font-medium">{result.base.toLocaleString('fr-FR')} €</span>
+                      </div>
+                      <div className="flex justify-between pt-1 border-t border-gray-300">
+                        <span>× Taux 0.70%</span>
+                        <span className="font-bold">{result.ifi.toLocaleString('fr-FR')} €</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="bg-gray-50 rounded-xl p-8 text-center text-gray-500">
+                Ajustez les paramètres pour voir le calcul
               </div>
-            </div>
-            <h3 className="text-sm font-medium text-gray-800 text-center mb-2">SwissLife</h3>
-            <button className="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg transition-colors font-medium">
-              Diagnostic succession
-            </button>
+            )}
           </div>
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Section Placement */}
-      <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6">Placement</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* GNCA */}
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all duration-300">
-            <div className="flex items-center justify-center mb-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-purple-600 to-purple-800 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-xl">G</span>
+// Simulateur Succession - Amélioré avec sliders et calcul temps réel
+function SuccessionSimulator({ onClose }: { onClose: () => void }) {
+  const [patrimoine, setPatrimoine] = useState(500000);
+  const [lien, setLien] = useState('enfants');
+  const [result, setResult] = useState<{droits: number, net: number, abattement: number, taux: number} | null>(null);
+
+  useEffect(() => {
+    const calculateSuccession = () => {
+      const patrimoineValue = patrimoine;
+      if (patrimoineValue <= 0) {
+        setResult(null);
+        return;
+      }
+
+      // Abattements selon le lien de parenté (2024)
+      let abattement = 0;
+      if (lien === 'enfants') {
+        abattement = 100000; // 100k€ par enfant
+      } else if (lien === 'conjoint') {
+        abattement = 80724; // Abattement conjoint survivant
+      } else if (lien === 'parents') {
+        abattement = 15858;
+      } else {
+        abattement = 7967; // Frères/sœurs
+      }
+
+      const baseImposable = Math.max(0, patrimoineValue - abattement);
+
+      // Taux selon le lien
+      let taux = 0;
+      if (lien === 'enfants') {
+        if (baseImposable <= 8081) taux = 0.05;
+        else if (baseImposable <= 12109) taux = 0.10;
+        else if (baseImposable <= 15932) taux = 0.15;
+        else if (baseImposable <= 552324) taux = 0.20;
+        else if (baseImposable <= 902838) taux = 0.30;
+        else if (baseImposable <= 1805677) taux = 0.40;
+        else taux = 0.45;
+      } else if (lien === 'conjoint') {
+        taux = 0; // Pas de droits entre époux
+      } else if (lien === 'parents') {
+        if (baseImposable <= 8072) taux = 0.35;
+        else taux = 0.45;
+      } else {
+        if (baseImposable <= 24331) taux = 0.35;
+        else taux = 0.45;
+      }
+
+      const droits = baseImposable * taux;
+      const net = patrimoineValue - droits;
+
+      setResult({ 
+        droits: Math.round(droits), 
+        net: Math.round(net),
+        abattement,
+        taux: taux * 100
+      });
+    };
+
+    calculateSuccession();
+  }, [patrimoine, lien]);
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-gray-800">Diagnostic Succession</h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 text-2xl">×</button>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Paramètres */}
+          <div className="space-y-6">
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <label className="text-sm font-semibold text-gray-700">Valeur du patrimoine transmis</label>
+                <span className="text-lg font-bold text-green-600">{patrimoine.toLocaleString('fr-FR')} €</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="5000000"
+                step="10000"
+                value={patrimoine}
+                onChange={(e) => setPatrimoine(parseInt(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-green-600"
+              />
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>0 €</span>
+                <span>5 M€</span>
               </div>
             </div>
-            <h3 className="text-sm font-medium text-gray-800 text-center mb-2">GNCA</h3>
-            <button className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-lg transition-colors font-medium">
-              Simulateur Placement
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Lien avec le bénéficiaire</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setLien('conjoint')}
+                  className={`py-2 px-3 rounded-lg font-medium transition-colors text-sm ${
+                    lien === 'conjoint'
+                      ? 'bg-green-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Conjoint
+                </button>
+                <button
+                  onClick={() => setLien('enfants')}
+                  className={`py-2 px-3 rounded-lg font-medium transition-colors text-sm ${
+                    lien === 'enfants'
+                      ? 'bg-green-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Enfants
+                </button>
+                <button
+                  onClick={() => setLien('parents')}
+                  className={`py-2 px-3 rounded-lg font-medium transition-colors text-sm ${
+                    lien === 'parents'
+                      ? 'bg-green-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Parents
+                </button>
+                <button
+                  onClick={() => setLien('autres')}
+                  className={`py-2 px-3 rounded-lg font-medium transition-colors text-sm ${
+                    lien === 'autres'
+                      ? 'bg-green-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Autres
             </button>
           </div>
+        </div>
 
-          {/* GNCA */}
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all duration-300">
-            <div className="flex items-center justify-center mb-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-purple-600 to-purple-800 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-xl">G</span>
+            {result && (
+              <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                <div className="text-sm text-gray-700">
+                  <div className="flex justify-between mb-1">
+                    <span>Abattement:</span>
+                    <span className="font-semibold">{result.abattement.toLocaleString('fr-FR')} €</span>
+                  </div>
+                  <div className="flex justify-between mb-1">
+                    <span>Base imposable:</span>
+                    <span className="font-semibold">
+                      {Math.max(0, patrimoine - result.abattement).toLocaleString('fr-FR')} €
+                    </span>
+                  </div>
+                  <div className="flex justify-between pt-2 border-t border-green-300">
+                    <span>Taux appliqué:</span>
+                    <span className="font-bold text-green-700">{result.taux}%</span>
+                  </div>
+                </div>
               </div>
-            </div>
-            <h3 className="text-sm font-medium text-gray-800 text-center mb-2">GNCA</h3>
-            <button className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-lg transition-colors font-medium">
-              Simulateur Épargne
-            </button>
+            )}
           </div>
 
-          {/* SwissLife */}
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all duration-300">
-            <div className="flex items-center justify-center mb-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-red-700 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-xl">S</span>
+          {/* Résultats */}
+          <div className="space-y-4">
+            {result ? (
+              <>
+                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 border border-green-200">
+                  <div className="text-center mb-4">
+                    <div className="text-sm text-gray-600 mb-1">Droits de succession</div>
+                    <div className="text-4xl font-bold text-green-700">{result.droits.toLocaleString('fr-FR')} €</div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Patrimoine transmis</span>
+                      <span className="font-medium">{patrimoine.toLocaleString('fr-FR')} €</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Droits de succession</span>
+                      <span className="font-medium text-red-600">- {result.droits.toLocaleString('fr-FR')} €</span>
+                    </div>
+                    <div className="flex justify-between text-sm font-semibold pt-2 border-t border-green-200">
+                      <span>Patrimoine net reçu</span>
+                      <span className="text-green-600 text-lg">{result.net.toLocaleString('fr-FR')} €</span>
+                    </div>
+                  </div>
+                </div>
+
+                {result.droits > 0 && (
+                  <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                    <h4 className="font-semibold text-gray-800 mb-3 text-sm">Répartition</h4>
+                    <div className="space-y-3">
+                      <div>
+                        <div className="flex justify-between text-xs mb-1">
+                          <span>Droits à payer</span>
+                          <span className="font-medium">{result.droits.toLocaleString('fr-FR')} €</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-3">
+                          <div 
+                            className="bg-red-500 h-3 rounded-full transition-all"
+                            style={{ width: `${(result.droits / patrimoine) * 100}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex justify-between text-xs mb-1">
+                          <span>Patrimoine net</span>
+                          <span className="font-medium">{result.net.toLocaleString('fr-FR')} €</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-3">
+                          <div 
+                            className="bg-green-500 h-3 rounded-full transition-all"
+                            style={{ width: `${(result.net / patrimoine) * 100}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="bg-gray-50 rounded-xl p-8 text-center text-gray-500">
+                Ajustez les paramètres pour voir le calcul
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Simulateur Placement - Amélioré avec sliders et calcul temps réel
+function PlacementSimulator({ onClose }: { onClose: () => void }) {
+  const [capitalInitial, setCapitalInitial] = useState(10000);
+  const [versementMensuel, setVersementMensuel] = useState(200);
+  const [tauxRendement, setTauxRendement] = useState(3);
+  const [duree, setDuree] = useState(10);
+  const [result, setResult] = useState<{capitalFinal: number, gains: number, totalVerse: number} | null>(null);
+
+  useEffect(() => {
+    const calculatePlacement = () => {
+      const initial = capitalInitial;
+      const mensuel = versementMensuel;
+      const taux = tauxRendement / 100 / 12; // Taux mensuel
+      const annees = duree;
+
+      if ((initial <= 0 && mensuel <= 0) || annees <= 0) {
+        setResult(null);
+        return;
+      }
+
+      let capital = initial;
+      const nbMois = annees * 12;
+
+      // Calcul avec intérêts composés mensuels
+      for (let mois = 0; mois < nbMois; mois++) {
+        capital = capital * (1 + taux) + mensuel;
+      }
+
+      const capitalFinal = Math.round(capital);
+      const totalVerse = initial + (mensuel * nbMois);
+      const gains = capitalFinal - totalVerse;
+
+      setResult({ capitalFinal, gains, totalVerse });
+    };
+
+    calculatePlacement();
+  }, [capitalInitial, versementMensuel, tauxRendement, duree]);
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-gray-800">Simulateur Placement</h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 text-2xl">×</button>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Paramètres */}
+          <div className="space-y-6">
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <label className="text-sm font-semibold text-gray-700">Capital initial</label>
+                <span className="text-lg font-bold text-orange-600">{capitalInitial.toLocaleString('fr-FR')} €</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100000"
+                step="1000"
+                value={capitalInitial}
+                onChange={(e) => setCapitalInitial(parseInt(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-600"
+              />
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>0 €</span>
+                <span>100 000 €</span>
               </div>
             </div>
-            <h3 className="text-sm font-medium text-gray-800 text-center mb-2">SwissLife</h3>
-            <button className="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg transition-colors font-medium">
-              Simulateur Retraite
-            </button>
+
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <label className="text-sm font-semibold text-gray-700">Versement mensuel</label>
+                <span className="text-lg font-bold text-orange-600">{versementMensuel.toLocaleString('fr-FR')} €</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="2000"
+                step="50"
+                value={versementMensuel}
+                onChange={(e) => setVersementMensuel(parseInt(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-600"
+              />
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>0 €</span>
+                <span>2 000 €</span>
+              </div>
+            </div>
+
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <label className="text-sm font-semibold text-gray-700">Taux de rendement annuel</label>
+                <span className="text-lg font-bold text-orange-600">{tauxRendement}%</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="10"
+                step="0.1"
+                value={tauxRendement}
+                onChange={(e) => setTauxRendement(parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-600"
+              />
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>0%</span>
+                <span>10%</span>
+              </div>
+            </div>
+
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <label className="text-sm font-semibold text-gray-700">Durée</label>
+                <span className="text-lg font-bold text-orange-600">{duree} ans</span>
+              </div>
+              <input
+                type="range"
+                min="1"
+                max="40"
+                step="1"
+                value={duree}
+                onChange={(e) => setDuree(parseInt(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-600"
+              />
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>1 an</span>
+                <span>40 ans</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Résultats */}
+          <div className="space-y-4">
+            {result ? (
+              <>
+                <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-6 border border-orange-200">
+                  <div className="text-center mb-4">
+                    <div className="text-sm text-gray-600 mb-1">Capital final</div>
+                    <div className="text-4xl font-bold text-orange-700">{result.capitalFinal.toLocaleString('fr-FR')} €</div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Total versé</span>
+                      <span className="font-medium">{result.totalVerse.toLocaleString('fr-FR')} €</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Gains générés</span>
+                      <span className="font-medium text-green-600">+ {result.gains.toLocaleString('fr-FR')} €</span>
+                    </div>
+                    <div className="flex justify-between text-sm pt-2 border-t border-orange-200">
+                      <span>Rendement</span>
+                      <span className="font-semibold text-orange-700">
+                        {((result.gains / result.totalVerse) * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                  <h4 className="font-semibold text-gray-800 mb-3 text-sm">Répartition</h4>
+                  <div className="space-y-3">
+                    <div>
+                      <div className="flex justify-between text-xs mb-1">
+                        <span>Capital versé</span>
+                        <span className="font-medium">{result.totalVerse.toLocaleString('fr-FR')} €</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-3">
+                        <div 
+                          className="bg-gray-400 h-3 rounded-full transition-all"
+                          style={{ width: `${(result.totalVerse / result.capitalFinal) * 100}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-xs mb-1">
+                        <span>Gains (intérêts)</span>
+                        <span className="font-medium">{result.gains.toLocaleString('fr-FR')} €</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-3">
+                        <div 
+                          className="bg-green-500 h-3 rounded-full transition-all"
+                          style={{ width: `${(result.gains / result.capitalFinal) * 100}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                  <div className="text-xs text-gray-700">
+                    <div className="flex justify-between mb-1">
+                      <span>Versement mensuel:</span>
+                      <span className="font-medium">{versementMensuel.toLocaleString('fr-FR')} €</span>
+                    </div>
+                    <div className="flex justify-between mb-1">
+                      <span>Durée totale:</span>
+                      <span className="font-medium">{duree * 12} mois</span>
+                    </div>
+                    <div className="flex justify-between pt-1 border-t border-blue-300">
+                      <span>Total des versements:</span>
+                      <span className="font-semibold">{(versementMensuel * duree * 12).toLocaleString('fr-FR')} €</span>
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="bg-gray-50 rounded-xl p-8 text-center text-gray-500">
+                Ajustez les paramètres pour voir le calcul
+              </div>
+            )}
           </div>
         </div>
       </div>

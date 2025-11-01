@@ -14,6 +14,10 @@ build/
 .env.development.local
 .env.test.local
 .env.production.local
+config.env
+backend/.env
+backend/config.env
+backend/config.prod.env
 
 # IDE
 .vscode/
@@ -86,3 +90,17 @@ jspm_packages/
 
 # TernJS port file
 .tern-port
+
+# Uploads and user-generated files
+uploads/
+backend/uploads/
+
+# Temporary files
+*.tmp
+*.temp
+tatus --short
+
+# Backup files
+*.sql
+backup_local*.sql
+*.backup

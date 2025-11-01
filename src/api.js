@@ -219,4 +219,90 @@ export const financialDocumentsAPI = {
   },
 };
 
+// API des formations
+export const formationsAPI = {
+  getAll: async (params = {}) => {
+    const queryParams = new URLSearchParams(params).toString();
+    return apiRequest(`/formations?${queryParams}`);
+  },
+
+  getPending: async () => {
+    return apiRequest('/formations/pending');
+  },
+
+  create: async (formationData) => {
+    const formData = new FormData();
+    Object.keys(formationData).forEach(key => {
+      if (formationData[key] !== undefined && formationData[key] !== null) {
+        if (key === 'categories' && Array.isArray(formationData[key])) {
+          formData.append(key, JSON.stringify(formationData[key]));
+        } else {
+          formData.append(key, formationData[key]);
+        }
+      }
+    });
+    
+    const url = `${API_BASE_URL}/formations`;
+    const token = localStorage.getItem('token');
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'x-auth-token': token || ''
+      },
+      body: formData
+    });
+    
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Erreur de serveur');
+    }
+    return data;
+  },
+
+  approve: async (id) => {
+    return apiRequest(`/formations/${id}/approve`, {
+      method: 'PUT',
+    });
+  },
+
+  reject: async (id, rejectedReason = null) => {
+    return apiRequest(`/formations/${id}/reject`, {
+      method: 'PUT',
+      body: JSON.stringify({ rejected_reason: rejectedReason }),
+    });
+  },
+
+  delete: async (id) => {
+    return apiRequest(`/formations/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
+// API des notifications
+export const notificationsAPI = {
+  getAll: async (unreadOnly = false) => {
+    const params = unreadOnly ? { unread_only: 'true' } : {};
+    const queryParams = new URLSearchParams(params).toString();
+    return apiRequest(`/notifications?${queryParams}`);
+  },
+
+  getUnreadCount: async () => {
+    return apiRequest('/notifications/unread-count');
+  },
+
+  markAsRead: async (id) => {
+    return apiRequest(`/notifications/${id}/read`, {
+      method: 'PUT',
+    });
+  },
+
+  markAllAsRead: async () => {
+    return apiRequest('/notifications/read-all', {
+      method: 'PUT',
+    });
+  },
+};
+
 export default apiRequest;

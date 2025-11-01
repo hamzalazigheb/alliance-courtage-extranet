@@ -20,7 +20,10 @@ const partnerRoutes = require('./routes/partners');
 const structuredProductsRoutes = require('./routes/structuredProducts');
 const financialDocumentsRoutes = require('./routes/financialDocuments');
 const passwordResetRoutes = require('./routes/passwordReset');
+const adminPasswordResetRoutes = require('./routes/adminPasswordReset');
 const cmsRoutes = require('./routes/cms');
+const formationsRoutes = require('./routes/formations');
+const notificationsRoutes = require('./routes/notifications');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -74,7 +77,10 @@ app.use('/api/partners', partnerRoutes);
 app.use('/api/structured-products', structuredProductsRoutes);
 app.use('/api/financial-documents', financialDocumentsRoutes);
 app.use('/api/password-reset', passwordResetRoutes);
+app.use('/api/admin-password-reset', adminPasswordResetRoutes);
 app.use('/api/cms', cmsRoutes);
+app.use('/api/formations', formationsRoutes);
+app.use('/api/notifications', notificationsRoutes);
 
 // Route de test
 app.get('/api/health', (req, res) => {

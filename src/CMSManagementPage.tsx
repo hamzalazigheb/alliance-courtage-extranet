@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { formationsAPI, notificationsAPI } from './api';
 
 interface NewsItem {
   id?: number;
@@ -80,8 +81,13 @@ const CMSManagementPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
-  const [activePage, setActivePage] = useState<'home' | 'gamme-produits'>('home');
+  const [activePage, setActivePage] = useState<'home' | 'gamme-produits' | 'formations'>('home');
   const [activeSection, setActiveSection] = useState<'welcome' | 'news' | 'newsletter' | 'services' | 'contact'>('welcome');
+  const [pendingFormations, setPendingFormations] = useState<any[]>([]);
+  const [loadingFormations, setLoadingFormations] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   // Gamme Produits structured content
   type ClientId = 'particulier' | 'professionnel' | 'entreprise';
@@ -127,7 +133,122 @@ const CMSManagementPage: React.FC = () => {
 
   useEffect(() => {
     loadContent();
+    if (activePage === 'formations') {
+      loadPendingFormations();
+    }
+    loadNotifications();
+    loadUnreadCount();
+    
+    // Refresh notifications every 30 seconds
+    const interval = setInterval(() => {
+      loadNotifications();
+      loadUnreadCount();
+      if (activePage === 'formations') {
+        loadPendingFormations();
+      }
+    }, 30000);
+    
+    return () => clearInterval(interval);
   }, [activePage]);
+  
+  const loadNotifications = async () => {
+    try {
+      const data = await notificationsAPI.getAll(true); // Only unread
+      setNotifications(data);
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+    }
+  };
+  
+  const loadUnreadCount = async () => {
+    try {
+      const data = await notificationsAPI.getUnreadCount();
+      setUnreadCount(data.count || 0);
+    } catch (error) {
+      console.error('Error loading unread count:', error);
+    }
+  };
+  
+  const handleMarkAsRead = async (id: number) => {
+    try {
+      await notificationsAPI.markAsRead(id);
+      loadNotifications();
+      loadUnreadCount();
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+  
+  const handleMarkAllAsRead = async () => {
+    try {
+      await notificationsAPI.markAllAsRead();
+      loadNotifications();
+      loadUnreadCount();
+    } catch (error) {
+      console.error('Error marking all as read:', error);
+    }
+  };
+  
+  const handleNotificationClick = (notification: any) => {
+    handleMarkAsRead(notification.id);
+    setShowNotifications(false);
+    if (notification.related_type === 'formation' && notification.related_id) {
+      setActivePage('formations');
+      loadPendingFormations();
+    }
+  };
+  
+  // Close notifications dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (showNotifications && !target.closest('.notifications-dropdown')) {
+        setShowNotifications(false);
+      }
+    };
+    
+    if (showNotifications) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showNotifications]);
+
+  const loadPendingFormations = async () => {
+    setLoadingFormations(true);
+    try {
+      const data = await formationsAPI.getPending();
+      setPendingFormations(data);
+    } catch (error) {
+      console.error('Error loading pending formations:', error);
+    } finally {
+      setLoadingFormations(false);
+    }
+  };
+
+  const handleApproveFormation = async (id: number) => {
+    try {
+      await formationsAPI.approve(id);
+      alert('✅ Formation approuvée avec succès');
+      loadPendingFormations();
+    } catch (error: any) {
+      console.error('Error approving formation:', error);
+      alert('Erreur: ' + (error.message || 'Erreur lors de l\'approbation de la formation'));
+    }
+  };
+
+  const handleRejectFormation = async (id: number) => {
+    const reason = prompt('Raison du rejet (optionnel):');
+    if (reason === null) return; // User cancelled
+
+    try {
+      await formationsAPI.reject(id, reason || null);
+      alert('✅ Formation rejetée');
+      loadPendingFormations();
+    } catch (error: any) {
+      console.error('Error rejecting formation:', error);
+      alert('Erreur: ' + (error.message || 'Erreur lors du rejet de la formation'));
+    }
+  };
 
   const loadContent = async () => {
     try {
@@ -249,6 +370,78 @@ const CMSManagementPage: React.FC = () => {
             <p className="text-slate-300">Gérez le contenu de la page d'accueil</p>
           </div>
           <div className="flex items-center space-x-3">
+            {/* Notifications Bell */}
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setShowNotifications(!showNotifications);
+                  if (!showNotifications) {
+                    loadNotifications();
+                  }
+                }}
+                className="relative px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+              >
+                🔔
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+              
+              {/* Notifications Dropdown */}
+              {showNotifications && (
+                <div className="notifications-dropdown absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-2xl z-50 max-h-96 overflow-y-auto border border-gray-200">
+                  <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+                    <h3 className="font-bold text-gray-800">Notifications</h3>
+                    {notifications.length > 0 && (
+                      <button
+                        onClick={handleMarkAllAsRead}
+                        className="text-sm text-blue-600 hover:text-blue-800"
+                      >
+                        Tout marquer comme lu
+                      </button>
+                    )}
+                  </div>
+                  <div className="divide-y divide-gray-100">
+                    {notifications.length === 0 ? (
+                      <div className="p-4 text-center text-gray-500">
+                        Aucune notification
+                      </div>
+                    ) : (
+                      notifications.map((notif) => (
+                        <div
+                          key={notif.id}
+                          onClick={() => handleNotificationClick(notif)}
+                          className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
+                            !notif.is_read ? 'bg-blue-50' : ''
+                          }`}
+                        >
+                          <div className="flex items-start space-x-3">
+                            <div className={`flex-shrink-0 w-2 h-2 rounded-full mt-2 ${
+                              !notif.is_read ? 'bg-blue-500' : 'bg-gray-300'
+                            }`}></div>
+                            <div className="flex-1">
+                              <div className="font-semibold text-gray-800">{notif.title}</div>
+                              <div className="text-sm text-gray-600 mt-1">{notif.message}</div>
+                              <div className="text-xs text-gray-400 mt-2">
+                                {new Date(notif.created_at).toLocaleDateString('fr-FR', {
+                                  day: 'numeric',
+                                  month: 'short',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            
             {successMessage && (
               <div className="px-4 py-2 bg-green-500/20 border border-green-500 text-green-300 rounded-lg">
                 {successMessage}
@@ -278,6 +471,17 @@ const CMSManagementPage: React.FC = () => {
             onClick={() => { setActivePage('gamme-produits'); }}
             className={`px-4 py-2 rounded-lg font-medium transition-all ${activePage === 'gamme-produits' ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
           >📦 Gamme Produits</button>
+          <button
+            onClick={() => { setActivePage('formations'); }}
+            className={`px-4 py-2 rounded-lg font-medium transition-all relative ${activePage === 'formations' ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
+          >
+            🎓 Formations
+            {pendingFormations.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                {pendingFormations.length}
+              </span>
+            )}
+          </button>
         </div>
       </div>
 
@@ -576,6 +780,103 @@ const CMSManagementPage: React.FC = () => {
                 ))}
               </div>
             </div>
+          </div>
+        )}
+
+        {activePage === 'formations' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-bold text-white">Formations en attente d'approbation</h3>
+              <button
+                onClick={loadPendingFormations}
+                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-all"
+              >
+                🔄 Actualiser
+              </button>
+            </div>
+
+            {loadingFormations ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500 mx-auto"></div>
+                <p className="text-slate-300 mt-4">Chargement...</p>
+              </div>
+            ) : pendingFormations.length === 0 ? (
+              <div className="bg-slate-700/40 rounded-lg p-8 text-center">
+                <p className="text-slate-300 text-lg">✅ Aucune formation en attente</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {pendingFormations.map((formation: any) => {
+                  const dateStr = formation.date ? new Date(formation.date).toLocaleDateString('fr-FR') : '';
+                  const categories = Array.isArray(formation.categories) ? formation.categories : JSON.parse(formation.categories || '[]');
+                  return (
+                    <div key={formation.id} className="bg-slate-700/40 rounded-lg p-6 border border-slate-600">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                          <h4 className="text-lg font-bold text-white mb-2">{formation.nom_document}</h4>
+                          <div className="grid grid-cols-2 gap-4 text-slate-300 text-sm">
+                            <div>
+                              <span className="font-semibold">Utilisateur:</span> {formation.user_name || formation.userName || 'N/A'}
+                            </div>
+                            <div>
+                              <span className="font-semibold">Date:</span> {dateStr}
+                            </div>
+                            <div>
+                              <span className="font-semibold">Heures:</span> {formation.heures}h
+                            </div>
+                            <div>
+                              <span className="font-semibold">Année:</span> {formation.year}
+                            </div>
+                            <div>
+                              <span className="font-semibold">Délivrée par:</span> {formation.delivree_par || '-'}
+                            </div>
+                            <div>
+                              <span className="font-semibold">Soumis le:</span> {formation.created_at ? new Date(formation.created_at).toLocaleDateString('fr-FR') : '-'}
+                            </div>
+                          </div>
+                          <div className="mt-3">
+                            <span className="font-semibold text-slate-300 text-sm">Catégories:</span>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {categories.map((cat: string) => (
+                                <span key={cat} className="px-3 py-1 bg-blue-600 text-white text-xs rounded-full">
+                                  {cat}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          {formation.file_path && (
+                            <div className="mt-3">
+                              <a
+                                href={`http://localhost:3001${formation.file_path}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-400 hover:text-blue-300 text-sm underline"
+                              >
+                                📄 Voir le fichier
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-600">
+                        <button
+                          onClick={() => handleRejectFormation(formation.id)}
+                          className="px-6 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+                        >
+                          ❌ Rejeter
+                        </button>
+                        <button
+                          onClick={() => handleApproveFormation(formation.id)}
+                          className="px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors"
+                        >
+                          ✅ Approuver
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
