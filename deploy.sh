@@ -339,21 +339,25 @@ echo ""
 echo -e "${BLUE}📋 Étape 8: Démarrage du frontend...${NC}"
 
 # Récupérer le nom du réseau Docker
-NETWORK_NAME=$(cd backend && docker compose config 2>/dev/null | grep -A 2 "networks:" | tail -1 | awk '{print $1}' | tr -d ':' || echo "backend_alliance-network")
+# Méthode 1: Trouver le réseau connecté au backend
+NETWORK_NAME=$(docker inspect alliance-courtage-backend 2>/dev/null | grep -A 20 "Networks" | grep -E '"[^"]+"' | head -1 | cut -d'"' -f2)
 
-if [ -z "$NETWORK_NAME" ] || [ "$NETWORK_NAME" = "backend_alliance-network" ]; then
-    # Essayer de trouver le réseau créé par docker-compose
-    NETWORK_NAME=$(docker network ls | grep backend | awk '{print $1}' | head -1)
-    if [ -z "$NETWORK_NAME" ]; then
-        NETWORK_NAME=$(docker inspect alliance-courtage-backend 2>/dev/null | grep -A 10 "Networks" | grep "NetworkID" | cut -d'"' -f4 | head -1)
-    fi
+# Méthode 2: Si pas trouvé, chercher dans docker network ls
+if [ -z "$NETWORK_NAME" ] || [ "$NETWORK_NAME" = "name" ]; then
+    NETWORK_NAME=$(docker network ls --format "{{.Name}}" | grep -E "(backend|alliance)" | head -1)
 fi
 
-# Si toujours pas trouvé, utiliser le nom par défaut
-if [ -z "$NETWORK_NAME" ]; then
-    NETWORK_NAME="backend_alliance-network"
-    # Créer le réseau s'il n'existe pas
-    docker network create $NETWORK_NAME 2>/dev/null || true
+# Méthode 3: Si toujours pas trouvé, utiliser le nom par défaut
+if [ -z "$NETWORK_NAME" ] || [ "$NETWORK_NAME" = "name" ]; then
+    # Essayer de trouver le réseau avec backend_alliance-network
+    if docker network inspect backend_alliance-network &>/dev/null; then
+        NETWORK_NAME="backend_alliance-network"
+    else
+        # Utiliser le nom du réseau basé sur le dossier
+        NETWORK_NAME="backend_alliance-network"
+        # Créer le réseau s'il n'existe pas
+        docker network create $NETWORK_NAME 2>/dev/null || true
+    fi
 fi
 
 info_msg "Utilisation du réseau Docker: $NETWORK_NAME"
