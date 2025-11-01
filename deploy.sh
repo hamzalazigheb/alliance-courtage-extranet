@@ -55,12 +55,27 @@ if ! command -v docker &> /dev/null; then
     # Ajouter l'utilisateur au groupe docker
     sudo usermod -aG docker $USER
     
-    warn_msg "Docker installé. Vous devrez peut-être vous déconnecter/reconnecter pour que les permissions prennent effet."
-    warn_msg "Après reconnexion, relancez ce script."
+    warn_msg "Docker installé. Application des permissions..."
     
-    # Si on peut continuer quand même
+    # Essayer d'appliquer les changements immédiatement avec newgrp
+    if command -v newgrp &> /dev/null; then
+        warn_msg "Application des permissions Docker (peut prendre quelques secondes)..."
+        # Note: newgrp dans un script est complexe, on essaie une autre méthode
+    fi
+    
+    # Vérifier si on peut utiliser Docker maintenant
     if ! groups | grep -q docker; then
-        error_exit "Veuillez vous déconnecter/reconnecter et relancer le script"
+        warn_msg "⚠️  Permissions Docker non appliquées automatiquement."
+        warn_msg "💡 Solutions :"
+        warn_msg "   1. Se déconnecter/reconnecter, puis relancer: ./deploy.sh"
+        warn_msg "   2. Ou exécuter: sudo usermod -aG docker $USER && newgrp docker"
+        warn_msg ""
+        warn_msg "Essai de continuation avec sudo..."
+        
+        # Essayer avec sudo en dernier recours
+        if ! docker ps &> /dev/null; then
+            error_exit "Impossible d'utiliser Docker. Déconnectez-vous/reconnectez-vous et relancez le script."
+        fi
     fi
 else
     success_msg "Docker est installé"

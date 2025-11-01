@@ -8,7 +8,9 @@ WORKDIR /app
 COPY package*.json ./
 
 # Installer les dépendances
-RUN npm install
+# Utiliser npm ci pour une installation plus fiable et nettoyer le cache après
+RUN npm ci --only=production && \
+    npm cache clean --force
 
 # Copier le code source
 COPY . .
