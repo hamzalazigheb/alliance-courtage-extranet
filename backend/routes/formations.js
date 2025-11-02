@@ -44,8 +44,8 @@ const upload = multer({
 // Middleware pour gérer les erreurs multer
 const handleMulterError = (err, req, res, next) => {
   if (err instanceof multer.MulterError) {
-    if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ error: 'Fichier trop volumineux. Taille maximale: 10MB' });
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: 'Fichier trop volumineux. Taille maximale: 50MB' });
     }
     return res.status(400).json({ error: 'Erreur upload fichier: ' + err.message });
   } else if (err) {
