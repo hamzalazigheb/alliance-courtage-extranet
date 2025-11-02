@@ -139,21 +139,45 @@ router.get('/me', auth, async (req, res) => {
 // @access  Private (Admin seulement)
 router.post('/register', auth, async (req, res) => {
   try {
+    console.log('📝 Register request received:', {
+      user: req.user ? { id: req.user.id, role: req.user.role } : null,
+      body: { ...req.body, password: req.body.password ? '***' : undefined }
+    });
+
     // Vérifier que l'utilisateur est admin
-    if (req.user.role !== 'admin') {
+    if (!req.user || req.user.role !== 'admin') {
       return res.status(403).json({ 
         error: 'Accès refusé. Droits administrateur requis.' 
       });
     }
 
-    const { email, password, nom, prenom, role = 'broker' } = req.body;
+    const { email, password, nom, prenom, role = 'user' } = req.body;
 
     // Validation des données
     if (!email || !password || !nom || !prenom) {
       return res.status(400).json({ 
-        error: 'Tous les champs sont requis' 
+        error: 'Tous les champs sont requis (email, password, nom, prenom)' 
       });
     }
+
+    // Validation email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ 
+        error: 'Format d\'email invalide' 
+      });
+    }
+
+    // Validation password
+    if (password.length < 6) {
+      return res.status(400).json({ 
+        error: 'Le mot de passe doit contenir au moins 6 caractères' 
+      });
+    }
+
+    // Validation role
+    const validRoles = ['admin', 'user', 'broker'];
+    const finalRole = validRoles.includes(role) ? role : 'user';
 
     // Vérifier si l'utilisateur existe déjà
     const existingUsers = await query(
@@ -168,14 +192,35 @@ router.post('/register', auth, async (req, res) => {
     }
 
     // Hasher le mot de passe
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    let hashedPassword;
+    try {
+      const saltRounds = 10;
+      hashedPassword = await bcrypt.hash(password, saltRounds);
+    } catch (hashError) {
+      console.error('❌ Error hashing password:', hashError);
+      return res.status(500).json({ 
+        error: 'Erreur lors du hachage du mot de passe' 
+      });
+    }
 
     // Créer l'utilisateur
-    const result = await query(
-      'INSERT INTO users (email, password, nom, prenom, role) VALUES (?, ?, ?, ?, ?)',
-      [email, hashedPassword, nom, prenom, role]
-    );
+    let result;
+    try {
+      result = await query(
+        'INSERT INTO users (email, password, nom, prenom, role, is_active) VALUES (?, ?, ?, ?, ?, ?)',
+        [email, hashedPassword, nom, prenom, finalRole, true]
+      );
+      console.log('✅ User created successfully:', { userId: result.insertId, email, role: finalRole });
+    } catch (dbError) {
+      console.error('❌ Database error during user creation:', dbError);
+      // Vérifier si c'est une erreur de contrainte
+      if (dbError.code === 'ER_DUP_ENTRY') {
+        return res.status(400).json({ 
+          error: 'Un utilisateur avec cet email existe déjà' 
+        });
+      }
+      throw dbError;
+    }
 
     res.status(201).json({
       message: 'Utilisateur créé avec succès',
@@ -183,9 +228,11 @@ router.post('/register', auth, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Erreur register:', error);
+    console.error('❌ Erreur register:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({ 
-      error: 'Erreur serveur lors de la création de l\'utilisateur' 
+      error: 'Erreur serveur lors de la création de l\'utilisateur',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
