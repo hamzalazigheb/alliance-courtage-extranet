@@ -4,23 +4,46 @@ const nodemailer = require('nodemailer');
  * Service d'envoi d'email pour la réinitialisation de mot de passe admin
  */
 
+// Charger config.env si disponible
+try {
+  require('dotenv').config({ path: './config.env' });
+} catch (e) {
+  // Ignorer si le fichier n'existe pas
+}
+
 // Configuration du transporteur email
 const createTransporter = () => {
   // Configuration depuis les variables d'environnement
+  const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+  const smtpPort = parseInt(process.env.SMTP_PORT) || 587;
+  const smtpSecure = process.env.SMTP_SECURE === 'true' || process.env.SMTP_SECURE === '1';
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPassword = process.env.SMTP_PASSWORD;
+
+  // Debug: Afficher la configuration (masquer le mot de passe)
+  console.log('📧 Configuration SMTP:', {
+    host: smtpHost,
+    port: smtpPort,
+    secure: smtpSecure,
+    user: smtpUser ? '✅ Configuré' : '❌ Non configuré',
+    password: smtpPassword ? '✅ Configuré' : '❌ Non configuré'
+  });
+
   const smtpConfig = {
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT) || 587,
-    secure: process.env.SMTP_SECURE === 'true', // true pour 465, false pour autres ports
+    host: smtpHost,
+    port: smtpPort,
+    secure: smtpSecure, // true pour 465, false pour autres ports
     auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASSWORD
+      user: smtpUser,
+      pass: smtpPassword
     }
   };
 
   // Si les credentials ne sont pas configurés, utiliser un transporteur de test (pour dev)
-  if (!smtpConfig.auth.user || !smtpConfig.auth.pass) {
+  if (!smtpUser || !smtpPassword) {
     console.warn('⚠️  SMTP non configuré. Mode développement activé.');
     console.warn('⚠️  Pour la production, configurez SMTP_USER et SMTP_PASSWORD dans config.env');
+    console.warn('⚠️  Ou définissez ces variables dans docker-compose.yml');
     
     // Transporteur de test qui simule l'envoi sans vraiment envoyer
     return {
@@ -50,6 +73,7 @@ const createTransporter = () => {
     };
   }
 
+  console.log('✅ Utilisation de SMTP réel (Mailtrap)');
   return nodemailer.createTransport(smtpConfig);
 };
 
