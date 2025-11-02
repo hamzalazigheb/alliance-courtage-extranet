@@ -328,12 +328,12 @@ export function getAPIBaseURL() {
 }
 
 // Helper function to build full API URLs
-export function buildAPIURL(endpoint: string) {
+export function buildAPIURL(endpoint) {
   return `${API_BASE_URL}${endpoint}`;
 }
 
 // Helper function to build file URLs (for uploads, images, etc.)
-export function buildFileURL(filePath: string) {
+export function buildFileURL(filePath) {
   if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
     return filePath;
   }
