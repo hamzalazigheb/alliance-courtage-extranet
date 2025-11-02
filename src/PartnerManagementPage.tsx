@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { partnersAPI } from './api';
+import { partnersAPI, buildAPIURL } from './api';
 
 interface Partner {
   id: number;
@@ -80,7 +80,7 @@ const PartnerManagementPage: React.FC = () => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3001/api/partners', {
+      const response = await fetch(buildAPIURL('/partners'), {
         method: 'POST',
         headers: {
           'x-auth-token': token || ''

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { authAPI } from './api';
+import { authAPI, buildAPIURL } from './api';
 
 interface User {
   id: number;
@@ -57,7 +57,7 @@ function UserManagementPage() {
 
   const loadResetRequests = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/password-reset/requests', {
+      const response = await fetch(buildAPIURL('/password-reset/requests'), {
         headers: {
           'x-auth-token': localStorage.getItem('token') || ''
         }
@@ -84,7 +84,7 @@ function UserManagementPage() {
     }
 
     try {
-      const response = await fetch(`http://localhost:3001/api/password-reset/requests/${requestId}/complete`, {
+      const response = await fetch(buildAPIURL(`/password-reset/requests/${requestId}/complete`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -115,7 +115,7 @@ function UserManagementPage() {
   const loadUsers = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:3001/api/users', {
+      const response = await fetch(buildAPIURL('/users'), {
         headers: {
           'x-auth-token': localStorage.getItem('token') || ''
         }
@@ -143,7 +143,7 @@ function UserManagementPage() {
     try {
       setIsSubmitting(true);
 
-      const response = await fetch('http://localhost:3001/api/auth/register', {
+      const response = await fetch(buildAPIURL('/auth/register'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -182,7 +182,7 @@ function UserManagementPage() {
     }
 
     try {
-      const response = await fetch(`http://localhost:3001/api/users/${id}`, {
+      const response = await fetch(buildAPIURL(`/users/${id}`), {
         method: 'DELETE',
         headers: {
           'x-auth-token': localStorage.getItem('token') || ''
@@ -203,7 +203,7 @@ function UserManagementPage() {
 
   const handleToggleActive = async (id: number, currentStatus: boolean) => {
     try {
-      const response = await fetch(`http://localhost:3001/api/users/${id}`, {
+      const response = await fetch(buildAPIURL(`/users/${id}`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -236,7 +236,7 @@ function UserManagementPage() {
       formData.append('file', uploadFile);
       formData.append('user_id', selectedUserForUpload.toString());
 
-      const response = await fetch('http://localhost:3001/api/archives', {
+      const response = await fetch(buildAPIURL('/archives'), {
         method: 'POST',
         headers: {
           'x-auth-token': localStorage.getItem('token') || ''
@@ -327,7 +327,7 @@ function UserManagementPage() {
         formData.append('file', file);
         formData.append('user_id', mapping.userId.toString());
         
-        const response = await fetch('http://localhost:3001/api/archives', {
+        const response = await fetch(buildAPIURL('/archives'), {
           method: 'POST',
           headers: {
             'x-auth-token': localStorage.getItem('token') || ''
@@ -641,7 +641,7 @@ function UserManagementPage() {
                           onChange={async (e) => {
                             const newRole = e.target.value;
                             try {
-                              const response = await fetch(`http://localhost:3001/api/users/${user.id}`, {
+                              const response = await fetch(buildAPIURL(`/users/${user.id}`), {
                                 method: 'PUT',
                                 headers: {
                                   'Content-Type': 'application/json',

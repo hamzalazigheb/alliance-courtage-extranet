@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { archivesAPI } from './api';
+import { archivesAPI, buildAPIURL } from './api';
 
 interface ArchiveFile {
   id: number;
@@ -74,7 +74,7 @@ function FileManagementPage() {
       formData.append('year', uploadForm.year.toString());
 
       // Appel à l'API d'upload
-      const response = await fetch('http://localhost:3001/api/archives', {
+      const response = await fetch(buildAPIURL('/archives'), {
         method: 'POST',
         headers: {
           'x-auth-token': localStorage.getItem('token') || ''

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { structuredProductsAPI } from './api';
+import { structuredProductsAPI, buildAPIURL } from './api';
 
 interface StructuredProduct {
   id: number;
@@ -110,7 +110,7 @@ const AdminDashboard: React.FC = () => {
     formData.append('category', uploadForm.category);
 
     try {
-      const response = await fetch('http://localhost:3001/api/structured-products', {
+      const response = await fetch(buildAPIURL('/structured-products'), {
         method: 'POST',
         headers: {
           'x-auth-token': localStorage.getItem('token') || ''

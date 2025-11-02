@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { financialDocumentsAPI } from './api';
+import { financialDocumentsAPI, buildAPIURL } from './api';
 
 interface FinancialDocument {
   id: number;
@@ -73,7 +73,7 @@ function FinancialDocumentsPage() {
       formData.append('subcategory', uploadForm.subcategory);
       formData.append('year', uploadForm.year.toString());
 
-      const response = await fetch('http://localhost:3001/api/financial-documents', {
+      const response = await fetch(buildAPIURL('/financial-documents'), {
         method: 'POST',
         headers: {
           'x-auth-token': localStorage.getItem('token') || ''
