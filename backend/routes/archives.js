@@ -60,7 +60,7 @@ router.get('/recent', auth, authorize('admin'), async (req, res) => {
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 10 * 1024 * 1024 // 10MB par défaut
+    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 50 * 1024 * 1024 // 50MB par défaut
   },
   fileFilter: (req, file, cb) => {
     // Accepter seulement certains types de fichiers
