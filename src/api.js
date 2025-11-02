@@ -1,15 +1,25 @@
 // Configuration de l'API
 // Use relative URL in production (nginx will proxy), or full URL in development
 // Force relative URL if not localhost (production mode)
-const isProduction = import.meta.env.PROD || 
-  (typeof window !== 'undefined' && 
-   window.location.hostname !== 'localhost' && 
-   window.location.hostname !== '127.0.0.1' &&
-   !window.location.hostname.startsWith('192.168.') &&
-   !window.location.hostname.startsWith('10.'));
-const API_BASE_URL = isProduction
-  ? '/api'  // Production: relative URL (nginx proxies to backend)
-  : 'http://localhost:3001/api';  // Development: direct backend URL
+let API_BASE_URL = '/api'; // Default: use relative URL (production)
+
+// Only use localhost in development (when running on localhost)
+if (typeof window !== 'undefined') {
+  const hostname = window.location.hostname;
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || 
+      hostname.startsWith('192.168.') || hostname.startsWith('10.') ||
+      hostname.startsWith('172.16.') || hostname.startsWith('172.17.') ||
+      hostname.startsWith('172.18.') || hostname.startsWith('172.19.') ||
+      hostname.startsWith('172.20.') || hostname.startsWith('172.21.') ||
+      hostname.startsWith('172.22.') || hostname.startsWith('172.23.') ||
+      hostname.startsWith('172.24.') || hostname.startsWith('172.25.') ||
+      hostname.startsWith('172.26.') || hostname.startsWith('172.27.') ||
+      hostname.startsWith('172.28.') || hostname.startsWith('172.29.') ||
+      hostname.startsWith('172.30.') || hostname.startsWith('172.31.')) {
+    // Development mode: use localhost
+    API_BASE_URL = 'http://localhost:3001/api';
+  }
+}
 
 // Fonction utilitaire pour les requêtes
 async function apiRequest(endpoint, options = {}) {
