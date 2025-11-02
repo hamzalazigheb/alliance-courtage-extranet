@@ -1,24 +1,24 @@
 // Configuration de l'API
 // Use relative URL in production (nginx will proxy), or full URL in development
-// Force relative URL if not localhost (production mode)
+// Force relative URL by default - only use localhost for actual localhost
 let API_BASE_URL = '/api'; // Default: use relative URL (production)
 
-// Only use localhost in development (when running on localhost)
+// Only use localhost in development (when running on actual localhost or local IPs)
 if (typeof window !== 'undefined') {
   const hostname = window.location.hostname;
-  if (hostname === 'localhost' || hostname === '127.0.0.1' || 
-      hostname.startsWith('192.168.') || hostname.startsWith('10.') ||
-      hostname.startsWith('172.16.') || hostname.startsWith('172.17.') ||
-      hostname.startsWith('172.18.') || hostname.startsWith('172.19.') ||
-      hostname.startsWith('172.20.') || hostname.startsWith('172.21.') ||
-      hostname.startsWith('172.22.') || hostname.startsWith('172.23.') ||
-      hostname.startsWith('172.24.') || hostname.startsWith('172.25.') ||
-      hostname.startsWith('172.26.') || hostname.startsWith('172.27.') ||
-      hostname.startsWith('172.28.') || hostname.startsWith('172.29.') ||
-      hostname.startsWith('172.30.') || hostname.startsWith('172.31.')) {
-    // Development mode: use localhost
+  // Only use localhost if it's REALLY localhost or private IP range
+  const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
+  const isPrivateIP = hostname.startsWith('192.168.') || 
+                      hostname.startsWith('10.') ||
+                      (hostname.startsWith('172.') && 
+                       parseInt(hostname.split('.')[1]) >= 16 && 
+                       parseInt(hostname.split('.')[1]) <= 31);
+  
+  if (isLocalhost || (isPrivateIP && window.location.port === '5173')) {
+    // Only in true development mode (localhost or private IP with dev port)
     API_BASE_URL = 'http://localhost:3001/api';
   }
+  // Otherwise use /api (production mode)
 }
 
 // Fonction utilitaire pour les requêtes
@@ -321,5 +321,35 @@ export const notificationsAPI = {
     });
   },
 };
+
+// Helper function to get the API base URL (for direct fetch calls)
+export function getAPIBaseURL() {
+  return API_BASE_URL;
+}
+
+// Helper function to build full API URLs
+export function buildAPIURL(endpoint: string) {
+  return `${API_BASE_URL}${endpoint}`;
+}
+
+// Helper function to build file URLs (for uploads, images, etc.)
+export function buildFileURL(filePath: string) {
+  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+    return filePath;
+  }
+  // Remove leading slash if present
+  const cleanPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
+  
+  if (API_BASE_URL === '/api') {
+    // Production: use relative URL
+    return `/${cleanPath}`;
+  } else {
+    // Development: use localhost
+    return `http://localhost:3001/${cleanPath}`;
+  }
+}
+
+// Export API_BASE_URL for use in other files
+export { API_BASE_URL };
 
 export default apiRequest;

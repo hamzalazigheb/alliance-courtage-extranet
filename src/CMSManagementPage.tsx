@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { formationsAPI, notificationsAPI } from './api';
+import { formationsAPI, notificationsAPI, buildAPIURL, buildFileURL } from './api';
 
 interface NewsItem {
   id?: number;
@@ -253,7 +253,7 @@ const CMSManagementPage: React.FC = () => {
   const loadContent = async () => {
     try {
       const endpoint = activePage === 'home' ? 'home' : 'gamme-produits';
-      const response = await fetch(`http://localhost:3001/api/cms/${endpoint}`, {
+      const response = await fetch(buildAPIURL(`/cms/${endpoint}`), {
         headers: {
           'x-auth-token': localStorage.getItem('token') || ''
         }
@@ -293,7 +293,7 @@ const CMSManagementPage: React.FC = () => {
         ? JSON.stringify({ content: JSON.stringify(content) })
         : JSON.stringify({ content: JSON.stringify(gpContent) });
 
-      const response = await fetch(`http://localhost:3001/api/cms/${endpoint}`, {
+      const response = await fetch(buildAPIURL(`/cms/${endpoint}`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -592,7 +592,7 @@ const CMSManagementPage: React.FC = () => {
                           try {
                             const formData = new FormData();
                             formData.append('file', file);
-                            const resp = await fetch('http://localhost:3001/api/archives', {
+                            const resp = await fetch(buildAPIURL('/archives'), {
                               method: 'POST',
                               headers: {
                                 'x-auth-token': localStorage.getItem('token') || ''
@@ -847,7 +847,7 @@ const CMSManagementPage: React.FC = () => {
                           {formation.file_path && (
                             <div className="mt-3">
                               <a
-                                href={`http://localhost:3001${formation.file_path}`}
+                                href={buildFileURL(formation.file_path)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-blue-400 hover:text-blue-300 text-sm underline"

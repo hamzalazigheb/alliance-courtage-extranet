@@ -5,7 +5,7 @@ import AdminDashboard from './AdminDashboard';
 import ProduitsStructuresPageComponent from './ProduitsStructuresPage';
 import NosArchivesPage from './NosArchivesPage';
 import ManagePage from './ManagePage';
-import { authAPI, formationsAPI } from './api';
+import { authAPI, formationsAPI, buildAPIURL, buildFileURL } from './api';
 
 // Types pour les utilisateurs et fichiers
 interface AuthUserRecord {
@@ -139,7 +139,7 @@ function LoginPage({ onLogin, users }: { onLogin: (user: User) => void, users: U
                   
                   try {
                     // Essayer d'abord la réinitialisation automatique pour admins (avec email)
-                    const adminResponse = await fetch('http://localhost:3001/api/admin-password-reset/request', {
+                    const adminResponse = await fetch(buildAPIURL('/admin-password-reset/request'), {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ email })
@@ -156,7 +156,7 @@ function LoginPage({ onLogin, users }: { onLogin: (user: User) => void, users: U
                     }
                     
                     // Si ce n'est pas un admin, essayer la méthode normale
-                    const response = await fetch('http://localhost:3001/api/password-reset/request', {
+                    const response = await fetch(buildAPIURL('/password-reset/request'), {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ email })
@@ -741,7 +741,7 @@ function HomePage() {
   const loadContent = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3001/api/cms/home', {
+      const response = await fetch(buildAPIURL('/cms/home'), {
         headers: { 'x-auth-token': token || '' }
       });
       if (response.ok) {
@@ -907,7 +907,7 @@ function GammeProduitsPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const resp = await fetch('http://localhost:3001/api/cms/gamme-produits', {
+        const resp = await fetch(buildAPIURL('/cms/gamme-produits'), {
           headers: { 'x-auth-token': localStorage.getItem('token') || '' }
         });
         if (resp.ok) {
@@ -1112,7 +1112,7 @@ function PartenairesPage() {
     const loadPartenaires = async () => {
       try {
         // Load all partners (including inactive for testing)
-        const response = await fetch('http://localhost:3001/api/partners?active=false');
+        const response = await fetch(buildAPIURL('/partners?active=false'));
         const data = await response.json();
         
         console.log('📊 Partners loaded from API:', data.length);
@@ -1205,7 +1205,7 @@ function PartenairesPage() {
                   <div className={`h-32 flex items-center justify-center ${partenaire.nom === 'AESTIAM' ? 'bg-gray-800' : 'bg-gradient-to-br from-gray-50 to-gray-100'}`}>
                     {partenaire.logo_url && partenaire.logo_url.startsWith('/uploads/') ? (
                       <img 
-                        src={`http://localhost:3001${partenaire.logo_url}`} 
+                        src={buildFileURL(partenaire.logo_url)} 
                         alt={`Logo ${partenaire.nom}`}
                         className="h-20 w-auto object-contain max-w-full"
                         style={{ maxHeight: '80px' }}
@@ -1297,7 +1297,7 @@ function PartenairesPage() {
                   <div className={`h-32 flex items-center justify-center ${partenaire.nom === 'AESTIAM' ? 'bg-gray-800' : 'bg-gradient-to-br from-gray-50 to-gray-100'}`}>
                     {partenaire.logo_url && partenaire.logo_url.startsWith('/uploads/') ? (
                       <img 
-                        src={`http://localhost:3001${partenaire.logo_url}`} 
+                        src={buildFileURL(partenaire.logo_url)} 
                         alt={`Logo ${partenaire.nom}`}
                         className="h-20 w-auto object-contain max-w-full"
                         style={{ maxHeight: '80px' }}
@@ -1986,7 +1986,7 @@ function ReglementairePage({ currentUser }: { currentUser: User | null }) {
                       <td className="border border-gray-300 px-4 py-2">
                           {formation.file_path && (
                             <a 
-                              href={`http://localhost:3001${formation.file_path}`} 
+                              href={buildFileURL(formation.file_path)} 
                               target="_blank" 
                               rel="noopener noreferrer"
                               className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm transition-colors inline-block"
@@ -3566,7 +3566,7 @@ function ComptabilitePage({ currentUser, bordereaux }: { currentUser: User | nul
     const loadUserFiles = async () => {
       if (!currentUser?.id) return;
       try {
-        const response = await fetch(`http://localhost:3001/api/archives?user_id=${currentUser.id}`, {
+        const response = await fetch(buildAPIURL(`/archives?user_id=${currentUser.id}`), {
           headers: {
             'x-auth-token': localStorage.getItem('token') || ''
           }
@@ -3897,7 +3897,7 @@ Alliance Courtage - Extranet
                       <div className="flex space-x-2">
                         {file.id?.startsWith('db_') && file.file_path ? (
                           <a 
-                            href={`http://localhost:3001${file.file_path}`}
+                            href={buildFileURL(file.file_path)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-3 rounded-lg transition-colors text-sm font-medium text-center"
@@ -3986,7 +3986,7 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
       // Load recent uploads from backend so they persist across sessions
       (async () => {
         try {
-          const res = await fetch('http://localhost:3001/api/archives/recent?limit=20', {
+          const res = await fetch(buildAPIURL('/archives/recent?limit=20'), {
             headers: { 'x-auth-token': localStorage.getItem('token') || '' }
           });
           if (res.ok) {
@@ -4001,7 +4001,7 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
   const loadUsers = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:3001/api/users', {
+      const response = await fetch(buildAPIURL('/users'), {
         headers: {
           'x-auth-token': localStorage.getItem('token') || ''
         }
@@ -4112,7 +4112,7 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
         formData.append('file', file);
         formData.append('user_id', mapping.userId.toString());
         
-        const response = await fetch('http://localhost:3001/api/archives', {
+        const response = await fetch(buildAPIURL('/archives'), {
           method: 'POST',
           headers: {
             'x-auth-token': localStorage.getItem('token') || ''

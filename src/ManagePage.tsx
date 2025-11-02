@@ -4,6 +4,7 @@ import PartnerManagementPage from './PartnerManagementPage';
 import FinancialDocumentsPage from './FinancialDocumentsPage';
 import UserManagementPage from './UserManagementPage';
 import CMSManagementPage from './CMSManagementPage';
+import { buildAPIURL } from './api';
 
 interface UserProfile {
   id: string;
@@ -38,7 +39,7 @@ const ManagePage: React.FC = () => {
       const token = localStorage.getItem('token');
       if (!token) return;
 
-      const response = await fetch('http://localhost:3001/api/auth/me', {
+      const response = await fetch(buildAPIURL('/auth/me'), {
         headers: {
           'x-auth-token': token
         }
@@ -65,7 +66,7 @@ const ManagePage: React.FC = () => {
       setLoading(true);
       const token = localStorage.getItem('token');
       
-      const response = await fetch(`http://localhost:3001/api/users/${currentUser.id}/profile`, {
+      const response = await fetch(buildAPIURL(`/users/${currentUser.id}/profile`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -110,7 +111,7 @@ const ManagePage: React.FC = () => {
       setLoading(true);
       const token = localStorage.getItem('token');
       
-      const response = await fetch(`http://localhost:3001/api/users/${currentUser?.id}/change-password`, {
+      const response = await fetch(buildAPIURL(`/users/${currentUser?.id}/change-password`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
