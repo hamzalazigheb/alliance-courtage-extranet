@@ -1,10 +1,55 @@
 const nodemailer = require('nodemailer');
+const fs = require('fs');
+const path = require('path');
 
 /**
  * Service d'envoi d'email pour la réinitialisation de mot de passe admin
  */
 
-// Charger config.env si disponible
+// Fonction pour charger config.env directement depuis le fichier
+function loadConfigEnv() {
+  // Essayer plusieurs chemins possibles
+  const possiblePaths = [
+    path.join(__dirname, '..', 'config.env'),  // Depuis services/config.env
+    path.join(process.cwd(), 'config.env'),    // Depuis la racine du projet
+    './config.env',                            // Chemin relatif
+    '/app/config.env'                          // Dans Docker
+  ];
+
+  for (const configPath of possiblePaths) {
+    try {
+      if (fs.existsSync(configPath)) {
+        const content = fs.readFileSync(configPath, 'utf8');
+        const lines = content.split('\n');
+        
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed && !trimmed.startsWith('#')) {
+            const [key, ...valueParts] = trimmed.split('=');
+            if (key && valueParts.length > 0) {
+              const envKey = key.trim();
+              const envValue = valueParts.join('=').trim();
+              // Ne pas écraser si déjà défini dans process.env (priorité aux vars d'env)
+              if (!process.env[envKey]) {
+                process.env[envKey] = envValue;
+              }
+            }
+          }
+        }
+        return true;
+      }
+    } catch (e) {
+      // Continuer avec le prochain chemin
+      continue;
+    }
+  }
+  return false;
+}
+
+// Charger config.env directement depuis le fichier
+loadConfigEnv();
+
+// Aussi essayer dotenv comme fallback
 try {
   require('dotenv').config({ path: './config.env' });
 } catch (e) {
