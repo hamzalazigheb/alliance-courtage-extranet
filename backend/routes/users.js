@@ -132,6 +132,13 @@ router.put('/:id', auth, authorize('admin'), async (req, res) => {
       values.push(prenom);
     }
     if (role !== undefined) {
+      // Validation role - must be one of the ENUM values
+      const validRoles = ['admin', 'user', 'broker'];
+      if (!validRoles.includes(role)) {
+        return res.status(400).json({ 
+          error: `Rôle invalide. Valeurs autorisées: ${validRoles.join(', ')}` 
+        });
+      }
       updates.push('role = ?');
       values.push(role);
     }
@@ -147,16 +154,32 @@ router.put('/:id', auth, authorize('admin'), async (req, res) => {
     values.push(id);
     
     // Mettre à jour l'utilisateur
-    await query(
-      `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
-      values
-    );
-    
-    res.json({ message: 'Utilisateur mis à jour avec succès' });
+    try {
+      await query(
+        `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
+        values
+      );
+      
+      console.log('✅ User updated successfully:', { id, updates: updates.join(', ') });
+      res.json({ message: 'Utilisateur mis à jour avec succès' });
+    } catch (dbError) {
+      console.error('❌ Database error during user update:', dbError);
+      
+      // Gérer spécifiquement l'erreur de role ENUM
+      if (dbError.code === 'WARN_DATA_TRUNCATED' && dbError.sqlMessage && dbError.sqlMessage.includes('role')) {
+        return res.status(400).json({ 
+          error: 'Rôle invalide. Valeurs autorisées: admin, user, broker' 
+        });
+      }
+      
+      throw dbError;
+    }
   } catch (error) {
-    console.error('Erreur update user:', error);
+    console.error('❌ Erreur update user:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({ 
-      error: 'Erreur serveur lors de la mise à jour de l\'utilisateur' 
+      error: 'Erreur serveur lors de la mise à jour de l\'utilisateur',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
