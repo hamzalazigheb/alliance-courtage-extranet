@@ -1,24 +1,24 @@
 // Configuration de l'API
 // Use relative URL in production (nginx will proxy), or full URL in development
-// Force relative URL by default - only use localhost for actual localhost
+// STRICT: Only use localhost if it's EXACTLY localhost or 127.0.0.1
 let API_BASE_URL = '/api'; // Default: use relative URL (production)
 
-// Only use localhost in development (when running on actual localhost or local IPs)
+// Only use localhost in development (VERY strict check)
 if (typeof window !== 'undefined') {
   const hostname = window.location.hostname;
-  // Only use localhost if it's REALLY localhost or private IP range
-  const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
-  const isPrivateIP = hostname.startsWith('192.168.') || 
-                      hostname.startsWith('10.') ||
-                      (hostname.startsWith('172.') && 
-                       parseInt(hostname.split('.')[1]) >= 16 && 
-                       parseInt(hostname.split('.')[1]) <= 31);
+  const port = window.location.port;
   
-  if (isLocalhost || (isPrivateIP && window.location.port === '5173')) {
-    // Only in true development mode (localhost or private IP with dev port)
+  // ONLY use localhost if:
+  // 1. hostname is exactly 'localhost' or '127.0.0.1'
+  // 2. AND we're on a development port (5173 for Vite, or no port specified)
+  const isStrictLocalhost = (hostname === 'localhost' || hostname === '127.0.0.1');
+  const isDevPort = port === '5173' || port === '' || port === '0';
+  
+  if (isStrictLocalhost && isDevPort) {
+    // Only in true development mode
     API_BASE_URL = 'http://localhost:3001/api';
   }
-  // Otherwise use /api (production mode)
+  // Otherwise ALWAYS use /api (production mode - no exceptions)
 }
 
 // Fonction utilitaire pour les requêtes
