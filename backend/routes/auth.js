@@ -151,7 +151,7 @@ router.post('/register', auth, async (req, res) => {
       });
     }
 
-    const { email, password, nom, prenom, role = 'user' } = req.body;
+    const { email, password, nom, prenom, role } = req.body;
 
     // Validation des données
     if (!email || !password || !nom || !prenom) {
@@ -175,9 +175,17 @@ router.post('/register', auth, async (req, res) => {
       });
     }
 
-    // Validation role
+    // Validation role - must be one of the ENUM values
     const validRoles = ['admin', 'user', 'broker'];
-    const finalRole = validRoles.includes(role) ? role : 'user';
+    const finalRole = role && validRoles.includes(role) ? role : 'user';
+    
+    // Ensure role is exactly one of the allowed values (case-sensitive)
+    if (!validRoles.includes(finalRole)) {
+      console.error('❌ Invalid role value:', finalRole);
+      return res.status(400).json({ 
+        error: `Rôle invalide. Valeurs autorisées: ${validRoles.join(', ')}` 
+      });
+    }
 
     // Vérifier si l'utilisateur existe déjà
     const existingUsers = await query(
