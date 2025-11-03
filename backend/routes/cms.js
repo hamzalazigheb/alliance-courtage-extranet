@@ -76,8 +76,6 @@ router.put('/home', auth, async (req, res) => {
   }
 });
 
-module.exports = router;
-
 // --- Gamme Produits CMS ---
 // @route   GET /api/cms/gamme-produits
 // @desc    Get CMS content for Gamme Produits page
@@ -154,3 +152,170 @@ router.put('/gamme-produits', auth, async (req, res) => {
   }
 });
 
+// --- Produits Structurés CMS ---
+// @route   GET /api/cms/produits-structures
+// @desc    Get CMS content for Produits Structurés page
+// @access  Private
+router.get('/produits-structures', auth, async (req, res) => {
+  try {
+    const result = await query(
+      'SELECT content FROM cms_content WHERE page = ?',
+      ['produits-structures']
+    );
+
+    if (result.length > 0) {
+      res.json(result[0]);
+    } else {
+      res.json({
+        page: 'produits-structures',
+        content: JSON.stringify({
+          title: 'Produits Structurés',
+          subtitle: 'Consultez tous les produits structurés par assurance',
+          description: 'Découvrez notre gamme complète de produits structurés adaptés à vos besoins d\'investissement et de protection.',
+          headerImage: '',
+          introText: ''
+        })
+      });
+    }
+  } catch (error) {
+    console.error('Erreur get CMS content (produits-structures):', error);
+    res.status(500).json({
+      error: 'Erreur serveur lors de la récupération du contenu CMS (produits-structures)'
+    });
+  }
+});
+
+// @route   PUT /api/cms/produits-structures
+// @desc    Update CMS content for Produits Structurés page
+// @access  Private
+router.put('/produits-structures', auth, async (req, res) => {
+  try {
+    const { content } = req.body;
+
+    const existing = await query(
+      'SELECT id FROM cms_content WHERE page = ?',
+      ['produits-structures']
+    );
+
+    if (existing.length > 0) {
+      await query(
+        'UPDATE cms_content SET content = ?, updated_at = NOW() WHERE page = ?',
+        [content, 'produits-structures']
+      );
+      res.json({ message: 'Contenu CMS (produits-structures) mis à jour avec succès' });
+    } else {
+      await query(
+        'INSERT INTO cms_content (page, content, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
+        ['produits-structures', content]
+      );
+      res.json({ message: 'Contenu CMS (produits-structures) créé avec succès' });
+    }
+  } catch (error) {
+    console.error('Erreur update CMS content (produits-structures):', error);
+    res.status(500).json({
+      error: 'Erreur serveur lors de la mise à jour du contenu CMS (produits-structures)'
+    });
+  }
+});
+
+// --- Rencontres CMS ---
+// @route   GET /api/cms/rencontres
+// @desc    Get CMS content for Rencontres page
+// @access  Private
+router.get('/rencontres', auth, async (req, res) => {
+  try {
+    const result = await query(
+      'SELECT content FROM cms_content WHERE page = ?',
+      ['rencontres']
+    );
+
+    if (result.length > 0) {
+      res.json(result[0]);
+    } else {
+      res.json({
+        page: 'rencontres',
+        content: JSON.stringify({
+          title: 'RENCONTRES',
+          subtitle: 'Espace dédié aux rencontres et échanges de la communauté Alliance Courtage',
+          headerImage: '',
+          introText: '',
+          upcomingMeetings: [
+            {
+              title: 'Assemblée Générale 2025',
+              date: '15 Mars 2025',
+              description: 'Assemblée générale annuelle d\'Alliance Courtage avec présentation des résultats et perspectives 2025.',
+              location: 'Paris, France',
+              time: '14h00 - 18h00',
+              color: 'indigo'
+            },
+            {
+              title: 'Formation Réglementation',
+              date: '22 Avril 2025',
+              description: 'Formation sur les nouvelles réglementations en assurance et finance pour les membres Alliance Courtage.',
+              location: 'Lyon, France',
+              time: '9h00 - 17h00',
+              color: 'purple'
+            }
+          ],
+          historicalMeetings: [
+            {
+              title: 'Rencontre Régionale Sud',
+              date: 'Marseille, 15 Décembre 2024',
+              reportUrl: ''
+            },
+            {
+              title: 'Formation Produits Structurés',
+              date: 'Paris, 8 Novembre 2024',
+              reportUrl: ''
+            },
+            {
+              title: 'Assemblée Générale 2024',
+              date: 'Paris, 20 Mars 2024',
+              reportUrl: ''
+            }
+          ]
+        })
+      });
+    }
+  } catch (error) {
+    console.error('Erreur get CMS content (rencontres):', error);
+    res.status(500).json({
+      error: 'Erreur serveur lors de la récupération du contenu CMS (rencontres)'
+    });
+  }
+});
+
+// @route   PUT /api/cms/rencontres
+// @desc    Update CMS content for Rencontres page
+// @access  Private
+router.put('/rencontres', auth, async (req, res) => {
+  try {
+    const { content } = req.body;
+
+    const existing = await query(
+      'SELECT id FROM cms_content WHERE page = ?',
+      ['rencontres']
+    );
+
+    if (existing.length > 0) {
+      await query(
+        'UPDATE cms_content SET content = ?, updated_at = NOW() WHERE page = ?',
+        [content, 'rencontres']
+      );
+      res.json({ message: 'Contenu CMS (rencontres) mis à jour avec succès' });
+    } else {
+      await query(
+        'INSERT INTO cms_content (page, content, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
+        ['rencontres', content]
+      );
+      res.json({ message: 'Contenu CMS (rencontres) créé avec succès' });
+    }
+  } catch (error) {
+    console.error('Erreur update CMS content (rencontres):', error);
+    res.status(500).json({
+      error: 'Erreur serveur lors de la mise à jour du contenu CMS (rencontres)'
+    });
+  }
+});
+
+module.exports = router;

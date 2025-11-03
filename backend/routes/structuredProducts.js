@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { query } = require('../config/database');
 const { auth, authorize } = require('../middleware/auth');
+const { notifyAdmins } = require('./notifications');
 
 const router = express.Router();
 
@@ -150,23 +151,35 @@ router.post('/', auth, authorize('admin'), upload.single('file'), async (req, re
 });
 
 // @route   GET /api/structured-products/assurances
-// @desc    Obtenir la liste des assurances
+// @desc    Obtenir la liste des assurances (depuis la table assurances)
 // @access  Public
 router.get('/assurances', async (req, res) => {
   try {
+    // Récupérer depuis la table assurances au lieu de archives
     const assurances = await query(
-      `SELECT DISTINCT assurance FROM archives 
-       WHERE assurance IS NOT NULL 
-       AND category IN ('Épargne', 'Retraite', 'Prévoyance', 'Santé', 'CIF', 'Investissements')
-       ORDER BY assurance`
+      `SELECT id, name, montant_enveloppe, color, icon, is_active 
+       FROM assurances 
+       WHERE is_active = TRUE 
+       ORDER BY name`
     );
     
-    res.json(assurances.map(a => a.assurance));
+    res.json(assurances);
   } catch (error) {
     console.error('Erreur get assurances:', error);
-    res.status(500).json({ 
-      error: 'Erreur serveur lors de la récupération des assurances' 
-    });
+    // Fallback : récupérer depuis archives si la table assurances n'existe pas
+    try {
+      const fallbackAssurances = await query(
+        `SELECT DISTINCT assurance as name FROM archives 
+         WHERE assurance IS NOT NULL 
+         AND category IN ('Épargne', 'Retraite', 'Prévoyance', 'Santé', 'CIF', 'Investissements')
+         ORDER BY assurance`
+      );
+      res.json(fallbackAssurances.map(a => ({ name: a.name })));
+    } catch (fallbackError) {
+      res.status(500).json({ 
+        error: 'Erreur serveur lors de la récupération des assurances' 
+      });
+    }
   }
 });
 
@@ -227,6 +240,208 @@ router.delete('/:id', auth, authorize('admin'), async (req, res) => {
     res.status(500).json({ 
       error: 'Erreur serveur lors de la suppression du produit structuré' 
     });
+  }
+});
+
+// @route   POST /api/structured-products/:id/reservations
+// @desc    Créer une réservation de montant pour un produit structuré
+// @access  Private
+router.post('/:id/reservations', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { montant, notes } = req.body;
+    
+    // Validation
+    if (!montant || isNaN(montant) || parseFloat(montant) <= 0) {
+      return res.status(400).json({ 
+        error: 'Montant invalide. Le montant doit être un nombre positif.' 
+      });
+    }
+    
+    // Vérifier que le produit existe
+    const products = await query(
+      'SELECT id, title FROM archives WHERE id = ?',
+      [id]
+    );
+    
+    if (products.length === 0) {
+      return res.status(404).json({ 
+        error: 'Produit structuré non trouvé' 
+      });
+    }
+    
+    const product = products[0];
+    
+    // Récupérer les informations de l'utilisateur
+    const users = await query(
+      'SELECT id, nom, prenom, email FROM users WHERE id = ?',
+      [req.user.id]
+    );
+    
+    if (users.length === 0) {
+      return res.status(404).json({ 
+        error: 'Utilisateur non trouvé' 
+      });
+    }
+    
+    const user = users[0];
+    
+    // Créer la réservation
+    const result = await query(
+      `INSERT INTO product_reservations (product_id, user_id, montant, notes, status) 
+       VALUES (?, ?, ?, ?, 'pending')`,
+      [id, req.user.id, parseFloat(montant), notes || null]
+    );
+    
+    // Notifier les admins
+    const userName = `${user.prenom} ${user.nom}`;
+    const montantFormatted = new Intl.NumberFormat('fr-FR', { 
+      style: 'currency', 
+      currency: 'EUR' 
+    }).format(parseFloat(montant));
+    
+    await notifyAdmins(
+      'reservation',
+      'Nouvelle réservation de produit',
+      `${userName} a réservé ${montantFormatted} pour le produit "${product.title}"`,
+      result.insertId,
+      'product_reservation'
+    );
+    
+    res.status(201).json({
+      message: 'Réservation créée avec succès',
+      reservationId: result.insertId
+    });
+  } catch (error) {
+    console.error('Erreur create reservation:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      sqlMessage: error.sqlMessage,
+      stack: error.stack
+    });
+    res.status(500).json({ 
+      error: 'Erreur serveur lors de la création de la réservation',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// @route   GET /api/structured-products/:id/reservations
+// @desc    Récupérer les réservations d'un produit structuré
+// @access  Private (Admin seulement)
+router.get('/:id/reservations', auth, authorize('admin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const reservations = await query(
+      `SELECT pr.*, u.nom, u.prenom, u.email, a.title as product_title
+       FROM product_reservations pr
+       LEFT JOIN users u ON pr.user_id = u.id
+       LEFT JOIN archives a ON pr.product_id = a.id
+       WHERE pr.product_id = ?
+       ORDER BY pr.created_at DESC`,
+      [id]
+    );
+    
+    res.json(reservations);
+  } catch (error) {
+    console.error('Erreur get reservations:', error);
+    res.status(500).json({ 
+      error: 'Erreur serveur lors de la récupération des réservations' 
+    });
+  }
+});
+
+// @route   GET /api/structured-products/reservations/my
+// @desc    Récupérer les réservations de l'utilisateur connecté
+// @access  Private
+router.get('/reservations/my', auth, async (req, res) => {
+  try {
+    const reservations = await query(
+      `SELECT pr.*, a.title as product_title, a.assurance
+       FROM product_reservations pr
+       LEFT JOIN archives a ON pr.product_id = a.id
+       WHERE pr.user_id = ?
+       ORDER BY pr.created_at DESC`,
+      [req.user.id]
+    );
+    
+    res.json(reservations);
+  } catch (error) {
+    console.error('Erreur get my reservations:', error);
+    res.status(500).json({ 
+      error: 'Erreur serveur lors de la récupération de vos réservations' 
+    });
+  }
+});
+
+// @route   GET /api/structured-products/assurances/montants
+// @desc    Obtenir les montants enveloppe et réservés par assurance
+// @access  Public
+router.get('/assurances/montants', async (req, res) => {
+  try {
+    // Récupérer toutes les assurances avec leur montant enveloppe
+    const assurances = await query(
+      `SELECT id, name, montant_enveloppe 
+       FROM assurances 
+       WHERE is_active = TRUE`
+    );
+
+    // Pour chaque assurance, calculer le montant total réservé
+    const result = await Promise.all(
+      assurances.map(async (assurance) => {
+        try {
+          const reservations = await query(
+            `SELECT COALESCE(SUM(pr.montant), 0) as total_reserve
+             FROM product_reservations pr
+             INNER JOIN archives a ON pr.product_id = a.id
+             WHERE a.assurance = ? AND pr.status = 'pending'`,
+            [assurance.name]
+          );
+
+          const totalReserve = parseFloat(reservations[0]?.total_reserve || 0);
+          const montantRestant = parseFloat(assurance.montant_enveloppe) - totalReserve;
+
+          return {
+            assurance: assurance.name,
+            montant_enveloppe: parseFloat(assurance.montant_enveloppe),
+            montant_reserve: totalReserve,
+            montant_restant: montantRestant
+          };
+        } catch (error) {
+          // Si la table product_reservations n'existe pas encore
+          return {
+            assurance: assurance.name,
+            montant_enveloppe: parseFloat(assurance.montant_enveloppe),
+            montant_reserve: 0,
+            montant_restant: parseFloat(assurance.montant_enveloppe)
+          };
+        }
+      })
+    );
+
+    res.json(result);
+  } catch (error) {
+    console.error('Erreur get montants assurances:', error);
+    // Fallback : retourner juste les montants enveloppe
+    try {
+      const assurances = await query(
+        `SELECT name, montant_enveloppe 
+         FROM assurances 
+         WHERE is_active = TRUE`
+      );
+      res.json(assurances.map(a => ({
+        assurance: a.name,
+        montant_enveloppe: parseFloat(a.montant_enveloppe),
+        montant_reserve: 0,
+        montant_restant: parseFloat(a.montant_enveloppe)
+      })));
+    } catch (fallbackError) {
+      res.status(500).json({ 
+        error: 'Erreur serveur lors de la récupération des montants' 
+      });
+    }
   }
 });
 

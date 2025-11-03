@@ -220,6 +220,68 @@ export const structuredProductsAPI = {
   getCategories: async () => {
     return apiRequest('/structured-products/categories');
   },
+
+  // Réservations
+  createReservation: async (productId, montant, notes = null) => {
+    return apiRequest(`/structured-products/${productId}/reservations`, {
+      method: 'POST',
+      body: JSON.stringify({ montant, notes }),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  },
+
+  getProductReservations: async (productId) => {
+    return apiRequest(`/structured-products/${productId}/reservations`);
+  },
+
+  getMyReservations: async () => {
+    return apiRequest('/structured-products/reservations/my');
+  },
+
+  getAssurancesMontants: async () => {
+    return apiRequest('/structured-products/assurances/montants');
+  },
+};
+
+// API des assurances
+export const assurancesAPI = {
+  getAll: async (includeInactive = false) => {
+    const params = includeInactive ? { include_inactive: 'true' } : {};
+    const queryParams = new URLSearchParams(params).toString();
+    return apiRequest(`/assurances?${queryParams}`);
+  },
+
+  getById: async (id) => {
+    return apiRequest(`/assurances/${id}`);
+  },
+
+  create: async (assuranceData) => {
+    return apiRequest('/assurances', {
+      method: 'POST',
+      body: JSON.stringify(assuranceData),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  },
+
+  update: async (id, assuranceData) => {
+    return apiRequest(`/assurances/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(assuranceData),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  },
+
+  delete: async (id) => {
+    return apiRequest(`/assurances/${id}`, {
+      method: 'DELETE',
+    });
+  },
 };
 
 // API des documents financiers

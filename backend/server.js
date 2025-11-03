@@ -24,6 +24,7 @@ const adminPasswordResetRoutes = require('./routes/adminPasswordReset');
 const cmsRoutes = require('./routes/cms');
 const formationsRoutes = require('./routes/formations');
 const notificationsRoutes = require('./routes/notifications');
+const assurancesRoutes = require('./routes/assurances');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -81,6 +82,7 @@ app.use('/api/admin-password-reset', adminPasswordResetRoutes);
 app.use('/api/cms', cmsRoutes);
 app.use('/api/formations', formationsRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/assurances', assurancesRoutes);
 
 // Route de test
 app.get('/api/health', (req, res) => {

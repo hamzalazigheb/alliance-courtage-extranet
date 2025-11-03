@@ -38,8 +38,8 @@ interface BordereauFile {
   uploadedBy: string;
 }
 
-// Login Page Component
-function LoginPage({ onLogin, users }: { onLogin: (user: User) => void, users: User[] }) {
+// Login Page Component for Extranet (Accueil)
+function ExtranetLoginPage({ onLogin, users }: { onLogin: (user: User) => void, users: User[] }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
@@ -50,15 +50,11 @@ function LoginPage({ onLogin, users }: { onLogin: (user: User) => void, users: U
     setIsLoading(true);
     
     try {
-      // Connexion via l'API backend
       const response: LoginResponse = await authAPI.login(email, password);
-      
-      // Sauvegarder le token et nettoyer les anciennes clés legacy
       localStorage.setItem('token', response.token);
       localStorage.removeItem('user');
       localStorage.removeItem('manageAuth');
       
-      // Créer l'objet utilisateur pour onLogin
       const user: User = {
         id: response.user.id.toString(),
         name: `${response.user.prenom} ${response.user.nom}`,
@@ -67,6 +63,7 @@ function LoginPage({ onLogin, users }: { onLogin: (user: User) => void, users: U
       };
       
       setIsLoading(false);
+      window.location.hash = 'accueil';
       onLogin(user);
     } catch (error) {
       setIsLoading(false);
@@ -75,48 +72,62 @@ function LoginPage({ onLogin, users }: { onLogin: (user: User) => void, users: U
   };
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center">
-      <div className="max-w-md w-full px-6">
-        {/* Logo */}
-        <div className="text-center mb-12">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center p-4">
+      <div className="max-w-md w-full">
+        {/* Header avec Logo */}
+        <div className="text-center mb-10">
           <div className="flex items-center justify-center mb-6">
             <img 
               src="/alliance-courtage-logo.svg" 
               alt="Alliance Courtage Logo" 
-              className="h-24 w-auto"
+              className="h-24 sm:h-28 w-auto"
             />
           </div>
+          <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">
+            Alliance Courtage
+          </h1>
           <p className="text-sm text-gray-600">GROUPEMENT NATIONAL DES COURTIERS D'ASSURANCES</p>
         </div>
 
         {/* Login Form */}
-        <div className="bg-gray-100 rounded-2xl p-8 shadow-lg">
-          <form onSubmit={handleLogin} className="space-y-6">
-            {/* Email Input */}
+        <div className="bg-white rounded-2xl p-8 shadow-2xl border border-indigo-100">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Connexion Extranet</h2>
+            <p className="text-gray-600 text-sm">
+              Accédez à votre espace utilisateur
+            </p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-5">
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Email"
-                className="w-full px-4 py-3 bg-white rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                placeholder="votre.email@exemple.com"
+                className="w-full px-4 py-3 bg-gray-50 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
                 required
               />
             </div>
 
-            {/* Password Input */}
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Mot de passe</label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Mot de passe"
-                className="w-full px-4 py-3 bg-white rounded-lg border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                placeholder="••••••••"
+                className="w-full px-4 py-3 bg-gray-50 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
                 required
               />
             </div>
 
-            {/* Forgot Password Link */}
             <div className="text-right">
               <button
                 type="button"
@@ -126,19 +137,15 @@ function LoginPage({ onLogin, users }: { onLogin: (user: User) => void, users: U
                     return;
                   }
                   
-                  // Confirmer que l'utilisateur veut réinitialiser (surtout pour les admins)
-                  const isAdminReset = window.confirm(
+                  const isReset = window.confirm(
                     'Réinitialiser le mot de passe pour ' + email + '?\n\n' +
                     '📧 Si c\'est un compte ADMIN, vous recevrez un email avec le nouveau mot de passe.\n\n' +
                     'Cliquez sur OK pour continuer.'
                   );
                   
-                  if (!isAdminReset) {
-                    return;
-                  }
+                  if (!isReset) return;
                   
                   try {
-                    // Essayer d'abord la réinitialisation automatique pour admins (avec email)
                     const adminResponse = await fetch(buildAPIURL('/admin-password-reset/request'), {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
@@ -155,7 +162,6 @@ function LoginPage({ onLogin, users }: { onLogin: (user: User) => void, users: U
                       return;
                     }
                     
-                    // Si ce n'est pas un admin, essayer la méthode normale
                     const response = await fetch(buildAPIURL('/password-reset/request'), {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
@@ -172,36 +178,40 @@ function LoginPage({ onLogin, users }: { onLogin: (user: User) => void, users: U
                     }
                   } catch (error) {
                     console.error('Error:', error);
-                    alert('❌ Erreur de connexion au serveur.\n\n' +
-                      'Vérifiez que le serveur backend est démarré.');
+                    alert('❌ Erreur de connexion au serveur.');
                   }
                 }}
-                className="text-sm text-blue-600 hover:text-blue-800 hover:underline font-medium flex items-center justify-end w-full"
+                className="text-sm text-indigo-600 hover:text-indigo-800 hover:underline font-medium"
               >
-                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                </svg>
                 Mot de passe oublié ?
               </button>
             </div>
 
-            {/* Login Button */}
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-blue-900 hover:bg-blue-800 disabled:bg-gray-400 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+              className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-bold py-3 px-6 rounded-lg transition-all shadow-lg hover:shadow-xl"
             >
-              {isLoading ? "Connexion..." : "Se connecter"}
+              {isLoading ? (
+                <span className="flex items-center justify-center">
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Connexion...
+                </span>
+              ) : (
+                "Se connecter"
+              )}
             </button>
 
-            {/* Footer Options */}
-            <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center justify-between text-sm pt-2">
               <label className="flex items-center space-x-2 text-gray-600">
                 <input
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
                 />
                 <span>Se souvenir de moi</span>
               </label>
@@ -209,13 +219,203 @@ function LoginPage({ onLogin, users }: { onLogin: (user: User) => void, users: U
           </form>
         </div>
 
-        {/* Demo Info */}
         <div className="mt-8 text-center">
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <h3 className="text-sm font-medium text-blue-800 mb-2">🔐 Comptes de démonstration</h3>
             <div className="text-xs text-blue-600 space-y-1">
               <div><strong>Super Admin:</strong> admin@alliance.com</div>
               <div><strong>Utilisateur:</strong> martin@alliance.com</div>
+              <div className="mt-2">Mot de passe: n'importe quel mot de passe</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Login Page Component for Admin (Manage)
+function AdminLoginPage({ onLogin, users }: { onLogin: (user: User) => void, users: User[] }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    
+    try {
+      const response: LoginResponse = await authAPI.login(email, password);
+      localStorage.setItem('token', response.token);
+      localStorage.removeItem('user');
+      localStorage.removeItem('manageAuth');
+      
+      const user: User = {
+        id: response.user.id.toString(),
+        name: `${response.user.prenom} ${response.user.nom}`,
+        email: response.user.email,
+        role: response.user.role === 'admin' ? 'admin' : 'user'
+      };
+      
+      setIsLoading(false);
+      window.location.hash = 'manage';
+      onLogin(user);
+    } catch (error) {
+      setIsLoading(false);
+      alert(error instanceof Error ? error.message : "Erreur de connexion");
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-red-50 via-orange-50 to-red-100 flex items-center justify-center p-4">
+      <div className="max-w-md w-full">
+        {/* Header avec Logo */}
+        <div className="text-center mb-10">
+          <div className="flex items-center justify-center mb-6">
+            <img 
+              src="/alliance-courtage-logo.svg" 
+              alt="Alliance Courtage Logo" 
+              className="h-24 sm:h-28 w-auto filter brightness-95"
+            />
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-red-600 to-orange-600 bg-clip-text text-transparent mb-2">
+            Administration
+          </h1>
+          <p className="text-sm text-gray-700 font-medium">Panneau d'Administration Alliance Courtage</p>
+        </div>
+
+        {/* Login Form */}
+        <div className="bg-white rounded-2xl p-8 shadow-2xl border-2 border-red-200">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-orange-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Connexion Administration</h2>
+            <p className="text-gray-600 text-sm">
+              Accès réservé aux administrateurs
+            </p>
+          </div>
+
+          {/* Warning Badge */}
+          <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-3 rounded">
+            <p className="text-xs text-red-800 font-medium flex items-center">
+              <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              Accès sécurisé - Identification requise
+            </p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Email Administrateur</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="admin@alliance.com"
+                className="w-full px-4 py-3 bg-red-50 rounded-lg border-2 border-red-200 focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Mot de passe</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-4 py-3 bg-red-50 rounded-lg border-2 border-red-200 focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all"
+                required
+              />
+            </div>
+
+            <div className="text-right">
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!email) {
+                    alert('Veuillez d\'abord entrer votre email');
+                    return;
+                  }
+                  
+                  const isAdminReset = window.confirm(
+                    'Réinitialiser le mot de passe administrateur pour ' + email + '?\n\n' +
+                    '📧 Vous recevrez un email avec le nouveau mot de passe.\n\n' +
+                    'Cliquez sur OK pour continuer.'
+                  );
+                  
+                  if (!isAdminReset) return;
+                  
+                  try {
+                    const adminResponse = await fetch(buildAPIURL('/admin-password-reset/request'), {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ email })
+                    });
+
+                    const adminData = await adminResponse.json();
+                    
+                    if (adminResponse.ok) {
+                      alert('✅ ' + adminData.message + '\n\n' +
+                        '📧 Vérifiez votre boîte de réception (et les spams).\n' +
+                        '🔐 Le nouveau mot de passe vous a été envoyé par email.\n\n' +
+                        '⚠️ Important : Changez votre mot de passe après la première connexion !');
+                    } else {
+                      alert(adminData.error || 'Erreur lors de la réinitialisation');
+                    }
+                  } catch (error) {
+                    console.error('Error:', error);
+                    alert('❌ Erreur de connexion au serveur.');
+                  }
+                }}
+                className="text-sm text-red-600 hover:text-red-800 hover:underline font-medium"
+              >
+                Mot de passe oublié ?
+              </button>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full bg-gradient-to-r from-red-500 to-orange-600 hover:from-red-600 hover:to-orange-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-bold py-3 px-6 rounded-lg transition-all shadow-lg hover:shadow-xl"
+            >
+              {isLoading ? (
+                <span className="flex items-center justify-center">
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Connexion...
+                </span>
+              ) : (
+                "Accéder à l'Administration"
+              )}
+            </button>
+
+            <div className="flex items-center justify-between text-sm pt-2">
+              <label className="flex items-center space-x-2 text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                />
+                <span>Se souvenir de moi</span>
+              </label>
+            </div>
+          </form>
+        </div>
+
+        <div className="mt-8 text-center">
+          <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
+            <h3 className="text-sm font-medium text-red-800 mb-2">🔐 Compte Administrateur</h3>
+            <div className="text-xs text-red-700 space-y-1">
+              <div><strong>Super Admin:</strong> admin@alliance.com</div>
               <div className="mt-2">Mot de passe: n'importe quel mot de passe</div>
             </div>
           </div>
@@ -425,15 +625,33 @@ function App() {
     }
   };
 
-  // Si l'utilisateur n'est pas connecté, afficher la page de login
+  // Si l'utilisateur n'est pas connecté, afficher la page de login appropriée
   if (!isLoggedIn) {
-    return <LoginPage onLogin={(user) => {
-      setCurrentUser(user);
-      setIsLoggedIn(true);
-      // Sauvegarder dans localStorage pour la persistance
-      localStorage.setItem('isLoggedIn', 'true');
-      localStorage.setItem('currentUser', JSON.stringify(user));
-    }} users={users} />;
+    // Déterminer quelle page de login afficher selon l'URL
+    const hash = window.location.hash.slice(1);
+    const isManagePage = hash === 'manage';
+    
+    if (isManagePage) {
+      // Page de login Admin pour /manage
+      return <AdminLoginPage onLogin={(user) => {
+        setCurrentUser(user);
+        setIsLoggedIn(true);
+        localStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('currentUser', JSON.stringify(user));
+        setCurrentPage('manage');
+        window.location.hash = 'manage';
+      }} users={users} />;
+    } else {
+      // Page de login Extranet pour /accueil (ou autres pages)
+      return <ExtranetLoginPage onLogin={(user) => {
+        setCurrentUser(user);
+        setIsLoggedIn(true);
+        localStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('currentUser', JSON.stringify(user));
+        setCurrentPage('accueil');
+        window.location.hash = 'accueil';
+      }} users={users} />;
+    }
   }
 
   // Render ManagePage independently without sidebar
@@ -1411,17 +1629,103 @@ function PartenairesPage() {
 
 // Rencontres GNCA Page Component
 function RencontresPage() {
+  const [content, setContent] = useState<any>({
+    title: 'RENCONTRES',
+    subtitle: 'Espace dédié aux rencontres et échanges de la communauté Alliance Courtage',
+    headerImage: '',
+    introText: '',
+    upcomingMeetings: [],
+    historicalMeetings: []
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadContent();
+  }, []);
+
+  const loadContent = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const response = await fetch(buildAPIURL('/cms/rencontres'), {
+        headers: { 'x-auth-token': token || '' }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.content) {
+          const parsedContent = JSON.parse(data.content);
+          if (typeof parsedContent === 'string') {
+            setContent(JSON.parse(parsedContent));
+          } else {
+            setContent(parsedContent);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement du contenu CMS:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getColorClasses = (color: string) => {
+    const colors: { [key: string]: string } = {
+      'indigo': 'from-indigo-50 to-purple-50 border-indigo-200 text-indigo-800 bg-indigo-500',
+      'purple': 'from-purple-50 to-pink-50 border-purple-200 text-purple-800 bg-purple-500',
+      'pink': 'from-pink-50 to-rose-50 border-pink-200 text-pink-800 bg-pink-500',
+      'blue': 'from-blue-50 to-cyan-50 border-blue-200 text-blue-800 bg-blue-500',
+      'green': 'from-green-50 to-emerald-50 border-green-200 text-green-800 bg-green-500',
+      'yellow': 'from-yellow-50 to-amber-50 border-yellow-200 text-yellow-800 bg-yellow-500',
+      'red': 'from-red-50 to-rose-50 border-red-200 text-red-800 bg-red-500',
+      'orange': 'from-orange-50 to-amber-50 border-orange-200 text-orange-800 bg-orange-500'
+    };
+    return colors[color] || colors['indigo'];
+  };
+
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto space-y-8">
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Chargement...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-7xl mx-auto space-y-8">
       {/* Page Header */}
-      <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-white/20">
-        <h1 className="text-3xl font-bold text-gray-800 mb-4">RENCONTRES</h1>
-        <p className="text-gray-600 text-lg">
-          Espace dédié aux rencontres et échanges de la communauté Alliance Courtage
-        </p>
+      <div 
+        className={`bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-white/20 ${content.headerImage ? '' : ''}`}
+        style={content.headerImage ? {
+          backgroundImage: `url(${content.headerImage})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          position: 'relative'
+        } : {}}
+      >
+        {content.headerImage && (
+          <div className="absolute inset-0 bg-black/40 rounded-2xl"></div>
+        )}
+        <div className="relative z-10">
+          <h1 className={`text-3xl font-bold mb-4 ${content.headerImage ? 'text-white' : 'text-gray-800'}`}>
+            {content.title || 'RENCONTRES'}
+          </h1>
+          <p className={`text-lg ${content.headerImage ? 'text-white/90' : 'text-gray-600'}`}>
+            {content.subtitle || 'Espace dédié aux rencontres et échanges de la communauté Alliance Courtage'}
+          </p>
+          {content.introText && (
+            <div className={`mt-4 p-4 rounded-lg ${content.headerImage ? 'bg-white/10 backdrop-blur-sm border border-white/20' : 'bg-gray-50'}`}>
+              <p className={content.headerImage ? 'text-white italic' : 'text-gray-700 italic'}>{content.introText}</p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Section Rencontres Actuelles */}
+      {content.upcomingMeetings && content.upcomingMeetings.length > 0 && (
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
         <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
           <span className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center text-white text-sm font-bold mr-3">📅</span>
@@ -1429,45 +1733,37 @@ function RencontresPage() {
         </h2>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Rencontre 1 */}
-          <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-6 rounded-xl border border-indigo-200">
+            {content.upcomingMeetings.map((meeting: any, index: number) => {
+              const colorInfo = getColorClasses(meeting.color || 'indigo');
+              const [gradient, border, textColor, buttonColor] = colorInfo.split(' ');
+              
+              return (
+                <div key={index} className={`bg-gradient-to-br ${gradient} p-6 rounded-xl border ${border}`}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-semibold text-indigo-800">Assemblée Générale 2025</h3>
-              <span className="bg-indigo-500 text-white px-3 py-1 rounded-full text-sm font-medium">15 Mars 2025</span>
+                    <h3 className={`text-xl font-semibold ${textColor}`}>{meeting.title}</h3>
+                    <span className={`${buttonColor} text-white px-3 py-1 rounded-full text-sm font-medium`}>
+                      {meeting.date}
+                    </span>
             </div>
-            <p className="text-gray-700 mb-4">
-              Assemblée générale annuelle d'Alliance Courtage avec présentation des résultats et perspectives 2025.
-            </p>
+                  {meeting.description && (
+                    <p className="text-gray-700 mb-4">{meeting.description}</p>
+                  )}
             <div className="flex items-center space-x-4 text-sm text-gray-600">
-              <span>📍 Paris, France</span>
-              <span>⏰ 14h00 - 18h00</span>
+                    {meeting.location && <span>📍 {meeting.location}</span>}
+                    {meeting.time && <span>⏰ {meeting.time}</span>}
             </div>
-            <button className="mt-4 bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg transition-colors">
+                  <button className={`mt-4 ${buttonColor} hover:opacity-90 text-white px-4 py-2 rounded-lg transition-colors`}>
               S'inscrire
             </button>
           </div>
-
-          {/* Rencontre 2 */}
-          <div className="bg-gradient-to-br from-purple-50 to-pink-50 p-6 rounded-xl border border-purple-200">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-semibold text-purple-800">Formation Réglementation</h3>
-              <span className="bg-purple-500 text-white px-3 py-1 rounded-full text-sm font-medium">22 Avril 2025</span>
-            </div>
-            <p className="text-gray-700 mb-4">
-              Formation sur les nouvelles réglementations en assurance et finance pour les membres Alliance Courtage.
-            </p>
-            <div className="flex items-center space-x-4 text-sm text-gray-600">
-              <span>📍 Lyon, France</span>
-              <span>⏰ 9h00 - 17h00</span>
-            </div>
-            <button className="mt-4 bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg transition-colors">
-              S'inscrire
-            </button>
-          </div>
+              );
+            })}
         </div>
       </div>
+      )}
 
       {/* Section Historique des Rencontres */}
+      {content.historicalMeetings && content.historicalMeetings.length > 0 && (
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
         <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
           <span className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center text-white text-sm font-bold mr-3">📚</span>
@@ -1475,37 +1771,31 @@ function RencontresPage() {
         </h2>
         
         <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+            {content.historicalMeetings.map((meeting: any, index: number) => (
+              <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
             <div>
-              <h3 className="font-semibold text-gray-800">Rencontre Régionale Sud</h3>
-              <p className="text-sm text-gray-600">Marseille, 15 Décembre 2024</p>
+                  <h3 className="font-semibold text-gray-800">{meeting.title}</h3>
+                  <p className="text-sm text-gray-600">{meeting.date}</p>
             </div>
-            <button className="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
+                {meeting.reportUrl ? (
+                  <a
+                    href={meeting.reportUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
+                  >
               📄 Voir le compte-rendu
+                  </a>
+                ) : (
+                  <button className="text-gray-400 text-sm font-medium cursor-not-allowed">
+                    📄 Compte-rendu non disponible
             </button>
+                )}
           </div>
-          
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-            <div>
-              <h3 className="font-semibold text-gray-800">Formation Produits Structurés</h3>
-              <p className="text-sm text-gray-600">Paris, 8 Novembre 2024</p>
+            ))}
             </div>
-            <button className="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
-              📄 Voir le compte-rendu
-            </button>
           </div>
-          
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-            <div>
-              <h3 className="font-semibold text-gray-800">Assemblée Générale 2024</h3>
-              <p className="text-sm text-gray-600">Paris, 20 Mars 2024</p>
-            </div>
-            <button className="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
-              📄 Voir le compte-rendu
-            </button>
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* Section Echanges - Cachée pour l'instant */}
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20 opacity-50">

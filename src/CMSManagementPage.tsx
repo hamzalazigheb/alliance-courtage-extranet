@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { formationsAPI, notificationsAPI, buildAPIURL, buildFileURL } from './api';
+import StructuredProductsCMSPage from './StructuredProductsCMSPage';
+import RencontresCMSPage from './RencontresCMSPage';
 
 interface NewsItem {
   id?: number;
@@ -81,7 +83,7 @@ const CMSManagementPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
-  const [activePage, setActivePage] = useState<'home' | 'gamme-produits' | 'formations'>('home');
+  const [activePage, setActivePage] = useState<'home' | 'gamme-produits' | 'formations' | 'produits-structures' | 'rencontres'>('home');
   const [activeSection, setActiveSection] = useState<'welcome' | 'news' | 'newsletter' | 'services' | 'contact'>('welcome');
   const [pendingFormations, setPendingFormations] = useState<any[]>([]);
   const [loadingFormations, setLoadingFormations] = useState(false);
@@ -482,6 +484,18 @@ const CMSManagementPage: React.FC = () => {
               </span>
             )}
           </button>
+          <button
+            onClick={() => { setActivePage('produits-structures'); }}
+            className={`px-4 py-2 rounded-lg font-medium transition-all ${activePage === 'produits-structures' ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
+          >
+            📊 Produits Structurés
+          </button>
+          <button
+            onClick={() => { setActivePage('rencontres'); }}
+            className={`px-4 py-2 rounded-lg font-medium transition-all ${activePage === 'rencontres' ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
+          >
+            🤝 Rencontres
+          </button>
         </div>
       </div>
 
@@ -878,6 +892,14 @@ const CMSManagementPage: React.FC = () => {
               </div>
             )}
           </div>
+        )}
+
+        {activePage === 'produits-structures' && (
+          <StructuredProductsCMSPage />
+        )}
+
+        {activePage === 'rencontres' && (
+          <RencontresCMSPage />
         )}
 
         {activeSection === 'welcome' && (
