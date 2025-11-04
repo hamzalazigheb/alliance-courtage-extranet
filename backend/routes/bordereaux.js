@@ -238,14 +238,14 @@ router.post('/', auth, authorize('admin'), upload.single('file'), async (req, re
 router.get('/recent', auth, authorize('admin'), async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    // Utiliser l'interpolation directe pour LIMIT car MySQL ne supporte pas bien LIMIT avec paramètres préparés
     const rows = await query(
       `SELECT b.id as bordereauId, b.title, b.file_path as filePath, b.created_at,
-              u.id as userId, CONCAT(u.nom, ' ', u.prenom) as userLabel
+              u.id as userId, CONCAT(u.prenom, ' ', u.nom) as userLabel
        FROM bordereaux b
        LEFT JOIN users u ON b.user_id = u.id
        ORDER BY b.created_at DESC
-       LIMIT ?`,
-      [limit]
+       LIMIT ${limit}`
     );
 
     const host = `${req.protocol}://${req.get('host')}`;
