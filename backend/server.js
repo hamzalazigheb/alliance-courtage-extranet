@@ -52,7 +52,7 @@ app.use(cors({
 // Rate limiting (disabled in development for testing)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'development' ? 10000 : 100 // 10000 en dev, 100 en prod
+  max: process.env.NODE_ENV === 'development' ? 10000 : 1000 // 10000 en dev, 1000 en prod (augmenté pour éviter les blocages)
 });
 app.use(limiter);
 
