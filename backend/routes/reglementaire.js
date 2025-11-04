@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const { query } = require('../config/database');
 const { auth, authorize } = require('../middleware/auth');
+const { notifyAdmins } = require('./notifications');
 
 const router = express.Router();
 
