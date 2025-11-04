@@ -389,6 +389,49 @@ export function getAPIBaseURL() {
   return API_BASE_URL;
 }
 
+// API des favoris
+export const favorisAPI = {
+  getAll: async (type = null) => {
+    const params = type ? { type } : {};
+    const queryParams = new URLSearchParams(params).toString();
+    return apiRequest(`/favoris?${queryParams}`);
+  },
+
+  check: async (type, itemId) => {
+    return apiRequest(`/favoris/check?type=${type}&item_id=${itemId}`);
+  },
+
+  add: async (itemType, itemId, title, description = '', url = '', metadata = null) => {
+    return apiRequest('/favoris', {
+      method: 'POST',
+      body: JSON.stringify({
+        item_type: itemType,
+        item_id: itemId,
+        title,
+        description,
+        url,
+        metadata
+      })
+    });
+  },
+
+  remove: async (id) => {
+    return apiRequest(`/favoris/${id}`, {
+      method: 'DELETE'
+    });
+  },
+
+  removeByItem: async (type, itemId) => {
+    return apiRequest('/favoris/remove', {
+      method: 'DELETE',
+      body: JSON.stringify({
+        type,
+        item_id: itemId
+      })
+    });
+  }
+};
+
 // Helper function to build full API URLs
 export function buildAPIURL(endpoint) {
   return `${API_BASE_URL}${endpoint}`;

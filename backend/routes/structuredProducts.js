@@ -8,24 +8,8 @@ const { notifyAdmins } = require('./notifications');
 
 const router = express.Router();
 
-// Configuration de multer pour l'upload de fichiers produits structurés
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadPath = process.env.UPLOAD_PATH || './uploads';
-    const structuredProductsPath = path.join(uploadPath, 'structured-products');
-    
-    if (!fs.existsSync(structuredProductsPath)) {
-      fs.mkdirSync(structuredProductsPath, { recursive: true });
-    }
-    cb(null, structuredProductsPath);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const assurance = req.body.assurance || 'unknown';
-    const safeAssurance = assurance.replace(/[^a-zA-Z0-9]/g, '_');
-    cb(null, `product_${safeAssurance}_${uniqueSuffix}${path.extname(file.originalname)}`);
-  }
-});
+// Configuration de multer pour l'upload de fichiers produits structurés en mémoire (base64)
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage: storage,
@@ -46,6 +30,19 @@ const upload = multer({
   }
 });
 
+// Middleware pour gérer les erreurs multer
+const handleMulterError = (err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: 'Fichier trop volumineux. Taille maximale: 50MB' });
+    }
+    return res.status(400).json({ error: 'Erreur upload fichier: ' + err.message });
+  } else if (err) {
+    return res.status(400).json({ error: err.message || 'Erreur upload fichier' });
+  }
+  next();
+};
+
 // @route   GET /api/structured-products
 // @desc    Obtenir tous les produits structurés
 // @access  Public
@@ -54,7 +51,8 @@ router.get('/', async (req, res) => {
     const { assurance, category, search } = req.query;
     
     let sql = `
-      SELECT a.*, u.nom as uploaded_by_nom, u.prenom as uploaded_by_prenom
+      SELECT a.*, u.nom as uploaded_by_nom, u.prenom as uploaded_by_prenom,
+             CASE WHEN a.file_content IS NOT NULL THEN 1 ELSE 0 END as has_file_content
       FROM archives a
       LEFT JOIN users u ON a.uploaded_by = u.id
       WHERE a.category IN ('Épargne', 'Retraite', 'Prévoyance', 'Santé', 'CIF', 'Investissements')
@@ -86,7 +84,17 @@ router.get('/', async (req, res) => {
     
     const products = await query(sql, params);
     
-    res.json(products);
+    const host = `${req.protocol}://${req.get('host')}`;
+    
+    // Ajouter fileUrl pour chaque produit
+    const productsWithFileUrl = products.map(product => ({
+      ...product,
+      fileUrl: product.has_file_content 
+        ? `${host}/api/structured-products/${product.id}/download`
+        : (product.file_path ? `${host}${product.file_path}` : null)
+    }));
+    
+    res.json(productsWithFileUrl);
   } catch (error) {
     console.error('Erreur get structured products:', error);
     res.status(500).json({ 
@@ -96,9 +104,9 @@ router.get('/', async (req, res) => {
 });
 
 // @route   POST /api/structured-products
-// @desc    Créer un nouveau produit structuré (avec upload de fichier)
+// @desc    Créer un nouveau produit structuré (avec upload de fichier en base64)
 // @access  Private (Admin seulement)
-router.post('/', auth, authorize('admin'), upload.single('file'), async (req, res) => {
+router.post('/', auth, authorize('admin'), upload.single('file'), handleMulterError, async (req, res) => {
   try {
     const {
       title,
@@ -114,6 +122,13 @@ router.post('/', auth, authorize('admin'), upload.single('file'), async (req, re
       });
     }
     
+    // Check if buffer exists
+    if (!req.file.buffer) {
+      return res.status(400).json({ 
+        error: 'Erreur: fichier non reçu correctement' 
+      });
+    }
+    
     // Validation des données requises
     if (!title || !assurance || !category) {
       return res.status(400).json({ 
@@ -121,15 +136,23 @@ router.post('/', auth, authorize('admin'), upload.single('file'), async (req, re
       });
     }
     
-    // Créer le produit structuré
+    // Convert file buffer to base64
+    const fileBase64 = req.file.buffer.toString('base64');
+    const base64Prefix = `data:${req.file.mimetype};base64,`;
+    const fileContent = base64Prefix + fileBase64;
+    
+    const host = `${req.protocol}://${req.get('host')}`;
+    
+    // Créer le produit structuré avec file_content (base64)
     const result = await query(
       `INSERT INTO archives 
-       (title, description, file_path, file_size, file_type, category, assurance, uploaded_by) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+       (title, description, file_path, file_content, file_size, file_type, category, assurance, uploaded_by) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         title,
-        description,
-        req.file.path,
+        description || '',
+        '', // file_path is empty string when using base64
+        fileContent, // Store base64 encoded file
         req.file.size,
         req.file.mimetype,
         category,
@@ -138,14 +161,35 @@ router.post('/', auth, authorize('admin'), upload.single('file'), async (req, re
       ]
     );
     
+    const fileUrl = `${host}/api/structured-products/${result.insertId}/download`;
+    
+    // Notifier tous les utilisateurs (via notification globale)
+    await notifyAdmins(
+      'product',
+      'Nouveau produit structuré',
+      `Un nouveau produit structuré "${title}" a été ajouté dans la catégorie ${category}.`,
+      result.insertId,
+      'structured_product'
+    );
+
+    console.log('✅ Structured product created:', { id: result.insertId, title, category, assurance });
+    
     res.status(201).json({
       message: 'Produit structuré créé avec succès',
-      productId: result.insertId
+      productId: result.insertId,
+      fileUrl: fileUrl
     });
   } catch (error) {
     console.error('Erreur create structured product:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      sqlMessage: error.sqlMessage,
+      sqlState: error.sqlState
+    });
     res.status(500).json({ 
-      error: 'Erreur serveur lors de la création du produit structuré' 
+      error: 'Erreur serveur lors de la création du produit structuré',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
@@ -203,6 +247,56 @@ router.get('/categories', async (req, res) => {
   }
 });
 
+// @route   GET /api/structured-products/:id/download
+// @desc    Télécharger le fichier d'un produit structuré (base64)
+// @access  Public
+router.get('/:id/download', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Récupérer le produit
+    const products = await query(
+      'SELECT file_content, file_type, title, file_path FROM archives WHERE id = ?',
+      [id]
+    );
+    
+    if (products.length === 0) {
+      return res.status(404).json({ error: 'Produit structuré non trouvé' });
+    }
+    
+    const product = products[0];
+    
+    // Si file_content existe (base64), le décoder et servir
+    if (product.file_content) {
+      // Extraire le base64 du data URL
+      const base64Data = product.file_content.replace(/^data:.*,/, '');
+      const fileBuffer = Buffer.from(base64Data, 'base64');
+      
+      // Déterminer le type MIME
+      const mimeMatch = product.file_content.match(/^data:([^;]+);/);
+      const mimeType = mimeMatch ? mimeMatch[1] : product.file_type || 'application/octet-stream';
+      
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Content-Disposition', `attachment; filename="${product.title || 'product'}.${mimeType.split('/')[1] || 'pdf'}"`);
+      res.setHeader('Content-Length', fileBuffer.length);
+      
+      return res.send(fileBuffer);
+    }
+    
+    // Fallback pour les anciens fichiers stockés sur disque
+    if (product.file_path && fs.existsSync(product.file_path)) {
+      return res.download(product.file_path);
+    }
+    
+    return res.status(404).json({ error: 'Fichier non trouvé' });
+  } catch (error) {
+    console.error('Erreur download structured product:', error);
+    res.status(500).json({ 
+      error: 'Erreur serveur lors du téléchargement du produit structuré' 
+    });
+  }
+});
+
 // @route   DELETE /api/structured-products/:id
 // @desc    Supprimer un produit structuré
 // @access  Private (Admin seulement)
@@ -212,7 +306,7 @@ router.delete('/:id', auth, authorize('admin'), async (req, res) => {
     
     // Récupérer les informations du produit
     const products = await query(
-      'SELECT file_path FROM archives WHERE id = ?',
+      'SELECT file_path, file_content FROM archives WHERE id = ?',
       [id]
     );
     
@@ -222,11 +316,17 @@ router.delete('/:id', auth, authorize('admin'), async (req, res) => {
       });
     }
     
-    // Supprimer le fichier physique
+    // Supprimer le fichier physique si il existe (pour les anciens fichiers)
     const filePath = products[0].file_path;
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    if (filePath && fs.existsSync(filePath)) {
+      try {
+        fs.unlinkSync(filePath);
+      } catch (unlinkError) {
+        console.warn('Warning: Could not delete physical file:', unlinkError);
+      }
     }
+    
+    // file_content (base64) sera automatiquement supprimé avec la ligne en base de données
     
     // Supprimer le produit de la base de données
     await query(
@@ -234,6 +334,7 @@ router.delete('/:id', auth, authorize('admin'), async (req, res) => {
       [id]
     );
     
+    console.log(`✅ Structured product ${id} deleted successfully`);
     res.json({ message: 'Produit structuré supprimé avec succès' });
   } catch (error) {
     console.error('Erreur delete structured product:', error);

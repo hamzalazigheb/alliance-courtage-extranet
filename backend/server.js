@@ -25,6 +25,9 @@ const cmsRoutes = require('./routes/cms');
 const formationsRoutes = require('./routes/formations');
 const notificationsRoutes = require('./routes/notifications');
 const assurancesRoutes = require('./routes/assurances');
+const bordereauxRoutes = require('./routes/bordereaux');
+const reglementaireRoutes = require('./routes/reglementaire');
+const favorisRoutes = require('./routes/favoris');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -83,6 +86,9 @@ app.use('/api/cms', cmsRoutes);
 app.use('/api/formations', formationsRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/assurances', assurancesRoutes);
+app.use('/api/bordereaux', bordereauxRoutes);
+app.use('/api/reglementaire', reglementaireRoutes);
+app.use('/api/favoris', favorisRoutes);
 
 // Route de test
 app.get('/api/health', (req, res) => {

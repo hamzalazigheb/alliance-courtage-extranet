@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { authAPI, buildAPIURL } from './api';
+import { usePagination, PaginationControls } from './utils/pagination';
 
 interface User {
   id: number;
@@ -26,6 +27,9 @@ interface PasswordResetRequest {
 function UserManagementPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
+  
+  // Pagination
+  const { paginatedData: paginatedUsers, pagination, goToPage, setItemsPerPage } = usePagination(users, 10);
   const [showAddForm, setShowAddForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [resetRequests, setResetRequests] = useState<PasswordResetRequest[]>([]);
@@ -66,6 +70,10 @@ function UserManagementPage() {
       if (response.ok) {
         const data = await response.json();
         setResetRequests(data);
+      } else if (response.status === 403) {
+        const errorData = await response.json().catch(() => ({ error: 'Accès refusé' }));
+        console.error('Access denied:', errorData);
+        alert('Vous devez être administrateur pour accéder à cette fonctionnalité.');
       }
     } catch (error) {
       console.error('Error loading reset requests:', error);
@@ -97,14 +105,16 @@ function UserManagementPage() {
       });
 
       if (response.ok) {
-        alert('Mot de passe réinitialisé avec succès !');
+        const data = await response.json();
+        alert('✅ ' + (data.message || 'Mot de passe réinitialisé avec succès !\n\n📧 Un email a été envoyé à l\'utilisateur avec le nouveau mot de passe.'));
         setSelectedRequest(null);
         setNewPassword('');
         setResetNotes('');
         loadResetRequests();
+        loadUsers(); // Refresh users list
       } else {
         const error = await response.json();
-        alert(error.error || 'Erreur lors de la réinitialisation');
+        alert('❌ ' + (error.error || 'Erreur lors de la réinitialisation'));
       }
     } catch (error) {
       console.error('Error resetting password:', error);
@@ -124,6 +134,10 @@ function UserManagementPage() {
       if (response.ok) {
         const data = await response.json();
         setUsers(data);
+      } else if (response.status === 403) {
+        const errorData = await response.json().catch(() => ({ error: 'Accès refusé' }));
+        console.error('Access denied:', errorData);
+        alert('Vous devez être administrateur pour accéder à cette fonctionnalité.');
       }
     } catch (error) {
       console.error('Error loading users:', error);
@@ -625,7 +639,7 @@ function UserManagementPage() {
                 </tr>
               </thead>
               <tbody className="bg-slate-800 divide-y divide-slate-700">
-                {users.map((user) => (
+                {paginatedUsers.map((user) => (
                   <tr key={user.id} className="hover:bg-slate-700/50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-white">{user.nom} {user.prenom}</div>
@@ -705,6 +719,13 @@ function UserManagementPage() {
                 ))}
               </tbody>
             </table>
+            {pagination.totalPages > 1 && (
+              <PaginationControls
+                pagination={pagination}
+                onPageChange={goToPage}
+                onItemsPerPageChange={setItemsPerPage}
+              />
+            )}
           </div>
         )}
       </div>

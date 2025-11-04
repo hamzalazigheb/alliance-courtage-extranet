@@ -34,6 +34,13 @@ const ManagePage: React.FC = () => {
     loadCurrentUser();
   }, []);
 
+  // If user tries to access 'utilisateurs' tab but is not admin, redirect to first available tab
+  useEffect(() => {
+    if (activeTab === 'utilisateurs' && currentUser && currentUser.role !== 'admin') {
+      setActiveTab('archives');
+    }
+  }, [activeTab, currentUser]);
+
   const loadCurrentUser = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -46,13 +53,26 @@ const ManagePage: React.FC = () => {
       });
 
       if (response.ok) {
-        const userData = await response.json();
+        const responseData = await response.json();
+        // The API returns { user: {...} }, so we need to extract the user object
+        const userData = responseData.user || responseData;
         setCurrentUser(userData);
         setProfileData({
           nom: userData.nom || '',
           prenom: userData.prenom || '',
           email: userData.email || ''
         });
+      } else {
+        // Check if it's a 403 or 401 error
+        if (response.status === 403 || response.status === 401) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error('Authentication error:', errorData);
+          // Redirect to login if unauthorized
+          localStorage.removeItem('token');
+          localStorage.removeItem('isLoggedIn');
+          window.location.hash = 'manage';
+          window.location.reload();
+        }
       }
     } catch (error) {
       console.error('Error loading user:', error);
@@ -142,13 +162,16 @@ const ManagePage: React.FC = () => {
     }
   };
 
-  const tabs = [
-    { id: 'archives' as const, label: 'Archives', icon: '📁' },
-    { id: 'partenaires' as const, label: 'Partenaires', icon: '🤝' },
-    { id: 'documents' as const, label: 'Documents Financiers', icon: '📄' },
-    { id: 'utilisateurs' as const, label: 'Utilisateurs', icon: '👥' },
-    { id: 'cms' as const, label: 'CMS', icon: '✏️' }
+  // Filter tabs based on user role
+  const allTabs = [
+    { id: 'archives' as const, label: 'Archives', icon: '📁', adminOnly: false },
+    { id: 'partenaires' as const, label: 'Partenaires', icon: '🤝', adminOnly: false },
+    { id: 'documents' as const, label: 'Documents Financiers', icon: '📄', adminOnly: false },
+    { id: 'utilisateurs' as const, label: 'Utilisateurs', icon: '👥', adminOnly: true },
+    { id: 'cms' as const, label: 'CMS', icon: '✏️', adminOnly: false }
   ];
+  
+  const tabs = allTabs.filter(tab => !tab.adminOnly || currentUser?.role === 'admin');
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
@@ -157,9 +180,11 @@ const ManagePage: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">A</span>
-              </div>
+              <img 
+                src="/alliance-courtage-logo.svg" 
+                alt="Alliance Courtage Logo" 
+                className="h-10 w-auto"
+              />
               <div>
                 <h1 className="text-xl font-bold text-gray-900">Administration</h1>
                 <p className="text-sm text-gray-600">Centre de gestion Alliance Courtage</p>
@@ -220,7 +245,18 @@ const ManagePage: React.FC = () => {
           {activeTab === 'archives' && <FileManagementPage />}
           {activeTab === 'partenaires' && <PartnerManagementPage />}
           {activeTab === 'documents' && <FinancialDocumentsPage />}
-          {activeTab === 'utilisateurs' && <UserManagementPage />}
+          {activeTab === 'utilisateurs' && (
+            currentUser?.role === 'admin' ? (
+              <UserManagementPage />
+            ) : (
+              <div className="p-8">
+                <div className="max-w-4xl mx-auto bg-red-50 border-2 border-red-200 rounded-xl p-6">
+                  <h1 className="text-2xl font-bold text-red-800 mb-4">Accès refusé</h1>
+                  <p className="text-red-600">Vous devez être administrateur pour accéder à cette fonctionnalité.</p>
+                </div>
+              </div>
+            )
+          )}
           {activeTab === 'cms' && <CMSManagementPage />}
         </div>
       </div>

@@ -13,6 +13,8 @@ interface FinancialDocument {
   year: number;
   uploaded_by_nom: string;
   uploaded_by_prenom: string;
+  fileUrl?: string;
+  hasFileContent?: boolean;
 }
 
 function FinancialDocumentsPage() {
@@ -343,7 +345,61 @@ function FinancialDocumentsPage() {
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
-                    onClick={() => window.open(`http://localhost:3001${doc.file_path}`, '_blank')}
+                    onClick={async () => {
+                      // Si fileUrl existe et pointe vers /download, utiliser l'API
+                      if (doc.fileUrl && doc.fileUrl.includes('/api/financial-documents/') && doc.fileUrl.includes('/download')) {
+                        try {
+                          const token = localStorage.getItem('token');
+                          let apiPath: string;
+                          
+                          // Extraire le chemin de l'URL complète
+                          if (doc.fileUrl.startsWith('http://') || doc.fileUrl.startsWith('https://')) {
+                            const urlObj = new URL(doc.fileUrl);
+                            apiPath = urlObj.pathname; // Ex: /api/financial-documents/1/download
+                            // Retirer /api si présent pour que buildAPIURL puisse l'ajouter
+                            if (apiPath.startsWith('/api/')) {
+                              apiPath = apiPath.replace('/api', ''); // Ex: /financial-documents/1/download
+                            }
+                          } else {
+                            apiPath = doc.fileUrl.startsWith('/') ? doc.fileUrl : `/${doc.fileUrl}`;
+                            if (apiPath.startsWith('/api/')) {
+                              apiPath = apiPath.replace('/api', '');
+                            }
+                          }
+                          
+                          const apiUrl = buildAPIURL(apiPath);
+                          const response = await fetch(apiUrl, {
+                            headers: { 'x-auth-token': token || '' }
+                          });
+                          
+                          if (response.ok) {
+                            const blob = await response.blob();
+                            const url = window.URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = doc.title || 'document.pdf';
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            window.URL.revokeObjectURL(url);
+                          } else {
+                            const errorText = await response.text();
+                            alert('Erreur lors du téléchargement: ' + errorText);
+                          }
+                        } catch (error) {
+                          console.error('Error downloading:', error);
+                          alert('Erreur lors du téléchargement: ' + (error as Error).message);
+                        }
+                      } else if (doc.file_path && doc.file_path.trim() !== '') {
+                        // Fallback pour les anciens fichiers (file_path)
+                        const downloadUrl = doc.file_path.startsWith('http') 
+                          ? doc.file_path 
+                          : `http://localhost:3001${doc.file_path}`;
+                        window.open(downloadUrl, '_blank');
+                      } else {
+                        alert('Erreur: Aucune URL de fichier disponible');
+                      }
+                    }}
                     className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
                   >
                     Télécharger

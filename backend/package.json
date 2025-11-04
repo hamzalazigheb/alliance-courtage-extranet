@@ -7,7 +7,12 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "init-db": "node scripts/initDatabase.js",
-    "test-api": "node scripts/testAPI.js"
+    "test": "node scripts/runAllTests.js",
+    "test:api": "node scripts/testAllAPI.js",
+    "test:db": "node scripts/testDatabase.js",
+    "test:security": "node scripts/testSecurity.js",
+    "test:performance": "node scripts/testPerformance.js",
+    "install:db": "node scripts/freshDatabase.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

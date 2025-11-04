@@ -185,12 +185,12 @@ router.put('/:id', auth, authorize('admin'), async (req, res) => {
 });
 
 // @route   PUT /api/users/:id/profile
-// @desc    Mettre à jour le profil de l'utilisateur connecté (nom, prenom, email)
+// @desc    Mettre à jour le profil de l'utilisateur connecté (nom, prenom - email ne peut pas être modifié)
 // @access  Private (Utilisateur peut modifier son propre profil)
 router.put('/:id/profile', auth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { nom, prenom, email } = req.body;
+    const { nom, prenom } = req.body;
     
     // Vérifier que l'utilisateur modifie son propre profil
     if (parseInt(id) !== req.user.id) {
@@ -200,35 +200,114 @@ router.put('/:id/profile', auth, async (req, res) => {
     }
     
     // Validation des données
-    if (!nom || !prenom || !email) {
+    if (!nom || !prenom) {
       return res.status(400).json({ 
-        error: 'Nom, prénom et email sont requis' 
+        error: 'Le nom et le prénom sont requis' 
       });
     }
     
-    // Vérifier que l'email n'est pas déjà utilisé par un autre utilisateur
+    // Vérifier que l'utilisateur existe
     const existingUsers = await query(
-      'SELECT id FROM users WHERE email = ? AND id != ?',
-      [email, id]
+      'SELECT id, email FROM users WHERE id = ?',
+      [id]
     );
     
-    if (existingUsers.length > 0) {
-      return res.status(400).json({ 
-        error: 'Cet email est déjà utilisé par un autre utilisateur' 
+    if (existingUsers.length === 0) {
+      return res.status(404).json({ 
+        error: 'Utilisateur non trouvé' 
       });
     }
     
-    // Mettre à jour le profil
+    // Mettre à jour le profil (sans l'email)
     await query(
-      'UPDATE users SET nom = ?, prenom = ?, email = ? WHERE id = ?',
-      [nom, prenom, email, id]
+      'UPDATE users SET nom = ?, prenom = ? WHERE id = ?',
+      [nom, prenom, id]
     );
     
-    res.json({ message: 'Profil mis à jour avec succès' });
+    console.log('✅ Profile updated:', { userId: id, nom, prenom });
+    
+    res.json({ 
+      message: 'Profil mis à jour avec succès',
+      user: {
+        id: parseInt(id),
+        nom,
+        prenom,
+        email: existingUsers[0].email
+      }
+    });
   } catch (error) {
     console.error('Erreur update profile:', error);
     res.status(500).json({ 
       error: 'Erreur serveur lors de la mise à jour du profil' 
+    });
+  }
+});
+
+
+// @route   PUT /api/users/:id/password
+// @desc    Changer le mot de passe de l'utilisateur connecté
+// @access  Private (Utilisateur peut modifier son propre mot de passe)
+router.put('/:id/password', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { currentPassword, newPassword } = req.body;
+    
+    // Vérifier que l'utilisateur modifie son propre mot de passe
+    if (parseInt(id) !== req.user.id) {
+      return res.status(403).json({ 
+        error: 'Vous ne pouvez modifier que votre propre mot de passe' 
+      });
+    }
+    
+    // Validation
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ 
+        error: 'Le mot de passe actuel et le nouveau mot de passe sont requis' 
+      });
+    }
+    
+    if (newPassword.length < 6) {
+      return res.status(400).json({ 
+        error: 'Le nouveau mot de passe doit contenir au moins 6 caractères' 
+      });
+    }
+    
+    // Vérifier que l'utilisateur existe et récupérer le mot de passe actuel
+    const users = await query(
+      'SELECT id, password FROM users WHERE id = ?',
+      [id]
+    );
+    
+    if (users.length === 0) {
+      return res.status(404).json({ 
+        error: 'Utilisateur non trouvé' 
+      });
+    }
+    
+    // Vérifier le mot de passe actuel
+    const isPasswordValid = await bcrypt.compare(currentPassword, users[0].password);
+    
+    if (!isPasswordValid) {
+      return res.status(401).json({ 
+        error: 'Mot de passe actuel incorrect' 
+      });
+    }
+    
+    // Hacher le nouveau mot de passe
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+    
+    // Mettre à jour le mot de passe
+    await query(
+      'UPDATE users SET password = ? WHERE id = ?',
+      [hashedPassword, id]
+    );
+    
+    res.json({ message: 'Mot de passe modifié avec succès' });
+  } catch (error) {
+    console.error('Erreur update password:', error);
+    res.status(500).json({ 
+      error: 'Erreur serveur lors de la modification du mot de passe' 
     });
   }
 });

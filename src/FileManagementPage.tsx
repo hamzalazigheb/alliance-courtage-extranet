@@ -83,7 +83,8 @@ function FileManagementPage() {
       });
 
       if (!response.ok) {
-        throw new Error('Erreur lors de l\'upload');
+        const errorData = await response.json().catch(() => ({ error: 'Erreur serveur inconnue' }));
+        throw new Error(errorData.error || `Erreur ${response.status}: ${response.statusText}`);
       }
 
       // Réinitialiser le formulaire
@@ -102,7 +103,8 @@ function FileManagementPage() {
       alert('Fichier uploadé avec succès !');
     } catch (error) {
       console.error('Erreur upload:', error);
-      alert('Erreur lors de l\'upload du fichier');
+      const errorMessage = error instanceof Error ? error.message : 'Erreur lors de l\'upload du fichier';
+      alert(`❌ ${errorMessage}`);
     } finally {
       setUploading(false);
     }

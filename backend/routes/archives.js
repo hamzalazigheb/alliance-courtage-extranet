@@ -7,55 +7,10 @@ const { auth, authorize } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Configuration de multer pour l'upload de fichiers
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    // Sauvegarder dans le dossier uploads à la racine du projet
-    const uploadPath = path.join(__dirname, '../../uploads');
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
-    }
-    cb(null, uploadPath);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
+// Configuration de multer pour l'upload en mémoire (pour base64)
+const storage = multer.memoryStorage();
 
-// @route   GET /api/archives/recent
-// @desc    Obtenir les derniers fichiers uploadés (admin)
-// @access  Private (Admin seulement)
-router.get('/recent', auth, authorize('admin'), async (req, res) => {
-  try {
-    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
-    const rows = await query(
-      `SELECT a.id as archiveId, a.title, a.file_path as filePath, a.created_at,
-              u.id as userId, CONCAT(u.nom, ' ', u.prenom) as userLabel
-       FROM archives a
-       LEFT JOIN users u ON a.uploaded_by = u.id
-       ORDER BY a.created_at DESC
-       LIMIT ?`,
-      [limit]
-    );
-
-    const host = `${req.protocol}://${req.get('host')}`;
-    const result = rows.map(r => ({
-      archiveId: r.archiveId,
-      title: r.title,
-      filePath: r.filePath,
-      fileUrl: `${host}${r.filePath}`,
-      userId: r.userId,
-      userLabel: r.userLabel,
-      createdAt: r.created_at
-    }));
-
-    res.json(result);
-  } catch (error) {
-    console.error('Erreur recent archives:', error);
-    res.status(500).json({ error: 'Erreur serveur lors de la récupération des uploads récents' });
-  }
-});
+// Note: /recent route is defined later in the file to avoid route conflicts
 
 const upload = multer({
   storage: storage,
@@ -80,6 +35,19 @@ const upload = multer({
     }
   }
 });
+
+// Middleware pour gérer les erreurs multer
+const handleMulterError = (err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: 'Fichier trop volumineux. Taille maximale: 50MB' });
+    }
+    return res.status(400).json({ error: 'Erreur upload fichier: ' + err.message });
+  } else if (err) {
+    return res.status(400).json({ error: err.message || 'Erreur upload fichier' });
+  }
+  next();
+};
 
 // @route   GET /api/archives
 // @desc    Obtenir toutes les archives
@@ -125,7 +93,27 @@ router.get('/', async (req, res) => {
     
     const archives = await query(sql, params);
     
-    res.json(archives);
+    const host = `${req.protocol}://${req.get('host')}`;
+    
+    // Add fileUrl for each archive
+    const archivesWithFileUrl = archives.map(archive => {
+      let fileUrl = null;
+      if (archive.file_content) {
+        // Fichier en base64
+        fileUrl = `${host}/api/archives/${archive.id}/download`;
+      } else if (archive.file_path && archive.file_path.trim() !== '') {
+        // Ancien fichier avec file_path
+        fileUrl = `${host}${archive.file_path}`;
+      }
+      
+      return {
+        ...archive,
+        fileUrl: fileUrl,
+        hasFileContent: !!archive.file_content
+      };
+    });
+    
+    res.json(archivesWithFileUrl);
   } catch (error) {
     console.error('Erreur get archives:', error);
     res.status(500).json({ 
@@ -138,6 +126,60 @@ router.get('/', async (req, res) => {
 // @desc    Obtenir les derniers fichiers uploadés (admin)
 // @access  Private (Admin seulement)
 // moved earlier before '/:id' to avoid route conflict
+
+// @route   GET /api/archives/:id/download
+// @desc    Télécharger un fichier d'archive depuis la base de données (base64)
+// @access  Public
+// NOTE: Cette route doit être définie AVANT /:id pour éviter les conflits de routing
+router.get('/:id/download', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Récupérer l'archive avec le contenu du fichier
+    const archives = await query(
+      'SELECT file_content, file_type, title, file_path FROM archives WHERE id = ?',
+      [id]
+    );
+    
+    if (archives.length === 0) {
+      return res.status(404).json({ error: 'Archive non trouvée' });
+    }
+    
+    const archive = archives[0];
+    
+    // Si file_content existe (base64), le décoder et servir
+    if (archive.file_content) {
+      // Extraire le base64 du data URL
+      const base64Data = archive.file_content.replace(/^data:.*,/, '');
+      const fileBuffer = Buffer.from(base64Data, 'base64');
+      
+      // Déterminer le nom du fichier et le type MIME
+      const mimeType = archive.file_type || 'application/octet-stream';
+      const fileName = archive.title || 'archive';
+      
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      res.setHeader('Content-Length', fileBuffer.length);
+      
+      return res.send(fileBuffer);
+    }
+    
+    // Fallback : si file_path existe (anciens fichiers)
+    if (archive.file_path) {
+      const filePath = path.join(__dirname, '../..', archive.file_path);
+      if (fs.existsSync(filePath)) {
+        return res.sendFile(path.resolve(filePath));
+      }
+    }
+    
+    return res.status(404).json({ error: 'Fichier non trouvé' });
+  } catch (error) {
+    console.error('Erreur download archive:', error);
+    res.status(500).json({ 
+      error: 'Erreur serveur lors du téléchargement de l\'archive' 
+    });
+  }
+});
 
 // @route   GET /api/archives/:id
 // @desc    Obtenir une archive par ID
@@ -160,7 +202,23 @@ router.get('/:id', async (req, res) => {
       });
     }
     
-    res.json(archives[0]);
+    const host = `${req.protocol}://${req.get('host')}`;
+    const archive = archives[0];
+    
+    let fileUrl = null;
+    if (archive.file_content) {
+      // Fichier en base64
+      fileUrl = `${host}/api/archives/${archive.id}/download`;
+    } else if (archive.file_path && archive.file_path.trim() !== '') {
+      // Ancien fichier avec file_path
+      fileUrl = `${host}${archive.file_path}`;
+    }
+    
+    res.json({
+      ...archive,
+      fileUrl: fileUrl,
+      hasFileContent: !!archive.file_content
+    });
   } catch (error) {
     console.error('Erreur get archive:', error);
     res.status(500).json({ 
@@ -170,9 +228,9 @@ router.get('/:id', async (req, res) => {
 });
 
 // @route   POST /api/archives
-// @desc    Créer une nouvelle archive (avec upload de fichier)
+// @desc    Créer une nouvelle archive (avec upload de fichier en base64)
 // @access  Private (Admin seulement)
-router.post('/', auth, authorize('admin'), upload.single('file'), async (req, res) => {
+router.post('/', auth, authorize('admin'), upload.single('file'), handleMulterError, async (req, res) => {
   try {
     const {
       title,
@@ -189,24 +247,44 @@ router.post('/', auth, authorize('admin'), upload.single('file'), async (req, re
       });
     }
     
+    // Check if buffer exists
+    if (!req.file.buffer) {
+      return res.status(400).json({ 
+        error: 'Erreur: fichier non reçu correctement' 
+      });
+    }
+
+    // Vérifier que title ou originalname existe
+    if (!title && !req.file.originalname) {
+      return res.status(400).json({ 
+        error: 'Titre requis ou nom de fichier invalide' 
+      });
+    }
+    
+    // Convert file buffer to base64
+    const fileBase64 = req.file.buffer.toString('base64');
+    const base64Prefix = `data:${req.file.mimetype};base64,`;
+    const fileContent = base64Prefix + fileBase64;
+    
     // Use filename as title if no title provided
     const fileTitle = title || req.file.originalname;
-    
-    // Créer l'archive - changer le chemin pour qu'il soit servable
-    const filePath = `/uploads/${req.file.filename}`;
     
     // Déterminer uploaded_by: use user_id if provided, otherwise use the admin's id
     const uploadedBy = user_id ? parseInt(user_id) : req.user.id;
     
-    // Créer l'archive
+    const host = `${req.protocol}://${req.get('host')}`;
+    const fileUrl = `${host}/api/archives/${null}/download`; // Will be updated after insert
+    
+    // Créer l'archive avec file_content (base64)
     const result = await query(
       `INSERT INTO archives 
-       (title, description, file_path, file_size, file_type, category, year, uploaded_by) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+       (title, description, file_path, file_content, file_size, file_type, category, year, uploaded_by) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         fileTitle,
         description || '',
-        filePath,
+        '', // file_path is empty string when using base64
+        fileContent, // Store base64 encoded file
         req.file.size,
         req.file.mimetype,
         category || 'Général',
@@ -215,38 +293,46 @@ router.post('/', auth, authorize('admin'), upload.single('file'), async (req, re
       ]
     );
     
-    const fileUrl = `${req.protocol}://${req.get('host')}${filePath}`;
+    // Update fileUrl with the actual ID
+    const finalFileUrl = `${host}/api/archives/${result.insertId}/download`;
 
-    // Try to derive period from filename like *_YYYY-MM* or *MM-YYYY*
-    let periodMonth = null;
-    let periodYear = null;
-    const baseName = path.basename(req.file.originalname);
-    const m1 = baseName.match(/(20\d{2})[-_\s]?(0[1-9]|1[0-2])/); // YYYY-MM
-    const m2 = baseName.match(/(0[1-9]|1[0-2])[-_\s]?(20\d{2})/); // MM-YYYY
-    if (m1) { periodYear = parseInt(m1[1], 10); periodMonth = parseInt(m1[2], 10); }
-    else if (m2) { periodYear = parseInt(m2[2], 10); periodMonth = parseInt(m2[1], 10); }
+    // Note: Bordereaux are now handled separately via /api/bordereaux
+    // No longer creating bordereau records from archives
 
-    // Create bordereau record linked to this archive
+    // Notifier tous les utilisateurs (via notification globale)
+    // Ne pas bloquer l'upload si la notification échoue
     try {
-      await query(
-        `INSERT INTO bordereaux (user_id, archive_id, label, period_month, period_year) VALUES (?, ?, ?, ?, ?)`,
-        [uploadedBy, result.insertId, fileTitle, periodMonth, periodYear]
+      await notifyAdmins(
+        'archive',
+        'Nouvelle archive',
+        `Une nouvelle archive "${fileTitle}" a été ajoutée.`,
+        result.insertId,
+        'archive'
       );
-    } catch (e) {
-      console.warn('⚠️ Could not insert into bordereaux:', e.message);
+    } catch (notifyError) {
+      console.error('Erreur lors de la notification (non bloquant):', notifyError);
     }
+
     res.status(201).json({
       message: 'Archive créée avec succès',
       archiveId: result.insertId,
-      filePath,
-      fileUrl,
+      filePath: '', // Empty for base64 files
+      fileUrl: finalFileUrl,
       title: fileTitle,
       uploadedBy
     });
   } catch (error) {
     console.error('Erreur create archive:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      sqlMessage: error.sqlMessage,
+      sqlState: error.sqlState,
+      stack: error.stack
+    });
     res.status(500).json({ 
-      error: 'Erreur serveur lors de la création de l\'archive' 
+      error: 'Erreur serveur lors de la création de l\'archive',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
@@ -312,11 +398,15 @@ router.delete('/:id', auth, authorize('admin'), async (req, res) => {
       });
     }
     
-    // Supprimer le fichier physique
+    // Si file_path existe (anciens fichiers), supprimer le fichier physique
     const filePath = archives[0].file_path;
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    if (filePath) {
+      const fullPath = path.join(__dirname, '../..', filePath);
+      if (fs.existsSync(fullPath)) {
+        fs.unlinkSync(fullPath);
+      }
     }
+    // Note: file_content (base64) est supprimé automatiquement avec l'enregistrement en DB
     
     // Supprimer l'archive de la base de données
     await query(
@@ -376,7 +466,9 @@ router.get('/recent', auth, authorize('admin'), async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 20, 100);
     const rows = await query(
-      `SELECT a.id as archiveId, a.title, a.file_path as filePath, a.created_at,
+      `SELECT a.id as archiveId, a.title, a.file_path as filePath, 
+              CASE WHEN a.file_content IS NOT NULL THEN 1 ELSE 0 END as has_file_content,
+              a.created_at,
               u.id as userId, CONCAT(u.nom, ' ', u.prenom) as userLabel
        FROM archives a
        LEFT JOIN users u ON a.uploaded_by = u.id
@@ -386,15 +478,24 @@ router.get('/recent', auth, authorize('admin'), async (req, res) => {
     );
 
     const host = `${req.protocol}://${req.get('host')}`;
-    const result = rows.map(r => ({
-      archiveId: r.archiveId,
-      title: r.title,
-      filePath: r.filePath,
-      fileUrl: `${host}${r.filePath}`,
-      userId: r.userId,
-      userLabel: r.userLabel,
-      createdAt: r.created_at
-    }));
+    const result = rows.map(r => {
+      let fileUrl = null;
+      if (r.has_file_content) {
+        fileUrl = `${host}/api/archives/${r.archiveId}/download`;
+      } else if (r.filePath && r.filePath.trim() !== '') {
+        fileUrl = `${host}${r.filePath}`;
+      }
+      
+      return {
+        archiveId: r.archiveId,
+        title: r.title,
+        filePath: r.filePath,
+        fileUrl: fileUrl,
+        userId: r.userId,
+        userLabel: r.userLabel,
+        createdAt: r.created_at
+      };
+    });
 
     res.json(result);
   } catch (error) {

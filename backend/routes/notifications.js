@@ -11,16 +11,9 @@ router.get('/', auth, async (req, res) => {
   try {
     const { unread_only } = req.query;
     
-    // Les admins voient leurs notifications personnelles + les notifications globales (user_id IS NULL)
-    // Les utilisateurs normaux voient seulement leurs notifications personnelles
-    let sql = `SELECT * FROM notifications WHERE (user_id = ?`;
+    // Tous les utilisateurs voient leurs notifications personnelles + les notifications globales (user_id IS NULL)
+    let sql = `SELECT * FROM notifications WHERE (user_id = ? OR user_id IS NULL)`;
     const params = [req.user.id];
-    
-    if (req.user.role === 'admin') {
-      sql += ` OR user_id IS NULL`;
-    }
-    
-    sql += `)`;
     
     if (unread_only === 'true') {
       sql += ' AND is_read = FALSE';
@@ -44,15 +37,10 @@ router.get('/', auth, async (req, res) => {
 // @access  Private
 router.get('/unread-count', auth, async (req, res) => {
   try {
+    // Tous les utilisateurs voient leurs notifications personnelles + les notifications globales
     let sql = `SELECT COUNT(*) as count FROM notifications 
-               WHERE (user_id = ?`;
+               WHERE (user_id = ? OR user_id IS NULL) AND is_read = FALSE`;
     const params = [req.user.id];
-    
-    if (req.user.role === 'admin') {
-      sql += ` OR user_id IS NULL`;
-    }
-    
-    sql += ') AND is_read = FALSE';
     
     const result = await query(sql, params);
     
@@ -72,6 +60,7 @@ router.put('/:id/read', auth, async (req, res) => {
   try {
     const notificationId = parseInt(req.params.id);
     
+    // Can mark as read if it's user's personal notification or a global notification
     await query(
       'UPDATE notifications SET is_read = TRUE WHERE id = ? AND (user_id = ? OR user_id IS NULL)',
       [notificationId, req.user.id]
@@ -91,6 +80,7 @@ router.put('/:id/read', auth, async (req, res) => {
 // @access  Private
 router.put('/read-all', auth, async (req, res) => {
   try {
+    // Mark all notifications as read (personal + global)
     await query(
       'UPDATE notifications SET is_read = TRUE WHERE (user_id = ? OR user_id IS NULL) AND is_read = FALSE',
       [req.user.id]
@@ -120,8 +110,8 @@ async function createNotification(type, title, message, userId = null, relatedId
   }
 }
 
-// Fonction pour notifier tous les admins
-// Crée une notification globale (user_id = NULL) visible par tous les admins
+// Fonction pour notifier tous les utilisateurs (admins et utilisateurs normaux)
+// Crée une notification globale (user_id = NULL) visible par tous les utilisateurs
 async function notifyAdmins(type, title, message, relatedId = null, relatedType = null) {
   try {
     // Créer une notification globale pour tous les admins (user_id = NULL)

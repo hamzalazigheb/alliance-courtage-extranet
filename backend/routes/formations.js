@@ -8,20 +8,8 @@ const { notifyAdmins, createNotification } = require('./notifications');
 
 const router = express.Router();
 
-// Configuration de multer pour l'upload de fichiers de formations
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadPath = path.join(__dirname, '../../uploads/formations');
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
-    }
-    cb(null, uploadPath);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'formation-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
+// Configuration de multer pour l'upload en mémoire (pour base64)
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage: storage,
@@ -122,8 +110,17 @@ router.post('/', auth, upload.single('file'), handleMulterError, async (req, res
       userName = `${prenom} ${nom}`.trim() || nom || prenom || 'Utilisateur inconnu';
     }
     
-    // Créer le chemin du fichier
-    const filePath = `/uploads/formations/${req.file.filename}`;
+    // Check if buffer exists
+    if (!req.file.buffer) {
+      return res.status(400).json({ 
+        error: 'Erreur: fichier non reçu correctement' 
+      });
+    }
+    
+    // Convert file buffer to base64
+    const fileBase64 = req.file.buffer.toString('base64');
+    const base64Prefix = `data:${req.file.mimetype};base64,`;
+    const fileContent = base64Prefix + fileBase64;
     
     // Valider et formater la date (assurez-vous que c'est au format YYYY-MM-DD)
     let formattedDate = date;
@@ -132,7 +129,7 @@ router.post('/', auth, upload.single('file'), handleMulterError, async (req, res
       formattedDate = date.split('T')[0];
     }
     
-    // Créer la formation
+    // Créer la formation avec file_content (base64) au lieu de file_path
     const userId = parseInt(req.user.id) || req.user.id;
     const categoriesJson = JSON.stringify(categoriesArray);
     
@@ -144,9 +141,9 @@ router.post('/', auth, upload.single('file'), handleMulterError, async (req, res
       heures: parseInt(heures),
       categories: categoriesJson,
       delivree_par: delivree_par || null,
-      filePath,
       fileSize: req.file.size,
       fileType: req.file.mimetype,
+      fileContentSize: fileContent.length,
       year: parseInt(year)
     });
     
@@ -158,18 +155,19 @@ router.post('/', auth, upload.single('file'), handleMulterError, async (req, res
       parseInt(heures),
       categoriesJson,
       delivree_par || null,
-      filePath,
+      '', // file_path is empty string when using base64
+      fileContent, // Store base64 encoded file
       req.file.size,
       req.file.mimetype,
       parseInt(year)
     ];
     
-    console.log('📊 Inserting formation with params:', insertParams);
+    console.log('📊 Inserting formation with params (file_content size):', fileContent.length);
     
     const result = await query(
       `INSERT INTO formations 
-       (user_id, user_name, nom_document, date, heures, categories, delivree_par, file_path, file_size, file_type, year, statut) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+       (user_id, user_name, nom_document, date, heures, categories, delivree_par, file_path, file_content, file_size, file_type, year, statut) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
       insertParams
     );
     
@@ -228,10 +226,14 @@ router.get('/', auth, async (req, res) => {
     
     const formations = await query(sql, params);
     
-    // Parse JSON categories
+    const host = `${req.protocol}://${req.get('host')}`;
+    
+    // Parse JSON categories and add file URL
     const formationsWithParsedCategories = formations.map(formation => ({
       ...formation,
-      categories: JSON.parse(formation.categories || '[]')
+      categories: JSON.parse(formation.categories || '[]'),
+      fileUrl: formation.file_content ? `${host}/api/formations/${formation.id}/download` : (formation.file_path ? `${host}${formation.file_path}` : null),
+      hasFileContent: !!formation.file_content
     }));
     
     res.json(formationsWithParsedCategories);
@@ -258,10 +260,14 @@ router.get('/pending', auth, authorize('admin'), async (req, res) => {
        ORDER BY f.created_at DESC`
     );
     
-    // Parse JSON categories
+    const host = `${req.protocol}://${req.get('host')}`;
+    
+    // Parse JSON categories and add file URL
     const formationsWithParsedCategories = formations.map(formation => ({
       ...formation,
-      categories: JSON.parse(formation.categories || '[]')
+      categories: JSON.parse(formation.categories || '[]'),
+      fileUrl: formation.file_content ? `${host}/api/formations/${formation.id}/download` : (formation.file_path ? `${host}${formation.file_path}` : null),
+      hasFileContent: !!formation.file_content
     }));
     
     res.json(formationsWithParsedCategories);
@@ -355,6 +361,65 @@ router.put('/:id/reject', auth, authorize('admin'), async (req, res) => {
   }
 });
 
+// @route   GET /api/formations/:id/download
+// @desc    Télécharger un fichier de formation depuis la base de données (base64)
+// @access  Private
+router.get('/:id/download', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Récupérer la formation avec le contenu du fichier
+    const formations = await query(
+      'SELECT file_content, file_type, nom_document, user_id FROM formations WHERE id = ?',
+      [id]
+    );
+    
+    if (formations.length === 0) {
+      return res.status(404).json({ error: 'Formation non trouvée' });
+    }
+    
+    const formation = formations[0];
+    
+    // Vérifier les permissions : propriétaire ou admin
+    if (formation.user_id !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Accès refusé' });
+    }
+    
+    // Si file_content existe (base64), le décoder et servir
+    if (formation.file_content) {
+      // Extraire le base64 du data URL
+      const base64Data = formation.file_content.replace(/^data:.*,/, '');
+      const fileBuffer = Buffer.from(base64Data, 'base64');
+      
+      // Déterminer le nom du fichier et le type MIME
+      const mimeType = formation.file_type || 'application/octet-stream';
+      const fileName = formation.nom_document || 'formation';
+      
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      res.setHeader('Content-Length', fileBuffer.length);
+      
+      return res.send(fileBuffer);
+    }
+    
+    // Fallback : si file_path existe (anciens fichiers)
+    const formationWithPath = await query('SELECT file_path FROM formations WHERE id = ?', [id]);
+    if (formationWithPath[0] && formationWithPath[0].file_path) {
+      const filePath = path.join(__dirname, '../..', formationWithPath[0].file_path);
+      if (fs.existsSync(filePath)) {
+        return res.sendFile(path.resolve(filePath));
+      }
+    }
+    
+    return res.status(404).json({ error: 'Fichier non trouvé' });
+  } catch (error) {
+    console.error('Erreur download formation:', error);
+    res.status(500).json({ 
+      error: 'Erreur serveur lors du téléchargement de la formation' 
+    });
+  }
+});
+
 // @route   DELETE /api/formations/:id
 // @desc    Supprimer une formation (propriétaire ou admin)
 // @access  Private
@@ -381,13 +446,14 @@ router.delete('/:id', auth, async (req, res) => {
       });
     }
     
-    // Supprimer le fichier si il existe
+    // Si file_path existe (anciens fichiers), supprimer le fichier physique
     if (formation[0].file_path) {
       const filePath = path.join(__dirname, '../../', formation[0].file_path);
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
       }
     }
+    // Note: file_content (base64) est supprimé automatiquement avec l'enregistrement en DB
     
     // Supprimer la formation
     await query('DELETE FROM formations WHERE id = ?', [formationId]);

@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const { query } = require('../config/database');
 const { auth, authorize } = require('../middleware/auth');
+const { sendPasswordResetEmail } = require('../services/emailService');
 
 const router = express.Router();
 
@@ -121,9 +122,12 @@ router.put('/requests/:id/complete', auth, authorize('admin'), async (req, res) 
       });
     }
 
-    // Get the request
+    // Get the request with user info
     const requests = await query(
-      'SELECT user_id, status FROM password_reset_requests WHERE id = ?',
+      `SELECT prr.user_id, prr.user_email, prr.status, u.email, u.nom, u.prenom 
+       FROM password_reset_requests prr
+       LEFT JOIN users u ON prr.user_id = u.id
+       WHERE prr.id = ?`,
       [id]
     );
 
@@ -159,10 +163,26 @@ router.put('/requests/:id/complete', auth, authorize('admin'), async (req, res) 
       [req.user.id, notes || null, id]
     );
 
+    // Send email to user with new password
+    const userEmail = request.email || request.user_email;
+    const userName = request.prenom && request.nom 
+      ? `${request.prenom} ${request.nom}` 
+      : (request.nom || request.prenom || '');
+
+    if (userEmail) {
+      try {
+        await sendPasswordResetEmail(userEmail, new_password, userName);
+        console.log(`✅ Password reset email sent to: ${userEmail}`);
+      } catch (emailError) {
+        console.error('❌ Error sending password reset email:', emailError);
+        // Don't fail the request if email fails, but log it
+      }
+    }
+
     console.log(`✅ Password reset completed for user ${request.user_id}`);
 
     res.json({
-      message: 'Mot de passe réinitialisé avec succès'
+      message: 'Mot de passe réinitialisé avec succès. Un email a été envoyé à l\'utilisateur.'
     });
 
   } catch (error) {

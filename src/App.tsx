@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from "react";
 import GammeFinancierePage from './GammeFinancierePage';
-import StructuredProductsDashboard from './StructuredProductsDashboard';
-import AdminDashboard from './AdminDashboard';
 import ProduitsStructuresPageComponent from './ProduitsStructuresPage';
 import NosArchivesPage from './NosArchivesPage';
 import ManagePage from './ManagePage';
-import { authAPI, formationsAPI, buildAPIURL, buildFileURL } from './api';
+import NotificationsPage from './NotificationsPage';
+import FavorisPage from './FavorisPage';
+import { authAPI, formationsAPI, notificationsAPI, favorisAPI, buildAPIURL, buildFileURL } from './api';
 
 // Types pour les utilisateurs et fichiers
 interface AuthUserRecord {
@@ -26,6 +26,8 @@ interface User {
   name: string;
   email: string;
   role: 'admin' | 'user';
+  nom?: string;
+  prenom?: string;
 }
 
 interface BordereauFile {
@@ -59,7 +61,9 @@ function ExtranetLoginPage({ onLogin, users }: { onLogin: (user: User) => void, 
         id: response.user.id.toString(),
         name: `${response.user.prenom} ${response.user.nom}`,
         email: response.user.email,
-        role: response.user.role === 'admin' ? 'admin' : 'user'
+        role: response.user.role === 'admin' ? 'admin' : 'user',
+        nom: response.user.nom,
+        prenom: response.user.prenom
       };
       
       setIsLoading(false);
@@ -138,30 +142,15 @@ function ExtranetLoginPage({ onLogin, users }: { onLogin: (user: User) => void, 
                   }
                   
                   const isReset = window.confirm(
-                    'Réinitialiser le mot de passe pour ' + email + '?\n\n' +
-                    '📧 Si c\'est un compte ADMIN, vous recevrez un email avec le nouveau mot de passe.\n\n' +
+                    'Demander une réinitialisation de mot de passe pour ' + email + '?\n\n' +
+                    '📧 Une notification sera envoyée à l\'administrateur.\n' +
+                    'Vous recevrez un email avec votre nouveau mot de passe une fois que l\'administrateur aura traité votre demande.\n\n' +
                     'Cliquez sur OK pour continuer.'
                   );
                   
                   if (!isReset) return;
                   
                   try {
-                    const adminResponse = await fetch(buildAPIURL('/admin-password-reset/request'), {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ email })
-                    });
-
-                    const adminData = await adminResponse.json();
-                    
-                    if (adminResponse.ok) {
-                      alert('✅ ' + adminData.message + '\n\n' +
-                        '📧 Vérifiez votre boîte de réception (et les spams).\n' +
-                        '🔐 Le nouveau mot de passe vous a été envoyé par email.\n\n' +
-                        '⚠️ Important : Changez votre mot de passe après la première connexion !');
-                      return;
-                    }
-                    
                     const response = await fetch(buildAPIURL('/password-reset/request'), {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
@@ -170,11 +159,10 @@ function ExtranetLoginPage({ onLogin, users }: { onLogin: (user: User) => void, 
 
                     const data = await response.json();
                     if (response.ok) {
-                      alert('✅ Demande envoyée avec succès !\n\n' +
-                        '📋 Un administrateur va recevoir votre demande et réinitialiser votre mot de passe.\n\n' +
-                        '💡 Pour les comptes ADMIN : utilisez plutôt la réinitialisation automatique qui envoie un email.');
+                      alert('✅ ' + data.message + '\n\n' +
+                        '📧 Vous recevrez un email avec votre nouveau mot de passe une fois que l\'administrateur aura traité votre demande dans le CMS.');
                     } else {
-                      alert(data.error || 'Erreur lors de la demande de réinitialisation');
+                      alert('❌ ' + (data.error || 'Erreur lors de la demande de réinitialisation'));
                     }
                   } catch (error) {
                     console.error('Error:', error);
@@ -247,6 +235,14 @@ function AdminLoginPage({ onLogin, users }: { onLogin: (user: User) => void, use
     
     try {
       const response: LoginResponse = await authAPI.login(email, password);
+      
+      // Vérifier que l'utilisateur est admin avant de permettre l'accès à /manage
+      if (response.user.role !== 'admin') {
+        setIsLoading(false);
+        alert('Accès refusé : Seuls les administrateurs peuvent accéder à cette page.');
+        return;
+      }
+      
       localStorage.setItem('token', response.token);
       localStorage.removeItem('user');
       localStorage.removeItem('manageAuth');
@@ -255,7 +251,9 @@ function AdminLoginPage({ onLogin, users }: { onLogin: (user: User) => void, use
         id: response.user.id.toString(),
         name: `${response.user.prenom} ${response.user.nom}`,
         email: response.user.email,
-        role: response.user.role === 'admin' ? 'admin' : 'user'
+        role: response.user.role === 'admin' ? 'admin' : 'user',
+        nom: response.user.nom,
+        prenom: response.user.prenom
       };
       
       setIsLoading(false);
@@ -437,6 +435,20 @@ function App() {
     // Get page from URL hash or default to accueil
     const hash = window.location.hash.slice(1); // Remove the # symbol
     const validPages = ['accueil', 'gamme-produits', 'partenaires', 'rencontres', 'reglementaire', 'produits-structures', 'simulateurs', 'comptabilite', 'gestion-comptabilite', 'nos-archives', 'manage'];
+    
+    // Si l'utilisateur essaie d'accéder à /manage mais n'est pas admin, rediriger vers accueil
+    const savedUser = localStorage.getItem('currentUser');
+    if (hash === 'manage' && savedUser) {
+      try {
+        const user = JSON.parse(savedUser);
+        if (user.role !== 'admin') {
+          return 'accueil';
+        }
+      } catch (e) {
+        return 'accueil';
+      }
+    }
+    
     return validPages.includes(hash) ? hash : 'accueil';
   });
 
@@ -450,25 +462,6 @@ function App() {
     // Fermer le menu mobile après navigation
     setIsMobileMenuOpen(false);
   };
-
-  // Initialize URL hash and listen for hash changes
-  useEffect(() => {
-    // Set initial hash if none exists
-    if (!window.location.hash) {
-      window.location.hash = 'accueil';
-    }
-
-    const handleHashChange = () => {
-      const hash = window.location.hash.slice(1);
-      const validPages = ['accueil', 'gamme-produits', 'partenaires', 'rencontres', 'reglementaire', 'produits-structures', 'simulateurs', 'comptabilite', 'gestion-comptabilite', 'nos-archives', 'manage'];
-      if (validPages.includes(hash)) {
-        setCurrentPage(hash);
-      }
-    };
-
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, []);
   
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     const savedUser = localStorage.getItem('currentUser');
@@ -492,6 +485,105 @@ function App() {
   
   // Users loaded from database - no static users needed
   const users: User[] = [];
+
+  // Profile management state
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [notificationCount, setNotificationCount] = useState(0);
+  const [profileData, setProfileData] = useState({
+    nom: '',
+    prenom: '',
+    email: ''
+  });
+
+  // Load unread notifications count
+  useEffect(() => {
+    if (isLoggedIn && currentUser) {
+      const loadUnreadCount = async () => {
+        try {
+          const data = await notificationsAPI.getUnreadCount();
+          setNotificationCount(data.count || 0);
+        } catch (error) {
+          console.error('Error loading unread count:', error);
+        }
+      };
+      
+      loadUnreadCount();
+      // Refresh every 15 seconds pour une mise à jour plus rapide
+      const interval = setInterval(loadUnreadCount, 15000);
+      
+      // Écouter les événements de notification lue pour rafraîchir immédiatement
+      const handleNotificationRead = () => {
+        loadUnreadCount();
+      };
+      window.addEventListener('notificationRead', handleNotificationRead);
+      
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener('notificationRead', handleNotificationRead);
+      };
+    } else {
+      setNotificationCount(0);
+    }
+  }, [isLoggedIn, currentUser]);
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'profile' | 'password'>('profile');
+
+  // Update profile data when currentUser changes or modal opens
+  useEffect(() => {
+    if (currentUser) {
+      // Extract nom and prenom from name if they exist separately
+      const nom = (currentUser as any).nom || currentUser.name?.split(' ').slice(-1)[0] || '';
+      const prenom = (currentUser as any).prenom || currentUser.name?.split(' ').slice(0, -1).join(' ') || '';
+      setProfileData({
+        nom,
+        prenom,
+        email: currentUser.email || ''
+      });
+      
+    }
+  }, [currentUser, showProfileModal]);
+
+  // Initialize URL hash and listen for hash changes
+  // Must be after currentUser declaration to avoid initialization order issues
+  useEffect(() => {
+    // Set initial hash if none exists
+    if (!window.location.hash) {
+      window.location.hash = 'accueil';
+    }
+
+    const handleHashChange = () => {
+      const hash = window.location.hash.slice(1);
+      const validPages = ['accueil', 'gamme-produits', 'partenaires', 'rencontres', 'reglementaire', 'produits-structures', 'simulateurs', 'comptabilite', 'gestion-comptabilite', 'nos-archives', 'notifications', 'favoris', 'manage'];
+      
+      // Bloquer l'accès à /manage si l'utilisateur n'est pas admin
+      if (hash === 'manage' && currentUser && currentUser.role !== 'admin') {
+        alert('Accès refusé : Seuls les administrateurs peuvent accéder à cette page.');
+        window.location.hash = 'accueil';
+        setCurrentPage('accueil');
+        return;
+      }
+      
+      if (validPages.includes(hash)) {
+        setCurrentPage(hash);
+      }
+    };
+
+    // Vérifier aussi au chargement initial
+    const hash = window.location.hash.slice(1);
+    if (hash === 'manage' && currentUser && currentUser.role !== 'admin') {
+      alert('Accès refusé : Seuls les administrateurs peuvent accéder à cette page.');
+      window.location.hash = 'accueil';
+      setCurrentPage('accueil');
+    }
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [currentUser]);
 
   // Données bordereaux (simulation) - VIDÉES POUR LE TEST
   const [bordereaux, setBordereaux] = useState<BordereauFile[]>([]);
@@ -618,6 +710,10 @@ function App() {
         return <GestionComptabilitePage currentUser={currentUser} />;
       case "nos-archives":
         return <NosArchivesPageComponent />;
+      case "notifications":
+        return <NotificationsPage />;
+      case "favoris":
+        return <FavorisPage />;
               case "manage":
         return <ManagePage />;
       default:
@@ -634,10 +730,10 @@ function App() {
     if (isManagePage) {
       // Page de login Admin pour /manage
       return <AdminLoginPage onLogin={(user) => {
-        setCurrentUser(user);
-        setIsLoggedIn(true);
-        localStorage.setItem('isLoggedIn', 'true');
-        localStorage.setItem('currentUser', JSON.stringify(user));
+      setCurrentUser(user);
+      setIsLoggedIn(true);
+      localStorage.setItem('isLoggedIn', 'true');
+      localStorage.setItem('currentUser', JSON.stringify(user));
         setCurrentPage('manage');
         window.location.hash = 'manage';
       }} users={users} />;
@@ -650,12 +746,49 @@ function App() {
         localStorage.setItem('currentUser', JSON.stringify(user));
         setCurrentPage('accueil');
         window.location.hash = 'accueil';
-      }} users={users} />;
+    }} users={users} />;
     }
   }
 
   // Render ManagePage independently without sidebar
+  // Vérifier que seul un admin peut accéder à /manage
   if (currentPage === "manage") {
+    // Si l'utilisateur n'est pas admin, bloquer l'accès
+    if (currentUser?.role !== 'admin') {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-orange-50 flex items-center justify-center p-4">
+          <div className="max-w-2xl w-full bg-white/90 backdrop-blur-sm rounded-2xl shadow-2xl border-2 border-red-200 p-8">
+            <div className="text-center">
+              <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <span className="text-4xl">🚫</span>
+              </div>
+              <h1 className="text-3xl font-bold text-red-800 mb-4">Accès Refusé</h1>
+              <p className="text-lg text-gray-700 mb-6">
+                Seuls les administrateurs peuvent accéder à la page de gestion.
+              </p>
+              <p className="text-sm text-gray-600 mb-8">
+                Vous êtes connecté en tant qu'utilisateur. Veuillez vous connecter avec un compte administrateur pour accéder à cette page.
+              </p>
+              <button
+                onClick={() => {
+                  localStorage.removeItem('token');
+                  localStorage.removeItem('user');
+                  localStorage.removeItem('isLoggedIn');
+                  localStorage.removeItem('currentUser');
+                  setIsLoggedIn(false);
+                  setCurrentUser(null);
+                  window.location.hash = 'manage';
+                  window.location.reload();
+                }}
+                className="px-6 py-3 bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-lg font-semibold hover:from-red-600 hover:to-orange-600 transition-all shadow-lg"
+              >
+                Déconnexion et reconnexion
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
     return <ManagePage />;
   }
 
@@ -688,16 +821,49 @@ function App() {
             </div>
             
             {/* User Info */}
-            <div className="flex items-center space-x-2 sm:space-x-4">
-              <div className="text-right hidden sm:block">
+            <div className="flex items-center space-x-2 sm:space-x-3 flex-wrap">
+              {/* Notifications Button */}
+              <button
+                onClick={() => {
+                  setCurrentPage('notifications');
+                  window.location.hash = 'notifications';
+                }}
+                className={`relative p-2 rounded-lg transition-all flex-shrink-0 ${
+                  notificationCount > 0 
+                    ? 'text-red-600 hover:text-red-700 hover:bg-red-50 animate-pulse' 
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                }`}
+                title={notificationCount > 0 ? `${notificationCount} nouvelle(s) notification(s)` : 'Notifications'}
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                {notificationCount > 0 && (
+                  <span className={`absolute top-0 right-0 block h-5 w-5 text-xs font-bold text-white bg-red-500 rounded-full flex items-center justify-center transform translate-x-1/2 -translate-y-1/2 shadow-lg ${
+                    notificationCount > 9 ? 'min-w-[1.5rem] px-1' : ''
+                  } animate-bounce`}>
+                    {notificationCount > 9 ? '9+' : notificationCount}
+                  </span>
+                )}
+              </button>
+              <div className="text-right hidden sm:block flex-shrink-0">
                 <div className="text-sm font-medium text-gray-900">{currentUser?.name}</div>
                 <div className="text-xs text-gray-500">
                   {currentUser?.role === 'admin' ? 'Super Admin' : 'Utilisateur'}
                 </div>
               </div>
-              <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+              <div className="flex-shrink-0">
+                <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center flex-shrink-0">
                 <span className="text-sm font-medium text-gray-700">{currentUser?.name?.charAt(0)}</span>
+                </div>
               </div>
+              <button
+                onClick={() => setShowProfileModal(true)}
+                className="text-blue-600 hover:text-blue-800 text-xs sm:text-sm font-medium px-2 py-1 rounded hover:bg-blue-50 transition-colors whitespace-nowrap flex-shrink-0"
+              >
+                <span className="hidden sm:inline">Gérer profil</span>
+                <span className="sm:hidden">Profil</span>
+              </button>
               <button
                 onClick={() => {
                   setIsLoggedIn(false);
@@ -709,7 +875,7 @@ function App() {
                   localStorage.removeItem('user');
                   localStorage.removeItem('manageAuth');
                 }}
-                className="text-gray-500 hover:text-gray-700 text-xs sm:text-sm font-medium"
+                className="text-gray-500 hover:text-gray-700 text-xs sm:text-sm font-medium whitespace-nowrap flex-shrink-0"
               >
                 <span className="hidden sm:inline">Déconnexion</span>
                 <span className="sm:hidden">Déco</span>
@@ -920,6 +1086,21 @@ function App() {
                   <span className={currentPage === "nos-archives" ? "font-semibold" : ""}>Nos Archives</span>
                 </button>
               </li>
+              <li>
+                <button 
+                  onClick={() => changePage("favoris")}
+                  className={`w-full flex items-center space-x-4 px-4 py-3 rounded-xl transition-all duration-200 ${
+                    currentPage === "favoris" 
+                      ? "bg-gradient-to-r from-[#0B1220] to-[#1D4ED8] text-white shadow-lg" 
+                      : "text-gray-700 hover:bg-gradient-to-r hover:from-gray-100 hover:to-gray-200"
+                  }`}
+                >
+                  <div className={`w-4 h-4 rounded-md ${
+                    currentPage === "favoris" ? "bg-white/20" : "border-2 border-gray-400"
+                  }`}></div>
+                  <span className={currentPage === "favoris" ? "font-semibold" : ""}>⭐ Mes Favoris</span>
+                </button>
+              </li>
             </ul>
           </nav>
         </aside>
@@ -929,6 +1110,261 @@ function App() {
           {renderPage()}
         </main>
       </div>
+
+      {/* Profile Management Modal */}
+      {showProfileModal && currentUser && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-800">Gérer mon profil</h2>
+                <button
+                  onClick={() => {
+                    setShowProfileModal(false);
+                    setActiveTab('profile');
+                    setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+                  }}
+                  className="text-gray-400 hover:text-gray-600 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Tabs */}
+              <div className="flex space-x-2 mb-6 border-b border-gray-200">
+                <button
+                  onClick={() => setActiveTab('profile')}
+                  className={`px-4 py-2 font-medium transition-colors ${
+                    activeTab === 'profile'
+                      ? 'text-blue-600 border-b-2 border-blue-600'
+                      : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  Profil
+                </button>
+                <button
+                  onClick={() => setActiveTab('password')}
+                  className={`px-4 py-2 font-medium transition-colors ${
+                    activeTab === 'password'
+                      ? 'text-blue-600 border-b-2 border-blue-600'
+                      : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  Mot de passe
+                </button>
+              </div>
+
+              {/* Profile Tab */}
+              {activeTab === 'profile' && (
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (!currentUser?.id) return;
+
+                    setProfileLoading(true);
+                    try {
+                      const response = await fetch(buildAPIURL(`/users/${currentUser.id}/profile`), {
+                        method: 'PUT',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'x-auth-token': localStorage.getItem('token') || ''
+                        },
+                        body: JSON.stringify({
+                          nom: profileData.nom,
+                          prenom: profileData.prenom
+                        })
+                      });
+
+                      const data = await response.json();
+
+                      if (response.ok) {
+                        alert('✅ Profil mis à jour avec succès !');
+                        // Update currentUser in localStorage
+                        const updatedUser: User = {
+                          ...currentUser,
+                          nom: profileData.nom,
+                          prenom: profileData.prenom,
+                          name: `${profileData.prenom} ${profileData.nom}`
+                        };
+                        setCurrentUser(updatedUser);
+                        localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+                        setShowProfileModal(false);
+                      } else {
+                        alert('❌ ' + (data.error || 'Erreur lors de la mise à jour'));
+                      }
+                    } catch (error) {
+                      console.error('Error updating profile:', error);
+                      alert('❌ Erreur lors de la mise à jour du profil');
+                    } finally {
+                      setProfileLoading(false);
+                    }
+                  }}
+                >
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Nom</label>
+                      <input
+                        type="text"
+                        value={profileData.nom}
+                        onChange={(e) => setProfileData({ ...profileData, nom: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Prénom</label>
+                      <input
+                        type="text"
+                        value={profileData.prenom}
+                        onChange={(e) => setProfileData({ ...profileData, prenom: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                      <input
+                        type="email"
+                        value={profileData.email}
+                        disabled
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">L'email ne peut pas être modifié</p>
+                    </div>
+
+                    <div className="flex space-x-3 pt-4">
+                      <button
+                        type="submit"
+                        disabled={profileLoading}
+                        className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-2 px-4 rounded-lg font-medium transition-colors disabled:opacity-50"
+                      >
+                        {profileLoading ? 'Enregistrement...' : 'Enregistrer'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowProfileModal(false)}
+                        className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              )}
+
+              {/* Password Tab */}
+              {activeTab === 'password' && (
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (!currentUser?.id) return;
+
+                    if (passwordData.newPassword !== passwordData.confirmPassword) {
+                      alert('❌ Les mots de passe ne correspondent pas');
+                      return;
+                    }
+
+                    if (passwordData.newPassword.length < 6) {
+                      alert('❌ Le mot de passe doit contenir au moins 6 caractères');
+                      return;
+                    }
+
+                    setProfileLoading(true);
+                    try {
+                      const response = await fetch(buildAPIURL(`/users/${currentUser.id}/password`), {
+                        method: 'PUT',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'x-auth-token': localStorage.getItem('token') || ''
+                        },
+                        body: JSON.stringify({
+                          currentPassword: passwordData.currentPassword,
+                          newPassword: passwordData.newPassword
+                        })
+                      });
+
+                      const data = await response.json();
+
+                      if (response.ok) {
+                        alert('✅ Mot de passe modifié avec succès !');
+                        setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+                        setShowProfileModal(false);
+                      } else {
+                        alert('❌ ' + (data.error || 'Erreur lors de la modification'));
+                      }
+                    } catch (error) {
+                      console.error('Error updating password:', error);
+                      alert('❌ Erreur lors de la modification du mot de passe');
+                    } finally {
+                      setProfileLoading(false);
+                    }
+                  }}
+                >
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Mot de passe actuel</label>
+                      <input
+                        type="password"
+                        value={passwordData.currentPassword}
+                        onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Nouveau mot de passe</label>
+                      <input
+                        type="password"
+                        value={passwordData.newPassword}
+                        onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        minLength={6}
+                        required
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Minimum 6 caractères</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Confirmer le nouveau mot de passe</label>
+                      <input
+                        type="password"
+                        value={passwordData.confirmPassword}
+                        onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        minLength={6}
+                        required
+                      />
+                    </div>
+
+                    <div className="flex space-x-3 pt-4">
+                      <button
+                        type="submit"
+                        disabled={profileLoading}
+                        className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-2 px-4 rounded-lg font-medium transition-colors disabled:opacity-50"
+                      >
+                        {profileLoading ? 'Modification...' : 'Modifier le mot de passe'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+                          setShowProfileModal(false);
+                        }}
+                        className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1319,31 +1755,72 @@ function GammeProduitsPage() {
   );
 }
 
+// Interface pour les partenaires
+interface Partner {
+  id: number;
+  nom: string;
+  description?: string;
+  website?: string;
+  site?: string;
+  logoUrl?: string;
+  logo_url?: string;
+  category?: string;
+  is_active?: boolean;
+  documents?: Array<{
+    nom: string;
+    type: string;
+    date: string;
+  }>;
+}
+
 // Partenaires Page Component
 function PartenairesPage() {
   const [selectedCategory, setSelectedCategory] = useState("tous");
-  const [partenaires, setPartenaires] = useState({ coa: [], cif: [] });
+  const [partenaires, setPartenaires] = useState<{ coa: Partner[]; cif: Partner[] }>({ coa: [], cif: [] });
   const [loading, setLoading] = useState(true);
+  const [pageContent, setPageContent] = useState({
+    title: 'Nos Partenaires',
+    subtitle: 'Découvrez nos partenaires de confiance en assurance et finance',
+    description: '',
+    headerImage: ''
+  });
 
-  // Charger les partenaires depuis l'API
+  // Charger les partenaires depuis l'API avec cache
   useEffect(() => {
     const loadPartenaires = async () => {
       try {
-        // Load all partners (including inactive for testing)
+        setLoading(true);
+        
+        // Try cache first
+        const { getCachedData, setCachedData, CACHE_KEYS, CACHE_TTL } = await import('./utils/cache');
+        const cached = getCachedData<Partner[]>(CACHE_KEYS.PARTNERS);
+        
+        if (cached) {
+          console.log('📊 Partners loaded from cache:', cached.length);
+          // Organiser par catégorie
+          const coa = cached.filter((p: Partner) => p.is_active && (p.category === 'coa' || p.category?.toLowerCase() === 'coa'));
+          const cif = cached.filter((p: Partner) => p.is_active && (p.category === 'cif' || p.category?.toLowerCase() === 'cif'));
+          setPartenaires({ coa, cif });
+          setLoading(false);
+          return;
+        }
+        
+        // Load from API
         const response = await fetch(buildAPIURL('/partners?active=false'));
         const data = await response.json();
         
         console.log('📊 Partners loaded from API:', data.length);
         
+        // Cache the data
+        setCachedData(CACHE_KEYS.PARTNERS, data, CACHE_TTL.LONG);
+        
         // Organiser par catégorie (only active partners for display)
-        const coa = data.filter((p: any) => p.is_active && (p.category === 'coa' || p.category?.toLowerCase() === 'coa'));
-        const cif = data.filter((p: any) => p.is_active && (p.category === 'cif' || p.category?.toLowerCase() === 'cif'));
+        const coa: Partner[] = data.filter((p: Partner) => p.is_active && (p.category === 'coa' || p.category?.toLowerCase() === 'coa'));
+        const cif: Partner[] = data.filter((p: Partner) => p.is_active && (p.category === 'cif' || p.category?.toLowerCase() === 'cif'));
         
         setPartenaires({ coa, cif });
         
         console.log(`✅ Active COA: ${coa.length}, Active CIF: ${cif.length}`);
-        console.log('COA Partners:', coa.map((p: any) => p.nom));
-        console.log('CIF Partners:', cif.map((p: any) => p.nom));
       } catch (error) {
         console.error('Erreur chargement partenaires:', error);
       } finally {
@@ -1352,9 +1829,33 @@ function PartenairesPage() {
     };
     
     loadPartenaires();
+    loadContent();
   }, []);
 
-  const getFilteredPartenaires = () => {
+  // Load CMS content
+  const loadContent = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(buildAPIURL('/cms/partenaires'), {
+        headers: { 'x-auth-token': token || '' }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.content) {
+          const parsedContent = JSON.parse(data.content);
+          if (typeof parsedContent === 'string') {
+            setPageContent(JSON.parse(parsedContent));
+          } else {
+            setPageContent(parsedContent);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading CMS content:', error);
+    }
+  };
+
+  const getFilteredPartenaires = (): Partner[] => {
     if (selectedCategory === "coa") return partenaires.coa;
     if (selectedCategory === "cif") return partenaires.cif;
     return [...partenaires.coa, ...partenaires.cif];
@@ -1364,10 +1865,22 @@ function PartenairesPage() {
     <div className="max-w-7xl mx-auto space-y-8">
       {/* Page Header */}
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-white/20">
-        <h1 className="text-3xl font-bold text-gray-800 mb-4">Nos Partenaires</h1>
+        {pageContent.headerImage && (
+          <div className="mb-6">
+            <img 
+              src={pageContent.headerImage} 
+              alt="Header" 
+              className="w-full h-64 object-cover rounded-lg"
+            />
+          </div>
+        )}
+        <h1 className="text-3xl font-bold text-gray-800 mb-4">{pageContent.title}</h1>
         <p className="text-gray-600 text-lg">
-          Découvrez nos partenaires de confiance en assurance et finance
+          {pageContent.subtitle}
         </p>
+        {pageContent.description && (
+          <p className="text-gray-600 mt-2">{pageContent.description}</p>
+        )}
       </div>
 
       {/* Filtres par catégorie */}
@@ -1417,44 +1930,31 @@ function PartenairesPage() {
               Partenaires Courtiers en Assurances
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {partenaires.coa.map((partenaire, index) => (
+              {partenaires.coa.map((partenaire: Partner, index: number) => (
                 <div key={`coa-${partenaire.id}-${index}`} className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden hover:shadow-xl transition-all duration-300">
                   {/* Logo */}
-                  <div className={`h-32 flex items-center justify-center ${partenaire.nom === 'AESTIAM' ? 'bg-gray-800' : 'bg-gradient-to-br from-gray-50 to-gray-100'}`}>
-                    {partenaire.logo_url && partenaire.logo_url.startsWith('/uploads/') ? (
+                  <div className={`h-32 flex items-center justify-center p-6 ${partenaire.nom === 'AESTIAM' ? 'bg-gray-800' : 'bg-gradient-to-br from-gray-50 to-gray-100'}`}>
+                    {(partenaire.logoUrl || partenaire.logo_url) ? (
+                      <div className="w-full h-full flex items-center justify-center">
                       <img 
-                        src={buildFileURL(partenaire.logo_url)} 
+                          src={partenaire.logoUrl || (partenaire.logo_url && partenaire.logo_url.startsWith('/uploads/') ? buildFileURL(partenaire.logo_url) : partenaire.logo_url)} 
                         alt={`Logo ${partenaire.nom}`}
-                        className="h-20 w-auto object-contain max-w-full"
-                        style={{ maxHeight: '80px' }}
-                        onError={(e) => {
-                          console.error('Image failed to load:', partenaire.logo_url);
-                          (e.target as HTMLImageElement).style.display = 'none';
-                          (e.target as HTMLImageElement).parentElement!.innerHTML = `<div class="w-20 h-20 bg-gradient-to-br from-blue-400 to-purple-400 rounded-lg flex items-center justify-center text-white font-bold text-2xl">${partenaire.nom.charAt(0)}</div>`;
-                        }}
-                      />
-                    ) : partenaire.logo ? (
-                      partenaire.logo.startsWith('http') ? (
-                      <img 
-                        src={partenaire.logo} 
-                        alt={`Logo ${partenaire.nom}`}
-                        className="h-20 w-auto object-contain max-w-full"
-                        style={{ maxHeight: '80px' }}
-                      />
-                    ) : (
-                        <img 
-                          src={partenaire.logo} 
-                          alt={`Logo ${partenaire.nom}`}
-                          className="h-20 w-auto object-contain max-w-full"
-                          style={{ maxHeight: '80px' }}
+                          className="max-h-20 max-w-[90%] w-auto h-auto object-contain"
+                          style={{ 
+                            maxHeight: '80px',
+                            maxWidth: '90%',
+                            width: 'auto',
+                            height: 'auto'
+                          }}
                           onError={(e) => {
+                            console.error('Image failed to load:', partenaire.logoUrl || partenaire.logo_url);
                             (e.target as HTMLImageElement).style.display = 'none';
-                            (e.target as HTMLImageElement).parentElement!.innerHTML = `<div class="w-20 h-20 bg-gradient-to-br from-blue-400 to-purple-400 rounded-lg flex items-center justify-center text-white font-bold text-2xl">${partenaire.nom.charAt(0)}</div>`;
+                            (e.target as HTMLImageElement).parentElement!.innerHTML = `<div class="w-20 h-20 bg-gradient-to-br from-blue-400 to-purple-400 rounded-lg flex items-center justify-center text-white font-bold text-xl">${partenaire.nom.charAt(0)}</div>`;
                           }}
                         />
-                      )
+                      </div>
                     ) : (
-                      <div className="w-20 h-20 bg-gradient-to-br from-blue-400 to-purple-400 rounded-lg flex items-center justify-center text-white font-bold text-2xl">
+                      <div className="w-20 h-20 bg-gradient-to-br from-blue-400 to-purple-400 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-md">
                         {partenaire.nom.charAt(0)}
                       </div>
                     )}
@@ -1509,44 +2009,31 @@ function PartenairesPage() {
               Partenaires Conseillers en Investissements Financiers
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {partenaires.cif.map((partenaire, index) => (
+              {partenaires.cif.map((partenaire: Partner, index: number) => (
                 <div key={`cif-${partenaire.id}-${index}`} className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden hover:shadow-xl transition-all duration-300">
                   {/* Logo */}
-                  <div className={`h-32 flex items-center justify-center ${partenaire.nom === 'AESTIAM' ? 'bg-gray-800' : 'bg-gradient-to-br from-gray-50 to-gray-100'}`}>
-                    {partenaire.logo_url && partenaire.logo_url.startsWith('/uploads/') ? (
+                  <div className={`h-32 flex items-center justify-center p-6 ${partenaire.nom === 'AESTIAM' ? 'bg-gray-800' : 'bg-gradient-to-br from-gray-50 to-gray-100'}`}>
+                    {(partenaire.logoUrl || partenaire.logo_url) ? (
+                      <div className="w-full h-full flex items-center justify-center">
                       <img 
-                        src={buildFileURL(partenaire.logo_url)} 
+                          src={partenaire.logoUrl || (partenaire.logo_url && partenaire.logo_url.startsWith('/uploads/') ? buildFileURL(partenaire.logo_url) : partenaire.logo_url)} 
                         alt={`Logo ${partenaire.nom}`}
-                        className="h-20 w-auto object-contain max-w-full"
-                        style={{ maxHeight: '80px' }}
-                        onError={(e) => {
-                          console.error('Image failed to load:', partenaire.logo_url);
-                          (e.target as HTMLImageElement).style.display = 'none';
-                          (e.target as HTMLImageElement).parentElement!.innerHTML = `<div class="w-20 h-20 bg-gradient-to-br from-blue-400 to-purple-400 rounded-lg flex items-center justify-center text-white font-bold text-2xl">${partenaire.nom.charAt(0)}</div>`;
-                        }}
-                      />
-                    ) : partenaire.logo ? (
-                      partenaire.logo.startsWith('http') ? (
-                      <img 
-                        src={partenaire.logo} 
-                        alt={`Logo ${partenaire.nom}`}
-                        className="h-20 w-auto object-contain max-w-full"
-                        style={{ maxHeight: '80px' }}
-                      />
-                    ) : (
-                        <img 
-                          src={partenaire.logo} 
-                          alt={`Logo ${partenaire.nom}`}
-                          className="h-20 w-auto object-contain max-w-full"
-                          style={{ maxHeight: '80px' }}
+                          className="max-h-20 max-w-[90%] w-auto h-auto object-contain"
+                          style={{ 
+                            maxHeight: '80px',
+                            maxWidth: '90%',
+                            width: 'auto',
+                            height: 'auto'
+                          }}
                           onError={(e) => {
+                            console.error('Image failed to load:', partenaire.logoUrl || partenaire.logo_url);
                             (e.target as HTMLImageElement).style.display = 'none';
-                            (e.target as HTMLImageElement).parentElement!.innerHTML = `<div class="w-20 h-20 bg-gradient-to-br from-purple-400 to-pink-400 rounded-lg flex items-center justify-center text-white font-bold text-2xl">${partenaire.nom.charAt(0)}</div>`;
+                            (e.target as HTMLImageElement).parentElement!.innerHTML = `<div class="w-20 h-20 bg-gradient-to-br from-purple-400 to-pink-400 rounded-lg flex items-center justify-center text-white font-bold text-xl">${partenaire.nom.charAt(0)}</div>`;
                           }}
                         />
-                      )
+                      </div>
                     ) : (
-                      <div className="w-20 h-20 bg-gradient-to-br from-purple-400 to-pink-400 rounded-lg flex items-center justify-center text-white font-bold text-2xl">
+                      <div className="w-20 h-20 bg-gradient-to-br from-purple-400 to-pink-400 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-md">
                         {partenaire.nom.charAt(0)}
                       </div>
                     )}
@@ -1599,8 +2086,8 @@ function PartenairesPage() {
         <h2 className="text-2xl font-bold text-gray-800 mb-6">Protocoles et Documents Contractuels</h2>
         <div className="space-y-4">
           {getFilteredPartenaires()
-            .filter((partenaire) => partenaire.documents && Array.isArray(partenaire.documents) && partenaire.documents.length > 0)
-            .map((partenaire) => (
+            .filter((partenaire: Partner) => partenaire.documents && Array.isArray(partenaire.documents) && partenaire.documents.length > 0)
+            .map((partenaire: Partner) => (
             <div key={partenaire.id} className="border border-gray-200 rounded-lg p-4">
               <h3 className="font-semibold text-gray-800 mb-3">{partenaire.nom}</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -1825,6 +2312,9 @@ function RencontresPage() {
 // Règlementaire Page Component
 function ReglementairePage({ currentUser }: { currentUser: User | null }) {
   const [expandedFolders, setExpandedFolders] = useState<{[key: string]: boolean}>({});
+  const [folders, setFolders] = useState<any[]>([]);
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [loadingReglementaire, setLoadingReglementaire] = useState(true);
   const [selectedYear, setSelectedYear] = useState('2025');
   const [selectedFormationType, setSelectedFormationType] = useState('validantes'); // 'validantes' ou 'obligatoires'
   const [selectedCategory, setSelectedCategory] = useState('all'); // 'all', 'CIF', 'IAS', 'IOB', 'IMMOBILIER'
@@ -1850,6 +2340,39 @@ function ReglementairePage({ currentUser }: { currentUser: User | null }) {
       [folderId]: !prev[folderId]
     }));
   };
+
+  // Load réglementaire folders and documents from API
+  useEffect(() => {
+    const loadReglementaire = async () => {
+      try {
+        setLoadingReglementaire(true);
+        const token = localStorage.getItem('token');
+        
+        // Load folders
+        const foldersResponse = await fetch(buildAPIURL('/reglementaire/folders'), {
+          headers: { 'x-auth-token': token || '' }
+        });
+        if (foldersResponse.ok) {
+          const foldersData = await foldersResponse.json();
+          setFolders(foldersData);
+        }
+        
+        // Load documents
+        const documentsResponse = await fetch(buildAPIURL('/reglementaire/documents'), {
+          headers: { 'x-auth-token': token || '' }
+        });
+        if (documentsResponse.ok) {
+          const documentsData = await documentsResponse.json();
+          setDocuments(documentsData);
+        }
+      } catch (error) {
+        console.error('Error loading réglementaire:', error);
+      } finally {
+        setLoadingReglementaire(false);
+      }
+    };
+    loadReglementaire();
+  }, []);
 
   // Load formations from API
   useEffect(() => {
@@ -2025,100 +2548,10 @@ function ReglementairePage({ currentUser }: { currentUser: User | null }) {
       .reduce((total, formation) => total + (formation.heures || 0), 0);
   };
 
-  // Structure des 10 dossiers avec documents
-  const folders = [
-    {
-      id: "clients",
-      title: "0. CLIENTS",
-      documents: [
-        { name: "Procedure_kit_reglementaire_clients_assurance", date: "15/01/2024", type: "Procédure" },
-        { name: "Parcours client - Assurance vie", date: "12/01/2024", type: "Guide" },
-        { name: "Parcours client - Assurance non-vie", date: "10/01/2024", type: "Guide" },
-        { name: "Questionnaire client type", date: "08/01/2024", type: "Modèle" }
-      ]
-    },
-    {
-      id: "conflits-interet",
-      title: "1. CONFLITS D'INTÉRÊT",
-      documents: [
-        { name: "Procédure de prévention et gestion des Conflits d'intérêts", date: "10/07/2020", type: "Procédure" },
-        { name: "Déclaration de conflit d'intérêt", date: "05/01/2024", type: "Modèle" },
-        { name: "Registre des conflits d'intérêt", date: "03/01/2024", type: "Modèle" }
-      ]
-    },
-    {
-      id: "controle-fraude",
-      title: "2. CONTRÔLE ET LUTTE CONTRE LA FRAUDE",
-      documents: [
-        { name: "Procédure de détection de fraude", date: "20/01/2024", type: "Procédure" },
-        { name: "Signalement suspicion de fraude", date: "18/01/2024", type: "Modèle" },
-        { name: "Checklist vigilance anti-fraude", date: "15/01/2024", type: "Checklist" }
-      ]
-    },
-    {
-      id: "distribution",
-      title: "3. DISTRIBUTION",
-      documents: [
-        { name: "Procédure de distribution des produits", date: "22/01/2024", type: "Procédure" },
-        { name: "Convention de distribution type", date: "20/01/2024", type: "Modèle" },
-        { name: "Guide des bonnes pratiques distribution", date: "18/01/2024", type: "Guide" }
-      ]
-    },
-    {
-      id: "gouvernance",
-      title: "4. GOUVERNANCE",
-      documents: [
-        { name: "Organigramme de gouvernance", date: "25/01/2024", type: "Organigramme" },
-        { name: "Procédure de prise de décision", date: "23/01/2024", type: "Procédure" },
-        { name: "Règlement intérieur", date: "21/01/2024", type: "Règlement" }
-      ]
-    },
-    {
-      id: "lcb-ft",
-      title: "5. LCB-FT",
-      documents: [
-        { name: "Procédure - LAB-FT (MAJ 13 11 2020)", date: "10/07/2020", type: "Procédure" },
-        { name: "Questionnaire Risques LCB-FT (MAJ 13 11 2020)", date: "10/07/2020", type: "Questionnaire" },
-        { name: "Note Veille Courtiers - Application du gel des avoirs", date: "10/07/2020", type: "Note" }
-      ]
-    },
-    {
-      id: "pca",
-      title: "6. PCA",
-      documents: [
-        { name: "Plan de Continuité d'Activité", date: "28/01/2024", type: "Plan" },
-        { name: "Procédure de crise", date: "26/01/2024", type: "Procédure" },
-        { name: "Test PCA annuel", date: "24/01/2024", type: "Modèle" }
-      ]
-    },
-    {
-      id: "presentation-cabinet",
-      title: "7. PRÉSENTATION DU CABINET",
-      documents: [
-        { name: "Note mentions légales obligatoires IAS (08 11 2019)", date: "10/07/2020", type: "Note" },
-        { name: "Présentation cabinet type", date: "30/01/2024", type: "Présentation" },
-        { name: "Brochure commerciale", date: "28/01/2024", type: "Brochure" }
-      ]
-    },
-    {
-      id: "rgpd",
-      title: "8. RGPD",
-      documents: [
-        { name: "Procédure RGPD cabinet", date: "02/02/2024", type: "Procédure" },
-        { name: "Registre des traitements", date: "31/01/2024", type: "Modèle" },
-        { name: "Formulaire consentement client", date: "29/01/2024", type: "Modèle" }
-      ]
-    },
-    {
-      id: "traitement-reclamations",
-      title: "9. TRAITEMENT DES RÉCLAMATIONS",
-      documents: [
-        { name: "Procédure de traitement des réclamations", date: "05/02/2024", type: "Procédure" },
-        { name: "Registre des réclamations", date: "03/02/2024", type: "Modèle" },
-        { name: "Modèle de réponse réclamation", date: "01/02/2024", type: "Modèle" }
-      ]
-    }
-  ];
+  // Get documents for a specific folder
+  const getDocumentsForFolder = (folderId: number) => {
+    return documents.filter(doc => doc.folder_id === folderId);
+  };
 
   return (
     <div className="max-w-7xl mx-auto space-y-8">
@@ -2274,15 +2707,55 @@ function ReglementairePage({ currentUser }: { currentUser: User | null }) {
                         <td className="border border-gray-300 px-4 py-2">{formation.delivree_par || '-'}</td>
                         <td className="border border-gray-300 px-4 py-2">{formation.nom_document}</td>
                       <td className="border border-gray-300 px-4 py-2">
-                          {formation.file_path && (
-                            <a 
-                              href={buildFileURL(formation.file_path)} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm transition-colors inline-block"
+                          {(formation.fileUrl || formation.file_path) && (
+                            <button
+                              onClick={async () => {
+                                const downloadUrl = formation.fileUrl || (formation.file_path ? buildFileURL(formation.file_path) : '');
+                                if (downloadUrl.includes('/api/formations/') && downloadUrl.includes('/download')) {
+                                  try {
+                                    const token = localStorage.getItem('token');
+                                    let apiPath: string;
+                                    if (downloadUrl.startsWith('http://') || downloadUrl.startsWith('https://')) {
+                                      const urlObj = new URL(downloadUrl);
+                                      apiPath = urlObj.pathname;
+                                      if (apiPath.startsWith('/api/')) {
+                                        apiPath = apiPath.replace('/api', '');
+                                      }
+                                    } else {
+                                      apiPath = downloadUrl.startsWith('/') ? downloadUrl : `/${downloadUrl}`;
+                                      if (apiPath.startsWith('/api/')) {
+                                        apiPath = apiPath.replace('/api', '');
+                                      }
+                                    }
+                                    const apiUrl = buildAPIURL(apiPath);
+                                    const response = await fetch(apiUrl, {
+                                      headers: { 'x-auth-token': token || '' }
+                                    });
+                                    if (response.ok) {
+                                      const blob = await response.blob();
+                                      const url = window.URL.createObjectURL(blob);
+                                      const a = document.createElement('a');
+                                      a.href = url;
+                                      a.download = formation.nom_document || 'formation.pdf';
+                                      document.body.appendChild(a);
+                                      a.click();
+                                      document.body.removeChild(a);
+                                      window.URL.revokeObjectURL(url);
+                                    } else {
+                                      alert('Erreur lors du téléchargement');
+                                    }
+                                  } catch (error) {
+                                    console.error('Error downloading:', error);
+                                    alert('Erreur lors du téléchargement');
+                                  }
+                                } else {
+                                  window.open(downloadUrl, '_blank');
+                                }
+                              }}
+                              className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm transition-colors"
                             >
                           Télécharger
-                            </a>
+                        </button>
                           )}
                       </td>
                     </tr>
@@ -2318,19 +2791,27 @@ function ReglementairePage({ currentUser }: { currentUser: User | null }) {
           <h2 className="text-2xl font-bold text-white">BIBLIOTHEQUE CONFORMITE</h2>
         </div>
         <div className="p-6">
+          {loadingReglementaire ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto"></div>
+              <p className="mt-4 text-gray-600">Chargement des documents...</p>
+            </div>
+          ) : (
           <div className="space-y-4">
-            {folders.map((folder) => (
+              {folders.map((folder) => {
+                const folderDocuments = getDocumentsForFolder(folder.id);
+                return (
               <div key={folder.id} className="border border-gray-200 rounded-lg overflow-hidden">
                 {/* En-tête du dossier */}
                 <button
-                  onClick={() => toggleFolder(folder.id)}
+                      onClick={() => toggleFolder(folder.id.toString())}
                   className="w-full bg-gray-50 hover:bg-gray-100 p-4 text-left transition-colors flex items-center justify-between"
                 >
                   <h3 className="text-lg font-semibold text-gray-800">{folder.title}</h3>
                   <div className="flex items-center space-x-2">
-                    <span className="text-sm text-gray-500">{folder.documents.length} document(s)</span>
+                        <span className="text-sm text-gray-500">{folderDocuments.length} document(s)</span>
                     <svg 
-                      className={`w-5 h-5 text-gray-500 transition-transform ${expandedFolders[folder.id] ? 'rotate-180' : ''}`} 
+                          className={`w-5 h-5 text-gray-500 transition-transform ${expandedFolders[folder.id.toString()] ? 'rotate-180' : ''}`} 
                       fill="none" 
                       stroke="currentColor" 
                       viewBox="0 0 24 24"
@@ -2341,31 +2822,84 @@ function ReglementairePage({ currentUser }: { currentUser: User | null }) {
                 </button>
                 
                 {/* Contenu du dossier */}
-                {expandedFolders[folder.id] && (
+                    {expandedFolders[folder.id.toString()] && (
                   <div className="border-t border-gray-200 bg-white">
-                    {folder.documents.map((doc, index) => (
-                      <div key={index} className="flex items-center justify-between p-4 hover:bg-gray-50 border-b border-gray-100 last:border-b-0">
+                        {folderDocuments.length > 0 ? (
+                          folderDocuments.map((doc) => (
+                            <div key={doc.id} className="flex items-center justify-between p-4 hover:bg-gray-50 border-b border-gray-100 last:border-b-0">
                         <div className="flex items-center space-x-3">
                           <div className="w-6 h-6 text-blue-600">
                             📄
                           </div>
                           <div>
                             <div className="font-medium text-gray-800">{doc.name}</div>
-                            <div className="text-sm text-gray-500">{doc.date}</div>
+                                  <div className="text-sm text-gray-500">
+                                    {doc.document_date || 'N/A'} {doc.document_type ? ` • ${doc.document_type}` : ''}
                           </div>
                         </div>
-                        <button className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 transition-colors">
+                              </div>
+                              {doc.fileUrl && (
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      const token = localStorage.getItem('token');
+                                      let apiPath: string;
+                                      if (doc.fileUrl!.startsWith('http://') || doc.fileUrl!.startsWith('https://')) {
+                                        const urlObj = new URL(doc.fileUrl!);
+                                        apiPath = urlObj.pathname;
+                                        if (apiPath.startsWith('/api/')) {
+                                          apiPath = apiPath.replace('/api', '');
+                                        }
+                                      } else {
+                                        apiPath = doc.fileUrl!.startsWith('/') ? doc.fileUrl! : `/${doc.fileUrl!}`;
+                                        if (apiPath.startsWith('/api/')) {
+                                          apiPath = apiPath.replace('/api', '');
+                                        }
+                                      }
+                                      const apiUrl = buildAPIURL(apiPath);
+                                      const response = await fetch(apiUrl, {
+                                        headers: { 'x-auth-token': token || '' }
+                                      });
+                                      if (response.ok) {
+                                        const blob = await response.blob();
+                                        const url = window.URL.createObjectURL(blob);
+                                        const a = document.createElement('a');
+                                        a.href = url;
+                                        a.download = doc.name || 'document.pdf';
+                                        document.body.appendChild(a);
+                                        a.click();
+                                        document.body.removeChild(a);
+                                        window.URL.revokeObjectURL(url);
+                                      } else {
+                                        alert('Erreur lors du téléchargement');
+                                      }
+                                    } catch (error) {
+                                      console.error('Error downloading:', error);
+                                      alert('Erreur lors du téléchargement');
+                                    }
+                                  }}
+                                  className="text-blue-600 hover:text-blue-800 p-2 rounded-lg hover:bg-blue-50 transition-colors"
+                                  title="Télécharger"
+                                >
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                           </svg>
                         </button>
+                              )}
                       </div>
-                    ))}
+                          ))
+                        ) : (
+                          <div className="p-4 text-center text-gray-500 text-sm">
+                            Aucun document dans ce dossier
                   </div>
                 )}
               </div>
-            ))}
-          </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
@@ -2446,12 +2980,12 @@ function ReglementairePage({ currentUser }: { currentUser: User | null }) {
                     >
                       {category}
                     </button>
-                  ))}
-                </div>
+            ))}
+          </div>
                 {formData.categories.length === 0 && (
                   <p className="text-red-500 text-sm mt-1">Sélectionnez au moins une catégorie</p>
                 )}
-              </div>
+        </div>
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -2464,7 +2998,7 @@ function ReglementairePage({ currentUser }: { currentUser: User | null }) {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Ex: Formation Pro, Institut IAS..."
                 />
-              </div>
+      </div>
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -3845,122 +4379,132 @@ function PlacementSimulator({ onClose }: { onClose: () => void }) {
 
 // Comptabilité Page Component
 function ComptabilitePage({ currentUser, bordereaux }: { currentUser: User | null, bordereaux: BordereauFile[] }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [smsCode, setSmsCode] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const [selectedYear, setSelectedYear] = useState("2025");
   const [userFiles, setUserFiles] = useState<any[]>([]);
   
-  // Load files from database for current user
+  // Load bordereaux from database for current user
   useEffect(() => {
-    const loadUserFiles = async () => {
+    const loadUserBordereaux = async () => {
       if (!currentUser?.id) return;
       try {
-        const response = await fetch(buildAPIURL(`/archives?user_id=${currentUser.id}`), {
+        // Load bordereaux from new API
+        // IMPORTANT: In ComptabilitePage, even admins should see only their own files
+        const response = await fetch(buildAPIURL(`/bordereaux?user_id=${currentUser.id}`), {
           headers: {
             'x-auth-token': localStorage.getItem('token') || ''
           }
         });
         if (response.ok) {
           const data = await response.json();
-          setUserFiles(data);
+          // Filter by selected year AND ensure only current user's files (even for admins)
+          const filteredData = data.filter((b: any) => {
+            // Always filter by current user ID (even for admins in this page)
+            // Convert both to numbers for comparison
+            const fileUserId = typeof b.userId === 'string' ? parseInt(b.userId) : b.userId;
+            const currentUserId = typeof currentUser.id === 'string' ? parseInt(currentUser.id) : currentUser.id;
+            
+            if (fileUserId !== currentUserId) return false;
+            // Filter by selected year
+            if (selectedYear && b.periodYear?.toString() !== selectedYear && 
+                !(b.periodYear === null && new Date(b.createdAt).getFullYear().toString() === selectedYear)) {
+              return false;
+            }
+            return true;
+          });
+          setUserFiles(filteredData);
         }
       } catch (error) {
-        console.error('Error loading user files:', error);
+        console.error('Error loading user bordereaux:', error);
       }
     };
-    loadUserFiles();
-  }, [currentUser?.id]);
+    loadUserBordereaux();
+  }, [currentUser?.id, selectedYear]);
   
   // Debug simple pour vérifier le chargement
   console.log('ComptabilitePage loaded for user:', currentUser?.name);
 
-  // Fonction pour télécharger un fichier
-  const handleDownload = (fileName: string) => {
+  // Fonction pour télécharger/ouvrir un fichier
+  const handleDownload = async (fileUrl: string, fileName: string) => {
     console.log('📥 Tentative de téléchargement de:', fileName);
     
-    // Créer un contenu simple
-    const content = `BORDEREAU DE COMMISSION - ${currentUser?.name}
-
-Fichier: ${fileName}
-Utilisateur: ${currentUser?.name}
-Date: ${new Date().toLocaleDateString('fr-FR')}
-
-=== DÉTAILS ===
-Mois: ${fileName.includes('Janvier') ? 'Janvier' : fileName.includes('Février') ? 'Février' : fileName.includes('Mars') ? 'Mars' : 'Non spécifié'}
-Année: 2025
-
-=== COMMISSIONS ===
-Prime nette: 1,250.00 €
-Commission: 187.50 €
-TVA: 37.50 €
-Total: 225.00 €
-
----
-Alliance Courtage - Extranet
-`;
-    
-    // Créer et télécharger le fichier
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    
-    // Créer un lien de téléchargement
-    const downloadLink = document.createElement('a');
-    downloadLink.href = url;
-    downloadLink.download = fileName.replace('.pdf', '.txt');
-    
-    // Ajouter au DOM, cliquer, puis supprimer
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-    document.body.removeChild(downloadLink);
-    
-    // Nettoyer l'URL
-    URL.revokeObjectURL(url);
-    
-    console.log('✅ Téléchargement terminé pour:', fileName);
-  };
-
-  const handleSmsVerification = async () => {
-    setIsLoading(true);
-    // Simulation d'envoi SMS
-    setTimeout(() => {
-      setIsLoading(false);
-      if (smsCode === "123456") { // Code de test
-        setIsAuthenticated(true);
+    // Si l'URL est une route API qui nécessite l'authentification, utiliser fetch
+    if (fileUrl.includes('/bordereaux/') && fileUrl.includes('/download')) {
+      try {
+        const token = localStorage.getItem('token');
+        
+        // Extraire le chemin de l'URL complète ou utiliser directement
+        let apiPath: string;
+        if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
+          // URL complète - extraire le chemin après le domaine
+          const urlObj = new URL(fileUrl);
+          apiPath = urlObj.pathname; // Ex: /api/bordereaux/29/download
+          // Retirer /api si présent pour que buildAPIURL puisse l'ajouter
+          if (apiPath.startsWith('/api/')) {
+            apiPath = apiPath.replace('/api', ''); // Ex: /bordereaux/29/download
+          }
+        } else {
+          // Chemin relatif
+          apiPath = fileUrl.startsWith('/') ? fileUrl : `/${fileUrl}`;
+          // Retirer /api si présent
+          if (apiPath.startsWith('/api/')) {
+            apiPath = apiPath.replace('/api', '');
+          }
+        }
+        
+        // buildAPIURL attend un chemin relatif (sans /api au début)
+        const apiUrl = buildAPIURL(apiPath);
+        
+        console.log('Downloading from:', apiUrl);
+        
+        const response = await fetch(apiUrl, {
+          headers: {
+            'x-auth-token': token || ''
+          }
+        });
+        
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = fileName || 'bordereau.pdf';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
       } else {
-        alert("Code SMS incorrect");
+          const errorText = await response.text();
+          console.error('Download error:', errorText);
+          alert('Erreur lors du téléchargement du fichier');
+        }
+      } catch (error) {
+        console.error('Error downloading file:', error);
+        alert('Erreur lors du téléchargement du fichier');
       }
-    }, 2000);
+    } else {
+      // Pour les anciens fichiers (file_path direct) ou autres URLs
+      window.open(fileUrl, '_blank');
+    }
   };
 
-  const sendSmsCode = () => {
-    setIsLoading(true);
-    // Simulation d'envoi SMS
-    setTimeout(() => {
-      setIsLoading(false);
-      alert("Code SMS envoyé sur votre téléphone");
-    }, 1500);
-  };
 
-  // Filtrer les bordereaux par utilisateur et année
-  const userBordereaux = bordereaux.filter(bordereau => 
-    bordereau.userId === currentUser?.id && bordereau.year === selectedYear
-  );
-
-  // Combine database files with bordereaux
+  // Transform bordereaux data for display
   const displayFiles = userFiles.map(file => ({
-    id: `db_${file.id}`,
-    fileName: file.title || file.file_path?.split('/').pop() || 'Unknown',
-    uploadDate: file.created_at,
-    month: file.created_at ? new Date(file.created_at).toLocaleString('fr-FR', { month: 'long' }) : 'Unknown',
-    year: file.year || new Date().getFullYear().toString(),
-    userId: file.uploaded_by?.toString() || '',
-    uploadedBy: file.uploaded_by_nom && file.uploaded_by_prenom ? `${file.uploaded_by_prenom} ${file.uploaded_by_nom}` : 'Admin',
-    file_path: file.file_path
+    id: `bordereau_${file.id}`,
+    fileName: file.title || file.filePath?.split('/').pop() || 'Unknown',
+    title: file.title,
+    uploadDate: file.createdAt,
+    month: file.periodMonth ? new Date(2000, file.periodMonth - 1).toLocaleString('fr-FR', { month: 'long' }) : 
+            file.createdAt ? new Date(file.createdAt).toLocaleString('fr-FR', { month: 'long' }) : 'Unknown',
+    year: file.periodYear?.toString() || new Date(file.createdAt).getFullYear().toString(),
+    userId: file.userId?.toString() || '',
+    uploadedBy: file.uploadedByLabel || 'Admin',
+    file_path: file.filePath, // Keep for backward compatibility
+    fileUrl: file.fileUrl // New: URL for base64 files stored in DB
   }));
   
-  // Combine both sources
-  const allUserFiles = [...userBordereaux, ...displayFiles];
+  // Only use bordereaux from API (no longer combining with old bordereaux state)
+  const allUserFiles = displayFiles;
 
   // Grouper par mois (including files from database)
   const bordereauxByMonth = allUserFiles.reduce((acc, file) => {
@@ -3976,23 +4520,12 @@ Alliance Courtage - Extranet
     currentUser: currentUser,
     selectedYear: selectedYear,
     allBordereaux: bordereaux,
-    userBordereaux: userBordereaux,
+    userFiles: userFiles,
+    displayFiles: displayFiles,
     bordereauxByMonth: bordereauxByMonth,
-    martinFiles: bordereaux.filter(b => b.userId === '2'),
-    richardFiles: bordereaux.filter(b => b.userId === '8'),
-    bernardFiles: bordereaux.filter(b => b.userId === '4'),
-    // Vérifier si des fichiers sont mal assignés
-    wrongAssignments: bordereaux.filter(b => {
-      const fileName = b.fileName.toUpperCase();
-      const userId = b.userId;
-      if (fileName.startsWith('MA') && userId !== '2') return true; // MA mais pas MARTIN
-      if (fileName.startsWith('RA') && userId !== '8') return true; // RA mais pas RICHARD
-      if (fileName.startsWith('BE') && userId !== '4') return true; // BE mais pas BERNARD
-      return false;
-    }),
     // Debug supplémentaire
-    totalBordereaux: bordereaux.length,
-    currentUserBordereaux: bordereaux.filter(b => b.userId === currentUser?.id)
+    totalUserFiles: userFiles.length,
+    totalDisplayFiles: displayFiles.length
   });
 
   // Données des dossiers annuels
@@ -4031,85 +4564,6 @@ Alliance Courtage - Extranet
     }
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div className="max-w-2xl mx-auto">
-        {/* Page Header */}
-        <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-white/20 mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-4">COMPTABILITÉ</h1>
-          <p className="text-gray-600 text-lg">
-            Accès sécurisé aux documents comptables
-          </p>
-        </div>
-
-        {/* Security Section */}
-        <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-white/20">
-          <div className="text-center mb-8">
-            <div className="w-20 h-20 bg-gradient-to-br from-red-500 to-red-700 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-            </div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">Accès Sécurisé</h2>
-            <p className="text-gray-600">
-              Cette section nécessite une authentification à deux niveaux pour des raisons de sécurité.
-            </p>
-          </div>
-
-          <div className="space-y-6">
-            {/* SMS Code Input */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Code SMS de vérification
-              </label>
-              <div className="flex space-x-3">
-                <input
-                  type="text"
-                  value={smsCode}
-                  onChange={(e) => setSmsCode(e.target.value)}
-                  placeholder="Entrez le code reçu par SMS"
-                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  maxLength={6}
-                />
-                <button
-                  onClick={sendSmsCode}
-                  disabled={isLoading}
-                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg transition-colors font-medium"
-                >
-                  {isLoading ? "Envoi..." : "Envoyer SMS"}
-                </button>
-              </div>
-            </div>
-
-            {/* Verify Button */}
-            <button
-              onClick={handleSmsVerification}
-              disabled={smsCode.length !== 6 || isLoading}
-              className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white py-3 px-6 rounded-lg transition-colors font-medium"
-            >
-              {isLoading ? "Vérification..." : "Vérifier et Accéder"}
-            </button>
-
-            {/* Security Notice */}
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <div className="flex items-start space-x-3">
-                <svg className="w-5 h-5 text-yellow-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-                <div>
-                  <h3 className="text-sm font-medium text-yellow-800">Sécurité renforcée</h3>
-                  <p className="text-sm text-yellow-700 mt-1">
-                    Le code SMS sera envoyé sur le téléphone enregistré pour votre compte courtier.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-7xl mx-auto space-y-8">
       {/* Page Header */}
@@ -4121,12 +4575,6 @@ Alliance Courtage - Extranet
               Gestion des bordereaux comptables par année
             </p>
           </div>
-          <button
-            onClick={() => setIsAuthenticated(false)}
-            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors font-medium"
-          >
-            Se déconnecter
-          </button>
         </div>
       </div>
 
@@ -4185,26 +4633,17 @@ Alliance Courtage - Extranet
                       </div>
                       
                       <div className="flex space-x-2">
-                        {file.id?.startsWith('db_') && file.file_path ? (
-                          <a 
-                            href={buildFileURL(file.file_path)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-3 rounded-lg transition-colors text-sm font-medium text-center"
-                          >
-                            Télécharger
-                          </a>
-                        ) : (
                         <button 
                           onClick={(e) => {
                             e.preventDefault();
-                            handleDownload(file.fileName);
+                            // Use fileUrl if available (for base64 files), otherwise use file_path
+                            const downloadUrl = file.fileUrl || (file.file_path ? buildFileURL(file.file_path) : '');
+                            handleDownload(downloadUrl, file.fileName || file.title);
                           }}
                           className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-3 rounded-lg transition-colors text-sm font-medium"
                         >
                           Télécharger
                         </button>
-                        )}
                       </div>
                     </div>
                   ))}
@@ -4269,14 +4708,16 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
   const [uploading, setUploading] = useState(false);
   const [selectedUserIdForBulk, setSelectedUserIdForBulk] = useState<number | ''>('');
   const [recentUploads, setRecentUploads] = useState<Array<{ archiveId: number; fileUrl: string; title: string; userId: number; userLabel: string; createdAt: string }>>([]);
+  const [uploadMode, setUploadMode] = useState<'auto' | 'manual'>('auto'); // 'auto' = direct upload, 'manual' = preview first
+  const [bulkUploadDate, setBulkUploadDate] = useState<string>(new Date().toISOString().split('T')[0]); // Date configurable pour l'affichage
 
   useEffect(() => {
     if (currentUser?.role === 'admin') {
       loadUsers();
-      // Load recent uploads from backend so they persist across sessions
+      // Load recent bordereaux uploads from backend so they persist across sessions
       (async () => {
         try {
-          const res = await fetch(buildAPIURL('/archives/recent?limit=20'), {
+          const res = await fetch(buildAPIURL('/bordereaux/recent?limit=20'), {
             headers: { 'x-auth-token': localStorage.getItem('token') || '' }
           });
           if (res.ok) {
@@ -4321,8 +4762,31 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
       .trim();
 
   // Return best userId and a confidence score [0..100]
+  // NEW LOGIC: Prioritizes prefixes at the beginning of filename
   const matchFileToUser = (fileName: string): { userId: number | null, score: number } => {
+    // Extract prefix BEFORE normalization to preserve delimiters
+    const fileNameLower = fileName.toLowerCase();
+    
+    // Extract prefix from beginning: either before delimiter (_ - space) or first 2-3 characters
+    const prefixWithDelimiter = fileNameLower.match(/^([a-zà-ÿ]{2,15})[_-\s\.]/);
+    const prefixDelimited = prefixWithDelimiter ? prefixWithDelimiter[1] : null;
+    const prefix2 = fileNameLower.substring(0, 2);
+    const prefix3 = fileNameLower.substring(0, 3);
+    
     const fileNorm = normalize(fileName);
+    
+    // Helper function to check if prefix is a subsequence of name (e.g., "ai" in "amir")
+    const isSubsequence = (prefix: string, name: string): boolean => {
+      let nameIndex = 0;
+      for (let i = 0; i < prefix.length; i++) {
+        const char = prefix[i];
+        const found = name.indexOf(char, nameIndex);
+        if (found === -1) return false;
+        nameIndex = found + 1;
+      }
+      return true;
+    };
+    
     let best: { userId: number | null, score: number } = { userId: null, score: 0 };
 
     users.forEach((u) => {
@@ -4330,27 +4794,277 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
       const prenom = normalize(u.prenom);
       const full1 = `${prenom} ${nom}`.trim();
       const full2 = `${nom} ${prenom}`.trim();
-      const initials = `${prenom.charAt(0)}${nom.charAt(0)}`;
+      const initials = `${prenom.charAt(0)}${nom.charAt(0)}`.toLowerCase();
       const emailLocal = normalize((u.email || '').split('@')[0] || '');
 
       let score = 0;
-      if (fileNorm === full1 || fileNorm === full2) score = Math.max(score, 100);
-      if (fileNorm.includes(full1) || fileNorm.includes(full2)) score = Math.max(score, 95);
-      if (fileNorm.includes(prenom) && fileNorm.includes(nom)) score = Math.max(score, 90);
-      if (emailLocal && (emailLocal.includes(nom) || emailLocal.includes(prenom)) && fileNorm.includes(emailLocal)) score = Math.max(score, 85);
-      if (fileNorm.includes(initials)) score = Math.max(score, 75);
-      if (nom.length >= 3 && fileNorm.includes(nom.substring(0, 3))) score = Math.max(score, 70);
-      if (prenom.length >= 3 && fileNorm.includes(prenom.substring(0, 3))) score = Math.max(score, 70);
+      
+      // PRIORITY 0: Check if prefix matches initials (first letter of firstname + first letter of lastname)
+      // This handles cases like "ai" for "Amir IT" (a from Amir, i from IT)
+      if (prefixDelimited && prefixDelimited.length === 2) {
+        if (prefixDelimited.toLowerCase() === initials) {
+          score = Math.max(score, 100);
+        }
+      }
+      if (prefix2.length === 2 && !prefixDelimited) {
+        if (prefix2.toLowerCase() === initials) {
+          score = Math.max(score, 98);
+        }
+      }
+      
+      // LEVEL 1: Prefix with delimiter (ex: "ai_", "mi-", "jean ")
+      // Highest priority: exact match at the beginning with separator
+      if (prefixDelimited) {
+        const prefixLower = prefixDelimited.toLowerCase();
+        const prenomLower = prenom.toLowerCase();
+        const nomLower = nom.toLowerCase();
+        const prenomLen = prenomLower.length;
+        const nomLen = nomLower.length;
+        
+        // Exact match with beginning of firstname or lastname
+        if (prefixLower === prenomLower.substring(0, Math.min(prefixDelimited.length, prenomLen)) ||
+            prefixLower === nomLower.substring(0, Math.min(prefixDelimited.length, nomLen)) ||
+            prefixLower === `${prenomLower}${nomLower}`.substring(0, Math.min(prefixDelimited.length, prenomLen + nomLen)) ||
+            prefixLower === `${nomLower}${prenomLower}`.substring(0, Math.min(prefixDelimited.length, prenomLen + nomLen))) {
+          score = Math.max(score, 100);
+        } else {
+          // Flexible match: check if prefix is a subsequence in first 5-6 characters
+          // This handles cases like "ai" for "Amir" (a-m-i-r contains "ai" as subsequence)
+          const checkLength = Math.min(prefixLower.length + 4, 6);
+          const prenomStart = prenomLower.substring(0, checkLength);
+          const nomStart = nomLower.substring(0, checkLength);
+          
+          // Check if prefix is a subsequence (all letters appear in order)
+          if (isSubsequence(prefixLower, prenomStart) || isSubsequence(prefixLower, nomStart)) {
+            score = Math.max(score, 92);
+          } else if (prenomLower.includes(prefixLower.substring(0, Math.min(2, prefixLower.length))) || 
+                     nomLower.includes(prefixLower.substring(0, Math.min(2, prefixLower.length)))) {
+            // Fallback: at least the first 2 letters match somewhere
+            score = Math.max(score, 75);
+          }
+        }
+      }
+      
+      // LEVEL 2: Simple prefix at beginning (2-3 first letters)
+      // High priority: first letters match beginning of firstname/lastname/initials
+      const prenomPrefix2 = prenom.substring(0, 2).toLowerCase();
+      const prenomPrefix3 = prenom.substring(0, 3).toLowerCase();
+      const nomPrefix2 = nom.substring(0, 2).toLowerCase();
+      const nomPrefix3 = nom.substring(0, 3).toLowerCase();
+      
+      // Exact match
+      if (prefix2.toLowerCase() === prenomPrefix2 || prefix2.toLowerCase() === nomPrefix2 || prefix2.toLowerCase() === initials) {
+        score = Math.max(score, 95);
+      }
+      if (prefix3.toLowerCase() === prenomPrefix3 || prefix3.toLowerCase() === nomPrefix3) {
+        score = Math.max(score, 95);
+      }
+      
+      // Flexible match for prefixes without delimiter (for "ai" in "amir")
+      if (prefix2.length >= 2 && !prefixDelimited) {
+        const prefix2Lower = prefix2.toLowerCase();
+        const prenomStart5 = prenom.substring(0, 5).toLowerCase();
+        const nomStart5 = nom.substring(0, 5).toLowerCase();
+        
+        // Check if prefix is a subsequence (all letters appear in order)
+        if (isSubsequence(prefix2Lower, prenomStart5) || isSubsequence(prefix2Lower, nomStart5)) {
+          score = Math.max(score, 88);
+        }
+      }
+      
+      // LEVEL 3: Initials at the beginning
+      if (fileNorm.substring(0, 2).toLowerCase() === initials) {
+        score = Math.max(score, 90);
+      }
+      
+      // LEVEL 4: Full name at the beginning
+      if (fileNorm.startsWith(full1) || fileNorm.startsWith(full2)) {
+        score = Math.max(score, 85);
+      }
+      
+      // LEVEL 5: Search in entire filename (fallback - original logic)
+      if (fileNorm === full1 || fileNorm === full2) score = Math.max(score, 80);
+      if (fileNorm.includes(full1) || fileNorm.includes(full2)) score = Math.max(score, 75);
+      if (fileNorm.includes(prenom) && fileNorm.includes(nom)) score = Math.max(score, 70);
+      if (emailLocal && (emailLocal.includes(nom) || emailLocal.includes(prenom)) && fileNorm.includes(emailLocal)) score = Math.max(score, 70);
+      if (fileNorm.includes(initials)) score = Math.max(score, 65);
+      if (nom.length >= 3 && fileNorm.includes(nom.substring(0, 3))) score = Math.max(score, 60);
+      if (prenom.length >= 3 && fileNorm.includes(prenom.substring(0, 3))) score = Math.max(score, 60);
 
       if (score > best.score) best = { userId: u.id, score };
     });
 
-    // threshold
-    if (best.score < 80) return { userId: null, score: best.score };
+    // Threshold: accept matches with score >= 70 (lowered to include prefix matches)
+    if (best.score < 70) return { userId: null, score: best.score };
     return best;
   };
 
-  // Handle bulk file selection
+  // NEW LOGIC: Auto-match and upload directly
+  const handleBulkFileSelectAndUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    // Enforce: filename must begin with a letter
+    const valid = files.filter(f => /^[A-Za-zÀ-ÿ]/.test(f.name));
+    const invalid = files.filter(f => !/^[A-Za-zÀ-ÿ]/.test(f.name)).map(f => f.name);
+    
+    if (valid.length === 0) {
+      alert('Aucun fichier valide sélectionné. Les fichiers doivent commencer par une lettre.');
+      return;
+    }
+
+    // Show invalid files warning
+    if (invalid.length > 0) {
+      const shouldContinue = window.confirm(
+        `⚠️ ${invalid.length} fichier(s) ignoré(s) car leur nom ne commence pas par une lettre:\n${invalid.slice(0, 5).join('\n')}${invalid.length > 5 ? '\n...' : ''}\n\nContinuer avec ${valid.length} fichier(s) valide(s) ?`
+      );
+      if (!shouldContinue) return;
+    }
+
+    setUploading(true);
+    setSelectedFiles(valid);
+
+    try {
+      // Auto-match each file with a user
+      const uploadResults: Array<{fileName: string, userId: number | null, userName: string, success: boolean, error?: string}> = [];
+      let successCount = 0;
+      let failCount = 0;
+      let noMatchCount = 0;
+
+      // Process each file
+      for (let i = 0; i < valid.length; i++) {
+        const file = valid[i];
+        let targetUserId: number | null = null;
+        let targetUserName = '';
+        let uploadSuccess = false;
+        let uploadError = '';
+
+        // If a user is preselected, use that user
+        if (selectedUserIdForBulk) {
+          targetUserId = Number(selectedUserIdForBulk);
+          const user = users.find(u => u.id === targetUserId);
+          targetUserName = user ? `${user.nom} ${user.prenom}` : `#${targetUserId}`;
+        } else {
+          // Auto-match with user based on filename
+          const matchResult = matchFileToUser(file.name);
+          if (matchResult.userId) {
+            targetUserId = matchResult.userId;
+            const user = users.find(u => u.id === targetUserId);
+            targetUserName = user ? `${user.nom} ${user.prenom}` : `#${targetUserId}`;
+          } else {
+            // No match found
+            uploadResults.push({
+              fileName: file.name,
+              userId: null,
+              userName: 'Non associé',
+              success: false,
+              error: 'Aucun utilisateur trouvé pour ce fichier'
+            });
+            noMatchCount++;
+            continue;
+          }
+        }
+
+        // Upload the file to the matched user
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('user_id', targetUserId.toString());
+          formData.append('title', file.name);
+          // Ajouter la date configurée pour l'affichage
+          if (bulkUploadDate) {
+            formData.append('display_date', bulkUploadDate);
+          }
+
+          const response = await fetch(buildAPIURL('/bordereaux'), {
+            method: 'POST',
+            headers: {
+              'x-auth-token': localStorage.getItem('token') || ''
+            },
+            body: formData
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            uploadSuccess = true;
+            successCount++;
+            
+            // Add to recent uploads
+            setRecentUploads(prev => [
+              {
+                archiveId: data.bordereauId || data.id,
+                fileUrl: data.fileUrl || data.filePath,
+                title: data.title || file.name,
+                userId: targetUserId!,
+                userLabel: targetUserName,
+                createdAt: bulkUploadDate ? new Date(bulkUploadDate).toISOString() : new Date().toISOString()
+              },
+              ...prev
+            ].slice(0, 20));
+          } else {
+            const errorData = await response.json().catch(() => ({}));
+            uploadError = errorData.error || 'Erreur lors de l\'upload';
+            uploadSuccess = false;
+            failCount++;
+          }
+        } catch (error) {
+          uploadError = error instanceof Error ? error.message : 'Erreur inconnue';
+          uploadSuccess = false;
+          failCount++;
+        }
+
+        uploadResults.push({
+          fileName: file.name,
+          userId: targetUserId,
+          userName: targetUserName,
+          success: uploadSuccess,
+          error: uploadError || undefined
+        });
+      }
+
+      // Show summary
+      let message = `✅ ${successCount} fichier(s) uploadé(s) avec succès!\n`;
+      if (noMatchCount > 0) {
+        message += `⚠️ ${noMatchCount} fichier(s) non associé(s) (aucun utilisateur trouvé)\n`;
+      }
+      if (failCount > 0) {
+        message += `❌ ${failCount} fichier(s) n'ont pas pu être uploadé(s)\n`;
+      }
+
+      // Show detailed results
+      const detailedResults = uploadResults.map(r => {
+        if (r.success) {
+          return `✅ ${r.fileName} → ${r.userName}`;
+        } else if (r.userId === null) {
+          return `⚠️ ${r.fileName} → Non associé`;
+        } else {
+          return `❌ ${r.fileName} → ${r.userName} (${r.error})`;
+        }
+      }).join('\n');
+
+      alert(`${message}\n\nDétails:\n${detailedResults}`);
+
+      // Reset form
+      setSelectedFiles([]);
+      setFileUserMapping([]);
+      setSelectedUserIdForBulk('');
+      setShowBulkUpload(false);
+      
+      // Reset file input
+      const input = e.target;
+      if (input) input.value = '';
+
+      // Reload users data
+      await loadUsers();
+    } catch (error) {
+      console.error('Error during bulk upload:', error);
+      alert('Erreur lors de l\'upload en masse: ' + (error instanceof Error ? error.message : 'Erreur inconnue'));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Handle bulk file selection (original method - for preview mode)
   const handleBulkFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     // Enforce: filename must begin with a letter
@@ -4401,8 +5115,13 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
         const formData = new FormData();
         formData.append('file', file);
         formData.append('user_id', mapping.userId.toString());
+        formData.append('title', file.name);
+        // Ajouter la date configurée pour l'affichage
+        if (bulkUploadDate) {
+          formData.append('display_date', bulkUploadDate);
+        }
         
-        const response = await fetch(buildAPIURL('/archives'), {
+        const response = await fetch(buildAPIURL('/bordereaux'), {
           method: 'POST',
           headers: {
             'x-auth-token': localStorage.getItem('token') || ''
@@ -4415,18 +5134,19 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
           const u = users.find(u => u.id === mapping.userId);
           setRecentUploads(prev => [
             {
-              archiveId: data.archiveId,
+              archiveId: data.bordereauId,
               fileUrl: data.fileUrl || data.filePath,
               title: data.title || file.name,
               userId: mapping.userId,
               userLabel: u ? `${u.nom} ${u.prenom}` : `#${mapping.userId}`,
-              createdAt: new Date().toISOString()
+              createdAt: bulkUploadDate ? new Date(bulkUploadDate).toISOString() : new Date().toISOString()
             },
             ...prev
           ].slice(0, 20));
           successCount++;
         } else {
-          console.error(`Failed to upload file ${file.name}`);
+          const errorData = await response.json().catch(() => ({}));
+          console.error(`Failed to upload file ${file.name}:`, errorData.error || 'Unknown error');
           failCount++;
         }
       }
@@ -4580,54 +5300,103 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
                 <button
                   onClick={() => {
                     setShowBulkUpload(false);
-                    setSelectedFiles([]);
-                    setFileUserMapping([]);
+              setSelectedFiles([]);
+              setFileUserMapping([]);
+              setInvalidNamedFiles([]);
+              setBulkUploadDate(new Date().toISOString().split('T')[0]);
                   }}
-                  className="text-gray-400 hover:text-gray-600 text-2xl"
+                  disabled={uploading}
+                  className="text-gray-400 hover:text-gray-600 text-2xl disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   ✕
                 </button>
               </div>
               
               <div className="space-y-6">
-                {/* Target user selection */}
+                {/* Date Configuration */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Sélectionner l'utilisateur destinataire</label>
-                  <select
-                    value={selectedUserIdForBulk}
-                    onChange={(e) => {
-                      const val = e.target.value ? Number(e.target.value) : '';
-                      setSelectedUserIdForBulk(val);
-                      // When a specific user is chosen, ignore auto-mapping
-                      if (val !== '') setFileUserMapping([]);
-                    }}
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    📅 Date d'affichage pour les utilisateurs
+                  </label>
+                  <input
+                    type="date"
+                    value={bulkUploadDate}
+                    onChange={(e) => setBulkUploadDate(e.target.value)}
                     className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 bg-white text-gray-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20"
-                  >
-                    <option value="">— Choisir un utilisateur (optionnel) —</option>
-                    {users.map(u => (
-                      <option key={u.id} value={u.id}>{u.nom} {u.prenom} — {u.email}</option>
-                    ))}
-                  </select>
-                  <p className="mt-2 text-xs text-gray-500">Si vous choisissez un utilisateur, tous les fichiers seront envoyés à celui‑ci.</p>
+                  />
+                  <p className="mt-2 text-xs text-gray-500">
+                    Cette date sera visible par les utilisateurs lors de l'affichage des fichiers. Par défaut: aujourd'hui.
+                  </p>
                 </div>
 
-                {/* Instructions */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <p className="text-blue-800 text-sm">
-                    💡 <strong>Astuce:</strong> Vous pouvez soit sélectionner un utilisateur ci‑dessus pour envoyer tous les fichiers, soit laisser vide et nommer les fichiers avec le nom/initiales pour une association automatique.
-                  </p>
+                {/* Mode Selection */}
+                <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-4">
+                  <label className="block text-sm font-semibold text-gray-700 mb-3">
+                    Mode d'upload :
+                  </label>
+                  <div className="flex space-x-4">
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="uploadMode"
+                        value="auto"
+                        checked={uploadMode === 'auto'}
+                        onChange={(e) => {
+                          setUploadMode(e.target.value as 'auto' | 'manual');
+                          // Reset when switching modes
+                          setSelectedFiles([]);
+                          setFileUserMapping([]);
+                          setInvalidNamedFiles([]);
+                        }}
+                        className="w-4 h-4 text-blue-600"
+                      />
+                      <div>
+                        <span className="font-medium text-gray-800">⚡ Automatique (Recommandé)</span>
+                        <p className="text-xs text-gray-600">Upload direct après sélection - Matching automatique</p>
+                      </div>
+                    </label>
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="uploadMode"
+                        value="manual"
+                        checked={uploadMode === 'manual'}
+                        onChange={(e) => {
+                          setUploadMode(e.target.value as 'auto' | 'manual');
+                          // Reset when switching modes
+                          setSelectedFiles([]);
+                          setFileUserMapping([]);
+                          setInvalidNamedFiles([]);
+                        }}
+                        className="w-4 h-4 text-blue-600"
+                      />
+                      <div>
+                        <span className="font-medium text-gray-800">👁️ Manuel</span>
+                        <p className="text-xs text-gray-600">Aperçu avant upload - Contrôle total</p>
+                      </div>
+                    </label>
+                  </div>
                 </div>
 
                 {/* File Input */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Sélectionner les fichiers
+                    {uploadMode === 'auto' ? '📤 Sélectionner et Uploader les fichiers' : 'Sélectionner les fichiers'}
                   </label>
+                  {uploading && (
+                    <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="flex items-center space-x-2">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                        <span className="text-sm text-blue-800 font-medium">Upload en cours...</span>
+                      </div>
+                    </div>
+                  )}
                   <input
                     type="file"
                     multiple
-                    onChange={handleBulkFileSelect}
-                    className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 bg-gray-50 text-gray-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20"
+                    disabled={uploading}
+                    onChange={uploadMode === 'auto' ? handleBulkFileSelectAndUpload : handleBulkFileSelect}
+                    className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 bg-gray-50 text-gray-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   {selectedFiles.length > 0 && (
                     <p className="mt-2 text-sm text-green-600">
@@ -4644,8 +5413,8 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
                   )}
                 </div>
 
-                {/* Preview Mapping (shown only when no user is preselected) */}
-                {selectedFiles.length > 0 && !selectedUserIdForBulk && (
+                {/* Preview Mapping (shown only in manual mode when no user is preselected) */}
+                {uploadMode === 'manual' && selectedFiles.length > 0 && !selectedUserIdForBulk && (
                   <div>
                     <h4 className="text-sm font-semibold text-gray-700 mb-3">
                       Association fichiers ↔ utilisateurs:
@@ -4711,11 +5480,12 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
                   </div>
                 )}
 
-                {/* Action Buttons */}
+                {/* Action Buttons - Only shown in manual mode */}
+                {uploadMode === 'manual' && (
                 <div className="flex space-x-3 pt-4">
                   <button
                     onClick={handleBulkUpload}
-                    disabled={uploading || selectedFiles.length === 0 || fileUserMapping.length === 0}
+                      disabled={uploading || selectedFiles.length === 0 || (!selectedUserIdForBulk && fileUserMapping.length === 0)}
                     className="flex-1 px-6 py-3 bg-gradient-to-r from-[#0B1220] to-[#1D4ED8] hover:from-[#0b1428] hover:to-[#1E40AF] text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {uploading ? 'Upload en cours...' : '🚀 Uploader tous les fichiers'}
@@ -4726,12 +5496,32 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
                       setShowBulkUpload(false);
                       setSelectedFiles([]);
                       setFileUserMapping([]);
+                        setInvalidNamedFiles([]);
                     }}
                     className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium transition-all"
                   >
                     Annuler
                   </button>
                 </div>
+                )}
+                
+                {/* Close button for auto mode */}
+                {uploadMode === 'auto' && !uploading && (
+                  <div className="flex justify-end pt-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowBulkUpload(false);
+                        setSelectedFiles([]);
+                        setFileUserMapping([]);
+                        setInvalidNamedFiles([]);
+                      }}
+                      className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium transition-all"
+                    >
+                      Fermer
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>

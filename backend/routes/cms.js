@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('../config/database');
 const { auth, authorize } = require('../middleware/auth');
+const { notifyAdmins } = require('./notifications');
 
 // @route   GET /api/cms/home
 // @desc    Get CMS content for home page
@@ -297,6 +298,33 @@ router.put('/rencontres', auth, async (req, res) => {
       ['rencontres']
     );
 
+    // Parse content to check for new meetings
+    let parsedContent;
+    try {
+      parsedContent = JSON.parse(content);
+      if (typeof parsedContent === 'string') {
+        parsedContent = JSON.parse(parsedContent);
+      }
+    } catch (e) {
+      parsedContent = null;
+    }
+
+    // Check if there are new upcoming meetings (simple check: if array has items, notify)
+    // Note: For production, you might want to track which meetings were already notified
+    if (parsedContent && parsedContent.upcomingMeetings && Array.isArray(parsedContent.upcomingMeetings) && parsedContent.upcomingMeetings.length > 0) {
+      // Notify about the most recent meeting
+      const latestMeeting = parsedContent.upcomingMeetings[0];
+      if (latestMeeting && latestMeeting.title) {
+        await notifyAdmins(
+          'meeting',
+          'Nouvelle rencontre',
+          `Une nouvelle rencontre "${latestMeeting.title}" est prévue${latestMeeting.date ? ` le ${latestMeeting.date}` : ''}.`,
+          null,
+          'meeting'
+        );
+      }
+    }
+
     if (existing.length > 0) {
       await query(
         'UPDATE cms_content SET content = ?, updated_at = NOW() WHERE page = ?',
@@ -314,6 +342,136 @@ router.put('/rencontres', auth, async (req, res) => {
     console.error('Erreur update CMS content (rencontres):', error);
     res.status(500).json({
       error: 'Erreur serveur lors de la mise à jour du contenu CMS (rencontres)'
+    });
+  }
+});
+
+// --- Gamme Financière CMS ---
+// @route   GET /api/cms/gamme-financiere
+// @desc    Get CMS content for Gamme Financière page
+// @access  Private
+router.get('/gamme-financiere', auth, async (req, res) => {
+  try {
+    const result = await query(
+      'SELECT content FROM cms_content WHERE page = ?',
+      ['gamme-financiere']
+    );
+
+    if (result.length > 0) {
+      res.json(result[0]);
+    } else {
+      res.json({
+        page: 'gamme-financiere',
+        content: JSON.stringify({
+          title: 'Gamme Financière',
+          subtitle: 'Découvrez notre sélection de produits financiers',
+          description: 'Explorez notre gamme complète de produits financiers conçus pour répondre à vos besoins d\'investissement et de gestion patrimoniale.',
+          headerImage: ''
+        })
+      });
+    }
+  } catch (error) {
+    console.error('Erreur get CMS content (gamme-financiere):', error);
+    res.status(500).json({
+      error: 'Erreur serveur lors de la récupération du contenu CMS (gamme-financiere)'
+    });
+  }
+});
+
+// @route   PUT /api/cms/gamme-financiere
+// @desc    Update CMS content for Gamme Financière page
+// @access  Private
+router.put('/gamme-financiere', auth, async (req, res) => {
+  try {
+    const { content } = req.body;
+
+    const existing = await query(
+      'SELECT id FROM cms_content WHERE page = ?',
+      ['gamme-financiere']
+    );
+
+    if (existing.length > 0) {
+      await query(
+        'UPDATE cms_content SET content = ?, updated_at = NOW() WHERE page = ?',
+        [content, 'gamme-financiere']
+      );
+      res.json({ message: 'Contenu CMS (gamme-financiere) mis à jour avec succès' });
+    } else {
+      await query(
+        'INSERT INTO cms_content (page, content, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
+        ['gamme-financiere', content]
+      );
+      res.json({ message: 'Contenu CMS (gamme-financiere) créé avec succès' });
+    }
+  } catch (error) {
+    console.error('Erreur update CMS content (gamme-financiere):', error);
+    res.status(500).json({
+      error: 'Erreur serveur lors de la mise à jour du contenu CMS (gamme-financiere)'
+    });
+  }
+});
+
+// --- Partenaires CMS ---
+// @route   GET /api/cms/partenaires
+// @desc    Get CMS content for Partenaires page
+// @access  Private
+router.get('/partenaires', auth, async (req, res) => {
+  try {
+    const result = await query(
+      'SELECT content FROM cms_content WHERE page = ?',
+      ['partenaires']
+    );
+
+    if (result.length > 0) {
+      res.json(result[0]);
+    } else {
+      res.json({
+        page: 'partenaires',
+        content: JSON.stringify({
+          title: 'Nos Partenaires',
+          subtitle: 'Découvrez nos partenaires de confiance',
+          description: 'Nous collaborons avec des partenaires de confiance pour vous offrir les meilleures solutions et services adaptés à vos besoins.',
+          headerImage: ''
+        })
+      });
+    }
+  } catch (error) {
+    console.error('Erreur get CMS content (partenaires):', error);
+    res.status(500).json({
+      error: 'Erreur serveur lors de la récupération du contenu CMS (partenaires)'
+    });
+  }
+});
+
+// @route   PUT /api/cms/partenaires
+// @desc    Update CMS content for Partenaires page
+// @access  Private
+router.put('/partenaires', auth, async (req, res) => {
+  try {
+    const { content } = req.body;
+
+    const existing = await query(
+      'SELECT id FROM cms_content WHERE page = ?',
+      ['partenaires']
+    );
+
+    if (existing.length > 0) {
+      await query(
+        'UPDATE cms_content SET content = ?, updated_at = NOW() WHERE page = ?',
+        [content, 'partenaires']
+      );
+      res.json({ message: 'Contenu CMS (partenaires) mis à jour avec succès' });
+    } else {
+      await query(
+        'INSERT INTO cms_content (page, content, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
+        ['partenaires', content]
+      );
+      res.json({ message: 'Contenu CMS (partenaires) créé avec succès' });
+    }
+  } catch (error) {
+    console.error('Erreur update CMS content (partenaires):', error);
+    res.status(500).json({
+      error: 'Erreur serveur lors de la mise à jour du contenu CMS (partenaires)'
     });
   }
 });

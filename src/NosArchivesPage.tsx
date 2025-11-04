@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { archivesAPI } from './api';
+import { archivesAPI, buildAPIURL } from './api';
+import FavoriteButton from './components/FavoriteButton';
 
 interface ArchiveFile {
   id: number;
@@ -13,6 +14,8 @@ interface ArchiveFile {
   created_at: string;
   uploaded_by_nom: string;
   uploaded_by_prenom: string;
+  fileUrl?: string;
+  hasFileContent?: boolean;
 }
 
 function NosArchivesPage() {
@@ -196,15 +199,80 @@ function NosArchivesPage() {
                           </div>
                         </div>
                       </div>
-                      <button
-                        onClick={() => window.open(`http://localhost:3001/${file.file_path}`, '_blank')}
-                        className="px-4 py-2 bg-gradient-to-r from-[#0B1220] to-[#1D4ED8] text-white text-sm rounded-lg hover:from-[#0b1428] hover:to-[#1E40AF] transition-all duration-200 flex items-center space-x-2"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        <span>Télécharger</span>
-                      </button>
+                      <div className="flex items-center space-x-2">
+                        <FavoriteButton
+                          itemType="archive"
+                          itemId={file.id}
+                          title={file.title}
+                          description={file.description || ''}
+                          url={`#nos-archives`}
+                          metadata={{ category: file.category, year: file.year }}
+                          className="flex-shrink-0"
+                        />
+                        <button
+                          onClick={async () => {
+                            // Si fileUrl existe et pointe vers /download, utiliser l'API
+                            if (file.fileUrl && file.fileUrl.includes('/api/archives/') && file.fileUrl.includes('/download')) {
+                              try {
+                                const token = localStorage.getItem('token');
+                                let apiPath: string;
+                                
+                                // Extraire le chemin de l'URL complète
+                                if (file.fileUrl.startsWith('http://') || file.fileUrl.startsWith('https://')) {
+                                  const urlObj = new URL(file.fileUrl);
+                                  apiPath = urlObj.pathname; // Ex: /api/archives/1/download
+                                  // Retirer /api si présent pour que buildAPIURL puisse l'ajouter
+                                  if (apiPath.startsWith('/api/')) {
+                                    apiPath = apiPath.replace('/api', ''); // Ex: /archives/1/download
+                                  }
+                                } else {
+                                  apiPath = file.fileUrl.startsWith('/') ? file.fileUrl : `/${file.fileUrl}`;
+                                  if (apiPath.startsWith('/api/')) {
+                                    apiPath = apiPath.replace('/api', '');
+                                  }
+                                }
+                                
+                                const apiUrl = buildAPIURL(apiPath);
+                                const response = await fetch(apiUrl, {
+                                  headers: { 'x-auth-token': token || '' }
+                                });
+                                
+                                if (response.ok) {
+                                  const blob = await response.blob();
+                                  const url = window.URL.createObjectURL(blob);
+                                  const a = document.createElement('a');
+                                  a.href = url;
+                                  a.download = file.title || 'archive.pdf';
+                                  document.body.appendChild(a);
+                                  a.click();
+                                  document.body.removeChild(a);
+                                  window.URL.revokeObjectURL(url);
+                                } else {
+                                  const errorText = await response.text();
+                                  alert('Erreur lors du téléchargement: ' + errorText);
+                                }
+                              } catch (error) {
+                                console.error('Error downloading:', error);
+                                alert('Erreur lors du téléchargement: ' + (error as Error).message);
+                              }
+                            } else if (file.file_path && file.file_path.trim() !== '') {
+                              // Fallback pour les anciens fichiers (file_path)
+                              const downloadUrl = file.file_path.startsWith('http') 
+                                ? file.file_path 
+                                : `http://localhost:3001${file.file_path}`;
+                              window.open(downloadUrl, '_blank');
+                            } else {
+                              alert('Erreur: Aucune URL de fichier disponible');
+                            }
+                          }}
+                          className="px-4 py-2 bg-gradient-to-r from-[#0B1220] to-[#1D4ED8] text-white text-sm rounded-lg hover:from-[#0b1428] hover:to-[#1E40AF] transition-all duration-200 flex items-center space-x-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          <span>Télécharger</span>
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>

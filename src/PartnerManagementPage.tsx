@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { partnersAPI, buildAPIURL } from './api';
+import { clearCachedData, CACHE_KEYS } from './utils/cache';
 
 interface Partner {
   id: number;
@@ -12,6 +13,8 @@ interface Partner {
   category: string;
   is_active: boolean;
   created_at: string;
+  logoUrl?: string;
+  hasLogoContent?: boolean;
 }
 
 const PartnerManagementPage: React.FC = () => {
@@ -92,6 +95,11 @@ const PartnerManagementPage: React.FC = () => {
         throw new Error('Erreur lors de la création du partenaire');
       }
 
+      // Invalider le cache
+      clearCachedData(CACHE_KEYS.PARTNERS);
+      clearCachedData(CACHE_KEYS.PARTNERS_COA);
+      clearCachedData(CACHE_KEYS.PARTNERS_CIF);
+
       alert('Partenaire créé avec succès !');
       setPartnerForm({
         nom: '',
@@ -121,6 +129,12 @@ const PartnerManagementPage: React.FC = () => {
 
     try {
       await partnersAPI.delete(id);
+      
+      // Invalider le cache
+      clearCachedData(CACHE_KEYS.PARTNERS);
+      clearCachedData(CACHE_KEYS.PARTNERS_COA);
+      clearCachedData(CACHE_KEYS.PARTNERS_CIF);
+      
       loadPartners();
       alert('Partenaire supprimé avec succès !');
     } catch (error) {
@@ -387,14 +401,30 @@ const PartnerManagementPage: React.FC = () => {
             {filteredPartners.map((partner) => (
               <div key={partner.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-lg transition-shadow">
                 <div className="flex items-center space-x-3 mb-3">
-                  {partner.logo_url ? (
-                    <img
-                      src={partner.logo_url}
-                      alt={partner.nom}
-                      className="w-12 h-12 object-contain"
-                    />
+                  {partner.logoUrl || partner.logo_url ? (
+                    <div className="w-16 h-16 flex items-center justify-center bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                      <img
+                        src={partner.logoUrl || (partner.logo_url.startsWith('http') ? partner.logo_url : `http://localhost:3001${partner.logo_url}`)}
+                        alt={partner.nom}
+                        className="max-w-full max-h-full w-auto h-auto object-contain p-1"
+                        style={{ 
+                          maxWidth: '56px',
+                          maxHeight: '56px',
+                          width: 'auto',
+                          height: 'auto'
+                        }}
+                        onError={(e) => {
+                          // Fallback si l'image ne charge pas
+                          (e.target as HTMLImageElement).style.display = 'none';
+                          const parent = (e.target as HTMLImageElement).parentElement;
+                          if (parent) {
+                            parent.innerHTML = `<div class="w-full h-full bg-gradient-to-br from-blue-400 to-purple-400 rounded-lg flex items-center justify-center text-white font-bold text-lg">${partner.nom.charAt(0)}</div>`;
+                          }
+                        }}
+                      />
+                    </div>
                   ) : (
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-purple-400 rounded-lg flex items-center justify-center text-white font-bold">
+                    <div className="w-16 h-16 bg-gradient-to-br from-blue-400 to-purple-400 rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-sm">
                       {partner.nom.charAt(0)}
                     </div>
                   )}

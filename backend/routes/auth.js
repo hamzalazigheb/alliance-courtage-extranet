@@ -20,9 +20,9 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Rechercher l'utilisateur
+    // Rechercher l'utilisateur (sans profile_photo)
     const users = await query(
-      'SELECT * FROM users WHERE email = ? AND is_active = TRUE',
+      'SELECT id, email, nom, prenom, role, password, is_active, created_at FROM users WHERE email = ? AND is_active = TRUE',
       [email]
     );
 
@@ -125,7 +125,18 @@ router.get('/me', auth, async (req, res) => {
       });
     }
 
-    res.json({ user: users[0] });
+    const user = users[0];
+
+    res.json({ 
+      user: {
+        id: user.id,
+        email: user.email,
+        nom: user.nom,
+        prenom: user.prenom,
+        role: user.role,
+        created_at: user.created_at
+      }
+    });
   } catch (error) {
     console.error('Erreur get user:', error);
     res.status(500).json({ 

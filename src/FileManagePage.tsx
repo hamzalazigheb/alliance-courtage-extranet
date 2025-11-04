@@ -13,6 +13,8 @@ interface ArchiveFile {
   created_at: string;
   uploaded_by_nom: string;
   uploaded_by_prenom: string;
+  fileUrl?: string;
+  hasFileContent?: boolean;
 }
 
 function FileManagePage() {
@@ -349,7 +351,72 @@ function FileManagePage() {
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
-                    onClick={() => window.open(`http://localhost:3001/${file.file_path}`, '_blank')}
+                    onClick={async () => {
+                      console.log('📥 Download clicked for file:', file);
+                      console.log('fileUrl:', file.fileUrl);
+                      console.log('file_path:', file.file_path);
+                      console.log('hasFileContent:', file.hasFileContent);
+                      
+                      // Si fileUrl existe et pointe vers /download, utiliser l'API
+                      if (file.fileUrl && file.fileUrl.includes('/api/archives/') && file.fileUrl.includes('/download')) {
+                        try {
+                          const token = localStorage.getItem('token');
+                          let apiPath: string;
+                          
+                          // Extraire le chemin de l'URL complète
+                          if (file.fileUrl.startsWith('http://') || file.fileUrl.startsWith('https://')) {
+                            const urlObj = new URL(file.fileUrl);
+                            apiPath = urlObj.pathname; // Ex: /api/archives/1/download
+                            // Retirer /api si présent pour que buildAPIURL puisse l'ajouter
+                            if (apiPath.startsWith('/api/')) {
+                              apiPath = apiPath.replace('/api', ''); // Ex: /archives/1/download
+                            }
+                          } else {
+                            apiPath = file.fileUrl.startsWith('/') ? file.fileUrl : `/${file.fileUrl}`;
+                            if (apiPath.startsWith('/api/')) {
+                              apiPath = apiPath.replace('/api', '');
+                            }
+                          }
+                          
+                          const apiUrl = buildAPIURL(apiPath);
+                          console.log('📥 Downloading from API:', apiUrl);
+                          
+                          const response = await fetch(apiUrl, {
+                            headers: { 'x-auth-token': token || '' }
+                          });
+                          
+                          if (response.ok) {
+                            const blob = await response.blob();
+                            const url = window.URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = file.title || 'archive.pdf';
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            window.URL.revokeObjectURL(url);
+                            console.log('✅ Download successful');
+                          } else {
+                            const errorText = await response.text();
+                            console.error('❌ Download error:', errorText);
+                            alert('Erreur lors du téléchargement: ' + errorText);
+                          }
+                        } catch (error) {
+                          console.error('❌ Error downloading:', error);
+                          alert('Erreur lors du téléchargement: ' + (error as Error).message);
+                        }
+                      } else if (file.file_path) {
+                        // Fallback pour les anciens fichiers (file_path)
+                        const downloadUrl = file.file_path.startsWith('http') 
+                          ? file.file_path 
+                          : `http://localhost:3001${file.file_path}`;
+                        console.log('📥 Opening file path:', downloadUrl);
+                        window.open(downloadUrl, '_blank');
+                      } else {
+                        console.error('❌ No fileUrl or file_path available');
+                        alert('Erreur: Aucune URL de fichier disponible');
+                      }
+                    }}
                     className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors flex items-center space-x-1"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

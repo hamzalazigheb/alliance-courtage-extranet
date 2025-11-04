@@ -201,7 +201,7 @@ router.delete('/:id', auth, authorize('admin'), async (req, res) => {
 
     // Vérifier si l'assurance existe
     const existing = await query(
-      'SELECT id FROM assurances WHERE id = ?',
+      'SELECT id, name FROM assurances WHERE id = ?',
       [id]
     );
 
@@ -211,23 +211,52 @@ router.delete('/:id', auth, authorize('admin'), async (req, res) => {
       });
     }
 
-    // Vérifier si des produits utilisent cette assurance
-    const products = await query(
-      'SELECT COUNT(*) as count FROM archives WHERE assurance = (SELECT name FROM assurances WHERE id = ?)',
-      [id]
-    );
+    const assuranceName = existing[0].name;
 
-    if (products[0].count > 0) {
+    // Vérifier si des produits utilisent cette assurance dans archives
+    let productsCount = 0;
+    try {
+      const products = await query(
+        'SELECT COUNT(*) as count FROM archives WHERE assurance = ?',
+        [assuranceName]
+      );
+      productsCount = products[0]?.count || 0;
+    } catch (checkError) {
+      console.error('Erreur lors de la vérification des produits archives:', checkError);
+      // Si la colonne n'existe pas ou autre erreur, on continue quand même
+    }
+
+    // Vérifier aussi dans structured_products si la table existe
+    try {
+      const structuredProducts = await query(
+        'SELECT COUNT(*) as count FROM structured_products WHERE assurance = ?',
+        [assuranceName]
+      );
+      productsCount += structuredProducts[0]?.count || 0;
+    } catch (checkError) {
+      // Table might not exist, ignore
+      console.log('Note: structured_products table might not exist or column differs');
+    }
+
+    if (productsCount > 0) {
       return res.status(400).json({ 
-        error: `Impossible de supprimer cette assurance. ${products[0].count} produit(s) l'utilise(nt) encore.` 
+        error: `Impossible de supprimer cette assurance. ${productsCount} produit(s) l'utilise(nt) encore.` 
       });
     }
 
+    // Supprimer l'assurance
     await query('DELETE FROM assurances WHERE id = ?', [id]);
 
+    console.log(`✅ Assurance ${id} (${assuranceName}) supprimée avec succès`);
     res.json({ message: 'Assurance supprimée avec succès' });
   } catch (error) {
-    console.error('Erreur delete assurance:', error);
+    console.error('❌ Erreur delete assurance:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      sqlMessage: error.sqlMessage,
+      sqlState: error.sqlState
+    });
     res.status(500).json({ 
       error: 'Erreur serveur lors de la suppression de l\'assurance',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
@@ -236,4 +265,5 @@ router.delete('/:id', auth, authorize('admin'), async (req, res) => {
 });
 
 module.exports = router;
+
 

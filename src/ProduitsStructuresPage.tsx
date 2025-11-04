@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { structuredProductsAPI, assurancesAPI, buildFileURL, buildAPIURL } from './api';
+import FavoriteButton from './components/FavoriteButton';
 
 interface StructuredProduct {
   id: number;
@@ -8,6 +9,8 @@ interface StructuredProduct {
   assurance: string;
   category: string;
   file_path: string;
+  fileUrl?: string;
+  hasFileContent?: boolean;
   file_size: number;
   file_type: string;
   created_at: string;
@@ -260,14 +263,14 @@ const ProduitsStructuresPageComponent: React.FC = () => {
               <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-black/40"></div>
             )}
             <div className="relative z-10">
-              <div className="flex items-center justify-between">
-                <div>
+          <div className="flex items-center justify-between">
+            <div>
                   <h1 className="text-2xl sm:text-3xl font-bold mb-2">{pageContent.title || 'Produits Structurés'}</h1>
                   <p className="text-white/80">{pageContent.subtitle || 'Consultez tous les produits structurés par assurance'}</p>
                   {pageContent.description && (
                     <p className="text-white/90 mt-2 max-w-2xl">{pageContent.description}</p>
                   )}
-                </div>
+            </div>
               </div>
               {pageContent.introText && (
                 <div className="mt-4 p-4 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20">
@@ -397,9 +400,9 @@ const ProduitsStructuresPageComponent: React.FC = () => {
                             currency: 'EUR',
                             maximumFractionDigits: 0
                           }).format(montantData.montant_restant)}
-                        </p>
-                      </div>
+                      </p>
                     </div>
+                  </div>
                   )}
                 </div>
               </div>
@@ -428,28 +431,79 @@ const ProduitsStructuresPageComponent: React.FC = () => {
 
                       {/* Actions */}
                       <div className="flex flex-col space-y-2">
-                        <div className="flex space-x-2">
-                          <a
-                            href={buildFileURL(product.file_path)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex-1 bg-gradient-to-r from-[#0B1220] to-[#1D4ED8] hover:from-[#1D4ED8] hover:to-[#2563EB] text-white text-center py-2 px-3 rounded-lg text-sm font-medium transition-all shadow-md hover:shadow-lg flex items-center justify-center"
-                          >
-                            <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                            </svg>
-                            Télécharger
-                          </a>
-                          <button
-                            onClick={() => {
+                      <div className="flex space-x-2">
+                        <FavoriteButton
+                          itemType="structured_product"
+                          itemId={product.id}
+                          title={product.title}
+                          description={product.description || ''}
+                          url={`#produits-structures`}
+                          metadata={{ category: product.category, assurance: product.assurance }}
+                          className="flex-shrink-0"
+                        />
+                        <button
+                          onClick={async () => {
+                            // Si fileUrl existe et pointe vers /download, utiliser l'API
+                            if (product.fileUrl && product.fileUrl.includes('/structured-products/') && product.fileUrl.includes('/download')) {
+                              try {
+                                const token = localStorage.getItem('token');
+                                let apiPath: string;
+                                
+                                // Extraire le chemin de l'URL complète
+                                if (product.fileUrl.startsWith('http://') || product.fileUrl.startsWith('https://')) {
+                                  const urlObj = new URL(product.fileUrl);
+                                  apiPath = urlObj.pathname; // Ex: /api/structured-products/1/download
+                                  // Retirer /api si présent pour que buildAPIURL puisse l'ajouter
+                                  if (apiPath.startsWith('/api/')) {
+                                    apiPath = apiPath.replace('/api', ''); // Ex: /structured-products/1/download
+                                  }
+                                } else {
+                                  apiPath = product.fileUrl.startsWith('/') ? product.fileUrl : `/${product.fileUrl}`;
+                                  if (apiPath.startsWith('/api/')) {
+                                    apiPath = apiPath.replace('/api', '');
+                                  }
+                                }
+                                
+                                const apiUrl = buildAPIURL(apiPath);
+                                
+                                const response = await fetch(apiUrl, {
+                                  headers: {
+                                    'x-auth-token': token || ''
+                                  }
+                                });
+                                
+                                if (response.ok) {
+                                  const blob = await response.blob();
+                                  const url = window.URL.createObjectURL(blob);
+                                  const a = document.createElement('a');
+                                  a.href = url;
+                                  a.download = product.title || 'product.pdf';
+                                  document.body.appendChild(a);
+                                  a.click();
+                                  document.body.removeChild(a);
+                                  window.URL.revokeObjectURL(url);
+                                } else {
+                                  const errorText = await response.text();
+                                  alert('Erreur lors du téléchargement: ' + errorText);
+                                }
+                              } catch (error) {
+                                console.error('Error downloading:', error);
+                                alert('Erreur lors du téléchargement: ' + (error as Error).message);
+                              }
+                            } else if (product.file_path && product.file_path.trim() !== '') {
+                              // Fallback pour les anciens fichiers (file_path)
                               window.open(buildFileURL(product.file_path), '_blank');
-                            }}
-                            className="px-3 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm font-medium transition-colors"
-                          >
-                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-                            </svg>
-                          </button>
+                            } else {
+                              alert('Erreur: Aucune URL de fichier disponible');
+                            }
+                          }}
+                          className="flex-1 bg-gradient-to-r from-[#0B1220] to-[#1D4ED8] hover:from-[#1D4ED8] hover:to-[#2563EB] text-white text-center py-2 px-3 rounded-lg text-sm font-medium transition-all shadow-md hover:shadow-lg flex items-center justify-center"
+                        >
+                          <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                          </svg>
+                          Télécharger
+                        </button>
                         </div>
                         <button
                           onClick={() => openReservationModal(product)}
@@ -527,7 +581,7 @@ const ProduitsStructuresPageComponent: React.FC = () => {
                     rows={3}
                     placeholder="Ajoutez des informations complémentaires..."
                   />
-                </div>
+          </div>
 
                 <div className="flex space-x-3 pt-4">
                   <button
@@ -557,9 +611,9 @@ const ProduitsStructuresPageComponent: React.FC = () => {
                       </>
                     )}
                   </button>
-                </div>
+          </div>
               </form>
-            </div>
+          </div>
           </div>
         </div>
       )}
