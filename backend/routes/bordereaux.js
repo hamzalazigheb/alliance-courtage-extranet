@@ -132,8 +132,14 @@ router.post('/', auth, authorize('admin'), upload.single('file'), async (req, re
       type: typeof bulk_upload,
       isTrue: bulk_upload === 'true',
       isTrueBoolean: bulk_upload === true,
-      bodyKeys: Object.keys(req.body)
+      bodyKeys: Object.keys(req.body),
+      bodyValues: req.body,
+      rawBody: req.body
     });
+    
+    // Vérifier aussi dans req.body directement (au cas où multer ne parse pas correctement)
+    const bulkUploadFlag = req.body.bulk_upload || req.body['bulk_upload'] || bulk_upload;
+    console.log(`📋 bulkUploadFlag après vérification:`, bulkUploadFlag);
     
     // Vérifier qu'un fichier a été uploadé
     if (!req.file) {
@@ -217,7 +223,17 @@ router.post('/', auth, authorize('admin'), upload.single('file'), async (req, re
     const userLabel = user ? `${user.prenom} ${user.nom}` : `User #${user_id}`;
     
     // Envoyer un email à l'utilisateur si c'est un upload en masse
-    if (bulk_upload === 'true' || bulk_upload === true) {
+    // Vérifier bulk_upload depuis req.body directement (Multer peut avoir des problèmes avec les champs textuels)
+    const bulkUploadFlag = req.body.bulk_upload || req.body['bulk_upload'] || bulk_upload;
+    const isBulkUpload = bulkUploadFlag === 'true' || bulkUploadFlag === true || bulkUploadFlag === '1';
+    
+    console.log(`📋 Vérification bulk_upload pour email:`, {
+      bulkUploadFlag,
+      isBulkUpload,
+      originalBulkUpload: bulk_upload
+    });
+    
+    if (isBulkUpload) {
       try {
         console.log(`📧 Tentative d'envoi email notification bordereau:`);
         console.log(`   - User ID: ${user_id}`);
