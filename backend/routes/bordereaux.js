@@ -137,10 +137,6 @@ router.post('/', auth, authorize('admin'), upload.single('file'), async (req, re
       rawBody: req.body
     });
     
-    // Vérifier aussi dans req.body directement (au cas où multer ne parse pas correctement)
-    const bulkUploadFlag = req.body.bulk_upload || req.body['bulk_upload'] || bulk_upload;
-    console.log(`📋 bulkUploadFlag après vérification:`, bulkUploadFlag);
-    
     // Vérifier qu'un fichier a été uploadé
     if (!req.file) {
       return res.status(400).json({ 
