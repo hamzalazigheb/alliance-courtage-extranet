@@ -122,7 +122,8 @@ router.post('/', auth, authorize('admin'), upload.single('file'), async (req, re
       user_id,
       period_month,
       period_year,
-      display_date
+      display_date,
+      bulk_upload // Flag pour indiquer si c'est un upload en masse
     } = req.body;
     
     // Vérifier qu'un fichier a été uploadé
@@ -202,9 +203,49 @@ router.post('/', auth, authorize('admin'), upload.single('file'), async (req, re
     const fileUrl = `${req.protocol}://${req.get('host')}/api/bordereaux/${result.insertId}/download`;
     
     // Récupérer les informations de l'utilisateur
-    const users = await query('SELECT nom, prenom FROM users WHERE id = ?', [user_id]);
+    const users = await query('SELECT nom, prenom, email FROM users WHERE id = ?', [user_id]);
     const user = users[0];
     const userLabel = user ? `${user.prenom} ${user.nom}` : `User #${user_id}`;
+    
+    // Envoyer un email à l'utilisateur si c'est un upload en masse
+    if (bulk_upload === 'true' || bulk_upload === true) {
+      try {
+        console.log(`📧 Tentative d'envoi email notification bordereau:`);
+        console.log(`   - User ID: ${user_id}`);
+        console.log(`   - User Email: ${user ? user.email : 'N/A'}`);
+        console.log(`   - User Label: ${userLabel}`);
+        console.log(`   - Bordereau: ${fileTitle}`);
+        console.log(`   - Période: ${finalPeriodMonth}/${finalPeriodYear}`);
+        
+        if (!user || !user.email) {
+          console.warn(`⚠️  Impossible d'envoyer l'email : utilisateur #${user_id} n'a pas d'email`);
+        } else {
+          const { sendBordereauNotificationEmail } = require('../services/emailService');
+          console.log(`📧 Envoi email de notification bordereau à ${user.email}...`);
+          const emailResult = await sendBordereauNotificationEmail(
+            user.email,
+            userLabel,
+            fileTitle,
+            finalPeriodMonth,
+            finalPeriodYear,
+            fileUrl
+          );
+          console.log(`✅ Email de notification bordereau envoyé avec succès à ${user.email}`, emailResult);
+        }
+      } catch (emailError) {
+        console.error('❌ Erreur envoi email notification bordereau (non-blocking):', emailError);
+        console.error('Détails erreur:', {
+          message: emailError.message,
+          stack: emailError.stack,
+          code: emailError.code,
+          response: emailError.response,
+          responseCode: emailError.responseCode
+        });
+        // Ne pas bloquer la réponse si l'email échoue
+      }
+    } else {
+      console.log(`ℹ️  Upload bordereau normal (non bulk_upload), pas d'email envoyé`);
+    }
     
     res.status(201).json({
       message: 'Bordereau créé avec succès',

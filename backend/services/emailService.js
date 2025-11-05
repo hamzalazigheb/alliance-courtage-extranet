@@ -685,12 +685,21 @@ const sendReservationRejectedEmail = async (email, userName, productTitle, monta
  */
 const sendBordereauNotificationEmail = async (email, userName, bordereauTitle, periodMonth, periodYear, fileUrl) => {
   try {
+    console.log(`📧 Début envoi email notification bordereau:`);
+    console.log(`   - Email destinataire: ${email}`);
+    console.log(`   - Nom utilisateur: ${userName}`);
+    console.log(`   - Bordereau: ${bordereauTitle}`);
+    console.log(`   - Période: ${periodMonth}/${periodYear}`);
+    console.log(`   - File URL: ${fileUrl}`);
+    
     const transporter = createTransporter();
     
     // Formatage du mois
     const monthNames = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 
                         'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
     const monthName = periodMonth ? monthNames[periodMonth - 1] : '';
+    
+    console.log(`📧 Préparation email notification bordereau pour ${email}...`);
 
     const mailOptions = {
       from: process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@alliance-courtage.fr',
@@ -829,13 +838,25 @@ const sendBordereauNotificationEmail = async (email, userName, bordereauTitle, p
       `
     };
 
+    console.log(`📧 Envoi email notification bordereau à ${email}...`);
     const info = await transporter.sendMail(mailOptions);
     
-    console.log('✅ Email de notification bordereau envoyé avec succès:', info.messageId);
+    console.log('✅ Email de notification bordereau envoyé avec succès:', {
+      messageId: info.messageId,
+      to: email,
+      subject: mailOptions.subject
+    });
     return { success: true, messageId: info.messageId };
     
   } catch (error) {
     console.error('❌ Erreur envoi email notification bordereau:', error);
+    console.error('Détails erreur:', {
+      message: error.message,
+      code: error.code,
+      command: error.command,
+      response: error.response,
+      responseCode: error.responseCode
+    });
     throw new Error('Erreur lors de l\'envoi de l\'email: ' + error.message);
   }
 };
