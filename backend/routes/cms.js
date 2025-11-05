@@ -338,35 +338,56 @@ router.get('/rencontres', auth, async (req, res) => {
 // @access  Private
 router.put('/rencontres', auth, async (req, res) => {
   try {
+    console.log('📝 PUT /api/cms/rencontres - Début');
     const { content } = req.body;
 
+    if (!content) {
+      console.error('❌ Aucun contenu fourni');
+      return res.status(400).json({
+        error: 'Le contenu est requis'
+      });
+    }
+
+    // Log la taille du contenu pour diagnostiquer
+    const contentLength = typeof content === 'string' ? content.length : JSON.stringify(content).length;
+    console.log(`📝 Taille du contenu: ${(contentLength / 1024).toFixed(2)} KB`);
+
     // Valider que le contenu est un JSON valide
+    let parsedContent;
     try {
       if (typeof content === 'string') {
-        JSON.parse(content);
+        parsedContent = JSON.parse(content);
+      } else {
+        parsedContent = content;
       }
+      console.log('✅ JSON valide');
     } catch (validateError) {
+      console.error('❌ JSON invalide:', validateError.message);
       return res.status(400).json({
         error: 'Le contenu JSON fourni est invalide',
         details: process.env.NODE_ENV === 'development' ? validateError.message : undefined
       });
     }
 
+    // Handle double-stringified JSON
+    if (typeof parsedContent === 'string') {
+      try {
+        parsedContent = JSON.parse(parsedContent);
+      } catch (e) {
+        console.warn('⚠️  Tentative de double parsing échouée');
+      }
+    }
+
+    // Convertir en string si nécessaire
+    const contentString = typeof content === 'string' ? content : JSON.stringify(content);
+    console.log(`📝 Contenu à sauvegarder (${(contentString.length / 1024).toFixed(2)} KB)`);
+
     const existing = await query(
       'SELECT id FROM cms_content WHERE page = ?',
       ['rencontres']
     );
 
-    // Parse content to check for new meetings
-    let parsedContent;
-    try {
-      parsedContent = JSON.parse(content);
-      if (typeof parsedContent === 'string') {
-        parsedContent = JSON.parse(parsedContent);
-      }
-    } catch (e) {
-      parsedContent = null;
-    }
+    console.log(`📝 Entrée existante: ${existing.length > 0 ? 'Oui' : 'Non'}`);
 
     // Check if there are new upcoming meetings (simple check: if array has items, notify)
     // Note: For production, you might want to track which meetings were already notified
@@ -374,33 +395,52 @@ router.put('/rencontres', auth, async (req, res) => {
       // Notify about the most recent meeting
       const latestMeeting = parsedContent.upcomingMeetings[0];
       if (latestMeeting && latestMeeting.title) {
-        await notifyAdmins(
-          'meeting',
-          'Nouvelle rencontre',
-          `Une nouvelle rencontre "${latestMeeting.title}" est prévue${latestMeeting.date ? ` le ${latestMeeting.date}` : ''}.`,
-          null,
-          'meeting'
-        );
+        try {
+          console.log('📧 Notification des admins pour nouvelle rencontre...');
+          await notifyAdmins(
+            'meeting',
+            'Nouvelle rencontre',
+            `Une nouvelle rencontre "${latestMeeting.title}" est prévue${latestMeeting.date ? ` le ${latestMeeting.date}` : ''}.`,
+            null,
+            'meeting'
+          );
+          console.log('✅ Admins notifiés');
+        } catch (notifError) {
+          console.error('⚠️  Erreur notification admins (non-blocking):', notifError);
+          // Ne pas bloquer la sauvegarde si la notification échoue
+        }
       }
     }
 
     if (existing.length > 0) {
+      console.log('📝 Mise à jour de l\'entrée existante...');
       await query(
         'UPDATE cms_content SET content = ?, updated_at = NOW() WHERE page = ?',
-        [content, 'rencontres']
+        [contentString, 'rencontres']
       );
+      console.log('✅ Contenu mis à jour avec succès');
       res.json({ message: 'Contenu CMS (rencontres) mis à jour avec succès' });
     } else {
+      console.log('📝 Création d\'une nouvelle entrée...');
       await query(
         'INSERT INTO cms_content (page, content, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
-        ['rencontres', content]
+        ['rencontres', contentString]
       );
+      console.log('✅ Contenu créé avec succès');
       res.json({ message: 'Contenu CMS (rencontres) créé avec succès' });
     }
   } catch (error) {
-    console.error('Erreur update CMS content (rencontres):', error);
+    console.error('❌ Erreur update CMS content (rencontres):', error);
+    console.error('Détails erreur:', {
+      message: error.message,
+      code: error.code,
+      sqlMessage: error.sqlMessage,
+      sqlState: error.sqlState,
+      stack: error.stack
+    });
     res.status(500).json({
-      error: 'Erreur serveur lors de la mise à jour du contenu CMS (rencontres)'
+      error: 'Erreur serveur lors de la mise à jour du contenu CMS (rencontres)',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
@@ -464,42 +504,77 @@ router.get('/gamme-financiere', auth, async (req, res) => {
 // @access  Private
 router.put('/gamme-financiere', auth, async (req, res) => {
   try {
+    console.log('📝 PUT /api/cms/gamme-financiere - Début');
     const { content } = req.body;
 
+    if (!content) {
+      console.error('❌ Aucun contenu fourni');
+      return res.status(400).json({
+        error: 'Le contenu est requis'
+      });
+    }
+
+    // Log la taille du contenu pour diagnostiquer
+    const contentLength = typeof content === 'string' ? content.length : JSON.stringify(content).length;
+    console.log(`📝 Taille du contenu: ${(contentLength / 1024).toFixed(2)} KB`);
+
     // Valider que le contenu est un JSON valide
+    let parsedContent;
     try {
       if (typeof content === 'string') {
-        JSON.parse(content);
+        parsedContent = JSON.parse(content);
+      } else {
+        parsedContent = content;
       }
+      console.log('✅ JSON valide');
     } catch (validateError) {
+      console.error('❌ JSON invalide:', validateError.message);
       return res.status(400).json({
         error: 'Le contenu JSON fourni est invalide',
         details: process.env.NODE_ENV === 'development' ? validateError.message : undefined
       });
     }
 
+    // Convertir en string si nécessaire
+    const contentString = typeof content === 'string' ? content : JSON.stringify(content);
+    console.log(`📝 Contenu à sauvegarder (${(contentString.length / 1024).toFixed(2)} KB)`);
+
     const existing = await query(
       'SELECT id FROM cms_content WHERE page = ?',
       ['gamme-financiere']
     );
 
+    console.log(`📝 Entrée existante: ${existing.length > 0 ? 'Oui' : 'Non'}`);
+
     if (existing.length > 0) {
+      console.log('📝 Mise à jour de l\'entrée existante...');
       await query(
         'UPDATE cms_content SET content = ?, updated_at = NOW() WHERE page = ?',
-        [content, 'gamme-financiere']
+        [contentString, 'gamme-financiere']
       );
+      console.log('✅ Contenu mis à jour avec succès');
       res.json({ message: 'Contenu CMS (gamme-financiere) mis à jour avec succès' });
     } else {
+      console.log('📝 Création d\'une nouvelle entrée...');
       await query(
         'INSERT INTO cms_content (page, content, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
-        ['gamme-financiere', content]
+        ['gamme-financiere', contentString]
       );
+      console.log('✅ Contenu créé avec succès');
       res.json({ message: 'Contenu CMS (gamme-financiere) créé avec succès' });
     }
   } catch (error) {
-    console.error('Erreur update CMS content (gamme-financiere):', error);
+    console.error('❌ Erreur update CMS content (gamme-financiere):', error);
+    console.error('Détails erreur:', {
+      message: error.message,
+      code: error.code,
+      sqlMessage: error.sqlMessage,
+      sqlState: error.sqlState,
+      stack: error.stack
+    });
     res.status(500).json({
-      error: 'Erreur serveur lors de la mise à jour du contenu CMS (gamme-financiere)'
+      error: 'Erreur serveur lors de la mise à jour du contenu CMS (gamme-financiere)',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
