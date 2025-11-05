@@ -119,16 +119,24 @@ router.get('/', async (req, res) => {
 // @access  Private (Admin)
 router.post('/', auth, authorize('admin'), uploadDocument.single('file'), handleMulterError, async (req, res) => {
   try {
+    console.log(`📄 Upload document financier - Début`);
+    console.log(`   - User ID: ${req.user?.id}`);
+    console.log(`   - File: ${req.file?.originalname} (${req.file?.size} bytes)`);
+    console.log(`   - Body keys:`, Object.keys(req.body));
+    console.log(`   - Body:`, req.body);
+    
     const { title, description, category, subcategory, year } = req.body;
     const uploadedBy = req.user?.id;
 
     if (!title || !category) {
+      console.error(`❌ Validation failed: title=${title}, category=${category}`);
       return res.status(400).json({ 
         error: 'Titre et catégorie requis' 
       });
     }
 
     if (!req.file) {
+      console.error(`❌ No file uploaded`);
       return res.status(400).json({ 
         error: 'Fichier requis' 
       });
@@ -136,32 +144,45 @@ router.post('/', auth, authorize('admin'), uploadDocument.single('file'), handle
 
     // Check if buffer exists
     if (!req.file.buffer) {
+      console.error(`❌ File buffer is missing`);
       return res.status(400).json({ 
         error: 'Erreur: fichier non reçu correctement' 
       });
     }
 
     // Convert file buffer to base64
+    console.log(`📄 Conversion du fichier en base64...`);
     const fileBase64 = req.file.buffer.toString('base64');
     const base64Prefix = `data:${req.file.mimetype};base64,`;
     const fileContent = base64Prefix + fileBase64;
 
     const fileSize = req.file.size;
     const fileType = req.file.mimetype;
+    
+    console.log(`📄 Préparation de l'insertion en base de données...`);
+    console.log(`   - Title: ${title}`);
+    console.log(`   - Category: ${category}`);
+    console.log(`   - File size: ${fileSize} bytes`);
+    console.log(`   - File type: ${fileType}`);
+    console.log(`   - Base64 length: ${fileContent.length} characters`);
 
     const host = `${req.protocol}://${req.get('host')}`;
 
+    console.log(`📄 Exécution de la requête SQL...`);
     const result = await query(
       `INSERT INTO financial_documents 
        (title, description, file_path, file_content, file_size, file_type, category, subcategory, year, uploaded_by, is_active) 
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, true)`,
       [title, description || '', '', fileContent, fileSize, fileType, category, subcategory, year || new Date().getFullYear(), uploadedBy]
     );
+    
+    console.log(`✅ Document financier créé avec succès, ID: ${result.insertId}`);
 
     const fileUrl = `${host}/api/financial-documents/${result.insertId}/download`;
 
     // Notifier tous les utilisateurs (via notification globale)
     try {
+      console.log(`📧 Tentative de notification des admins...`);
       await notifyAdmins(
         'document',
         'Nouveau document financier',
@@ -182,14 +203,18 @@ router.post('/', auth, authorize('admin'), uploadDocument.single('file'), handle
       fileUrl: fileUrl
     });
   } catch (error) {
-    console.error('Erreur create document:', error);
+    console.error('❌ Erreur create document:', error);
     console.error('Error details:', {
       message: error.message,
       code: error.code,
       sqlMessage: error.sqlMessage,
-      sqlState: error.sqlState
+      sqlState: error.sqlState,
+      stack: error.stack
     });
-    res.status(500).json({ error: 'Erreur serveur lors de la création du document' });
+    res.status(500).json({ 
+      error: 'Erreur serveur lors de la création du document',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
