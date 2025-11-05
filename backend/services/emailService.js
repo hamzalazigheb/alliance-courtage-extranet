@@ -304,8 +304,547 @@ const sendPasswordResetEmail = async (email, newPassword, userName = '') => {
   }
 };
 
+/**
+ * Envoie un email de confirmation d'approbation de réservation
+ * @param {string} email - Email du destinataire
+ * @param {string} userName - Nom de l'utilisateur
+ * @param {string} productTitle - Titre du produit
+ * @param {number} montant - Montant réservé
+ * @returns {Promise<Object>}
+ */
+const sendReservationApprovedEmail = async (email, userName, productTitle, montant) => {
+  try {
+    console.log(`📧 Début envoi email d'approbation réservation:`);
+    console.log(`   - Email destinataire: ${email}`);
+    console.log(`   - Nom utilisateur: ${userName}`);
+    console.log(`   - Produit: ${productTitle}`);
+    console.log(`   - Montant: ${montant}`);
+    
+    const transporter = createTransporter();
+    const montantFormatted = new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: 'EUR'
+    }).format(montant);
+    
+    console.log(`📧 Préparation email d'approbation pour ${email}...`);
+
+    const mailOptions = {
+      from: process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@alliance-courtage.fr',
+      to: email,
+      subject: '✅ Réservation approuvée - Alliance Courtage',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              line-height: 1.6;
+              color: #333;
+              max-width: 600px;
+              margin: 0 auto;
+              padding: 20px;
+            }
+            .container {
+              background-color: #f9f9f9;
+              border-radius: 8px;
+              padding: 30px;
+              border: 1px solid #e0e0e0;
+            }
+            .header {
+              background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+              color: white;
+              padding: 20px;
+              border-radius: 8px 8px 0 0;
+              text-align: center;
+              margin: -30px -30px 30px -30px;
+            }
+            .logo {
+              font-size: 24px;
+              font-weight: bold;
+            }
+            .content {
+              background: white;
+              padding: 20px;
+              border-radius: 8px;
+              margin: 20px 0;
+            }
+            .success-box {
+              background: #d1fae5;
+              border-left: 4px solid #10b981;
+              padding: 15px;
+              margin: 20px 0;
+              border-radius: 4px;
+            }
+            .info-box {
+              background: #f0f0f0;
+              border-radius: 8px;
+              padding: 15px;
+              margin: 20px 0;
+            }
+            .footer {
+              text-align: center;
+              margin-top: 30px;
+              padding-top: 20px;
+              border-top: 1px solid #e0e0e0;
+              color: #666;
+              font-size: 12px;
+            }
+            .button {
+              display: inline-block;
+              background: #10b981;
+              color: white;
+              padding: 12px 30px;
+              text-decoration: none;
+              border-radius: 5px;
+              margin: 20px 0;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <div class="logo">✅ Alliance Courtage</div>
+              <p style="margin: 10px 0 0 0;">Réservation approuvée</p>
+            </div>
+            
+            <div class="content">
+              <h2>Bonjour ${userName},</h2>
+              
+              <div class="success-box">
+                <strong>✅ Excellente nouvelle !</strong><br>
+                Votre réservation de produit structuré a été approuvée.
+              </div>
+              
+              <div class="info-box">
+                <p><strong>Détails de votre réservation :</strong></p>
+                <ul>
+                  <li><strong>Produit :</strong> ${productTitle}</li>
+                  <li><strong>Montant réservé :</strong> ${montantFormatted}</li>
+                  <li><strong>Statut :</strong> Approuvé</li>
+                </ul>
+              </div>
+              
+              <p>Votre réservation est maintenant confirmée. Vous recevrez prochainement les informations complémentaires concernant votre produit structuré.</p>
+              
+              <p style="text-align: center;">
+                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/#produits-structures" class="button">
+                  Voir mes réservations
+                </a>
+              </p>
+              
+              <p>Pour toute question concernant votre réservation, n'hésitez pas à nous contacter.</p>
+            </div>
+            
+            <div class="footer">
+              <p>Cet email a été envoyé automatiquement. Ne répondez pas à cet email.</p>
+              <p>© ${new Date().getFullYear()} Alliance Courtage - Tous droits réservés</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+      text: `
+        Réservation approuvée - Alliance Courtage
+        
+        Bonjour ${userName},
+        
+        Excellente nouvelle ! Votre réservation de produit structuré a été approuvée.
+        
+        Détails de votre réservation :
+        - Produit : ${productTitle}
+        - Montant réservé : ${montantFormatted}
+        - Statut : Approuvé
+        
+        Votre réservation est maintenant confirmée. Vous recevrez prochainement les informations complémentaires concernant votre produit structuré.
+        
+        Pour consulter vos réservations, connectez-vous à votre espace :
+        ${process.env.FRONTEND_URL || 'http://localhost:5173'}/#produits-structures
+        
+        Pour toute question concernant votre réservation, n'hésitez pas à nous contacter.
+        
+        © ${new Date().getFullYear()} Alliance Courtage
+      `
+    };
+
+    console.log(`📧 Envoi email d'approbation à ${email}...`);
+    const info = await transporter.sendMail(mailOptions);
+    
+    console.log('✅ Email d\'approbation envoyé avec succès:', {
+      messageId: info.messageId,
+      to: email,
+      subject: mailOptions.subject
+    });
+    return { success: true, messageId: info.messageId };
+    
+  } catch (error) {
+    console.error('❌ Erreur envoi email d\'approbation:', error);
+    console.error('Détails erreur:', {
+      message: error.message,
+      code: error.code,
+      command: error.command,
+      response: error.response,
+      responseCode: error.responseCode
+    });
+    throw new Error('Erreur lors de l\'envoi de l\'email: ' + error.message);
+  }
+};
+
+/**
+ * Envoie un email de notification de rejet de réservation
+ * @param {string} email - Email du destinataire
+ * @param {string} userName - Nom de l'utilisateur
+ * @param {string} productTitle - Titre du produit
+ * @param {number} montant - Montant réservé
+ * @param {string} reason - Raison du rejet (optionnel)
+ * @returns {Promise<Object>}
+ */
+const sendReservationRejectedEmail = async (email, userName, productTitle, montant, reason = null) => {
+  try {
+    const transporter = createTransporter();
+    const montantFormatted = new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: 'EUR'
+    }).format(montant);
+
+    const mailOptions = {
+      from: process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@alliance-courtage.fr',
+      to: email,
+      subject: '❌ Réservation rejetée - Alliance Courtage',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              line-height: 1.6;
+              color: #333;
+              max-width: 600px;
+              margin: 0 auto;
+              padding: 20px;
+            }
+            .container {
+              background-color: #f9f9f9;
+              border-radius: 8px;
+              padding: 30px;
+              border: 1px solid #e0e0e0;
+            }
+            .header {
+              background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+              color: white;
+              padding: 20px;
+              border-radius: 8px 8px 0 0;
+              text-align: center;
+              margin: -30px -30px 30px -30px;
+            }
+            .logo {
+              font-size: 24px;
+              font-weight: bold;
+            }
+            .content {
+              background: white;
+              padding: 20px;
+              border-radius: 8px;
+              margin: 20px 0;
+            }
+            .warning-box {
+              background: #fee2e2;
+              border-left: 4px solid #ef4444;
+              padding: 15px;
+              margin: 20px 0;
+              border-radius: 4px;
+            }
+            .info-box {
+              background: #f0f0f0;
+              border-radius: 8px;
+              padding: 15px;
+              margin: 20px 0;
+            }
+            .reason-box {
+              background: #fff7ed;
+              border-left: 4px solid #f59e0b;
+              padding: 15px;
+              margin: 20px 0;
+              border-radius: 4px;
+            }
+            .footer {
+              text-align: center;
+              margin-top: 30px;
+              padding-top: 20px;
+              border-top: 1px solid #e0e0e0;
+              color: #666;
+              font-size: 12px;
+            }
+            .button {
+              display: inline-block;
+              background: #667eea;
+              color: white;
+              padding: 12px 30px;
+              text-decoration: none;
+              border-radius: 5px;
+              margin: 20px 0;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <div class="logo">❌ Alliance Courtage</div>
+              <p style="margin: 10px 0 0 0;">Réservation rejetée</p>
+            </div>
+            
+            <div class="content">
+              <h2>Bonjour ${userName},</h2>
+              
+              <div class="warning-box">
+                <strong>Malheureusement, votre réservation n'a pas pu être approuvée.</strong>
+              </div>
+              
+              <div class="info-box">
+                <p><strong>Détails de votre réservation :</strong></p>
+                <ul>
+                  <li><strong>Produit :</strong> ${productTitle}</li>
+                  <li><strong>Montant réservé :</strong> ${montantFormatted}</li>
+                  <li><strong>Statut :</strong> Rejetée</li>
+                </ul>
+              </div>
+              
+              ${reason ? `
+                <div class="reason-box">
+                  <strong>Raison du rejet :</strong><br>
+                  ${reason}
+                </div>
+              ` : ''}
+              
+              <p>Nous sommes désolés que votre réservation n'ait pas pu être approuvée. Si vous avez des questions ou souhaitez effectuer une nouvelle réservation, n'hésitez pas à nous contacter.</p>
+              
+              <p style="text-align: center;">
+                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/#produits-structures" class="button">
+                  Voir les produits disponibles
+                </a>
+              </p>
+              
+              <p>Pour toute question, notre équipe est à votre disposition.</p>
+            </div>
+            
+            <div class="footer">
+              <p>Cet email a été envoyé automatiquement. Ne répondez pas à cet email.</p>
+              <p>© ${new Date().getFullYear()} Alliance Courtage - Tous droits réservés</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+      text: `
+        Réservation rejetée - Alliance Courtage
+        
+        Bonjour ${userName},
+        
+        Malheureusement, votre réservation n'a pas pu être approuvée.
+        
+        Détails de votre réservation :
+        - Produit : ${productTitle}
+        - Montant réservé : ${montantFormatted}
+        - Statut : Rejetée
+        ${reason ? `\nRaison du rejet : ${reason}` : ''}
+        
+        Nous sommes désolés que votre réservation n'ait pas pu être approuvée. Si vous avez des questions ou souhaitez effectuer une nouvelle réservation, n'hésitez pas à nous contacter.
+        
+        Pour consulter d'autres produits disponibles :
+        ${process.env.FRONTEND_URL || 'http://localhost:5173'}/#produits-structures
+        
+        Pour toute question, notre équipe est à votre disposition.
+        
+        © ${new Date().getFullYear()} Alliance Courtage
+      `
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    
+    console.log('✅ Email de rejet envoyé avec succès:', info.messageId);
+    return { success: true, messageId: info.messageId };
+    
+  } catch (error) {
+    console.error('❌ Erreur envoi email de rejet:', error);
+    throw new Error('Erreur lors de l\'envoi de l\'email: ' + error.message);
+  }
+};
+
+/**
+ * Envoie un email de notification de bordereau disponible
+ * @param {string} email - Email du destinataire
+ * @param {string} userName - Nom de l'utilisateur
+ * @param {string} bordereauTitle - Titre du bordereau
+ * @param {number} periodMonth - Mois de la période (1-12)
+ * @param {number} periodYear - Année de la période
+ * @param {string} fileUrl - URL du fichier à télécharger
+ * @returns {Promise<Object>}
+ */
+const sendBordereauNotificationEmail = async (email, userName, bordereauTitle, periodMonth, periodYear, fileUrl) => {
+  try {
+    const transporter = createTransporter();
+    
+    // Formatage du mois
+    const monthNames = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 
+                        'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+    const monthName = periodMonth ? monthNames[periodMonth - 1] : '';
+
+    const mailOptions = {
+      from: process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@alliance-courtage.fr',
+      to: email,
+      subject: `📄 Nouveau bordereau disponible - ${monthName} ${periodYear || new Date().getFullYear()} - Alliance Courtage`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              line-height: 1.6;
+              color: #333;
+              max-width: 600px;
+              margin: 0 auto;
+              padding: 20px;
+            }
+            .container {
+              background-color: #f9f9f9;
+              border-radius: 8px;
+              padding: 30px;
+              border: 1px solid #e0e0e0;
+            }
+            .header {
+              background: linear-gradient(135deg, #0B1220 0%, #1D4ED8 100%);
+              color: white;
+              padding: 20px;
+              border-radius: 8px 8px 0 0;
+              text-align: center;
+              margin: -30px -30px 30px -30px;
+            }
+            .logo {
+              font-size: 24px;
+              font-weight: bold;
+            }
+            .content {
+              background: white;
+              padding: 20px;
+              border-radius: 8px;
+              margin: 20px 0;
+            }
+            .info-box {
+              background: #f0f7ff;
+              border-left: 4px solid #1D4ED8;
+              padding: 15px;
+              margin: 20px 0;
+              border-radius: 4px;
+            }
+            .footer {
+              text-align: center;
+              margin-top: 30px;
+              padding-top: 20px;
+              border-top: 1px solid #e0e0e0;
+              color: #666;
+              font-size: 12px;
+            }
+            .button {
+              display: inline-block;
+              background: linear-gradient(135deg, #0B1220 0%, #1D4ED8 100%);
+              color: white;
+              padding: 12px 30px;
+              text-decoration: none;
+              border-radius: 5px;
+              margin: 20px 0;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <div class="logo">📄 Alliance Courtage</div>
+              <p style="margin: 10px 0 0 0;">Nouveau bordereau disponible</p>
+            </div>
+            
+            <div class="content">
+              <h2>Bonjour ${userName},</h2>
+              
+              <p>Un nouveau bordereau a été ajouté à votre espace comptabilité.</p>
+              
+              <div class="info-box">
+                <p><strong>Détails du bordereau :</strong></p>
+                <ul style="margin: 10px 0; padding-left: 20px;">
+                  <li><strong>Titre :</strong> ${bordereauTitle}</li>
+                  ${periodMonth && periodYear ? `<li><strong>Période :</strong> ${monthName} ${periodYear}</li>` : ''}
+                  <li><strong>Date d'ajout :</strong> ${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</li>
+                </ul>
+              </div>
+              
+              <p>Vous pouvez maintenant télécharger et consulter votre bordereau depuis votre espace comptabilité.</p>
+              
+              <p style="text-align: center;">
+                <a href="${fileUrl}" class="button">
+                  Télécharger le bordereau
+                </a>
+              </p>
+              
+              <p style="text-align: center;">
+                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/#comptabilite" style="color: #1D4ED8; text-decoration: underline;">
+                  Accéder à mon espace comptabilité
+                </a>
+              </p>
+              
+              <p>Pour toute question concernant votre bordereau, n'hésitez pas à nous contacter.</p>
+            </div>
+            
+            <div class="footer">
+              <p>Cet email a été envoyé automatiquement. Ne répondez pas à cet email.</p>
+              <p>© ${new Date().getFullYear()} Alliance Courtage - Tous droits réservés</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+      text: `
+        Nouveau bordereau disponible - Alliance Courtage
+        
+        Bonjour ${userName},
+        
+        Un nouveau bordereau a été ajouté à votre espace comptabilité.
+        
+        Détails du bordereau :
+        - Titre : ${bordereauTitle}
+        ${periodMonth && periodYear ? `- Période : ${monthName} ${periodYear}` : ''}
+        - Date d'ajout : ${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+        
+        Vous pouvez maintenant télécharger et consulter votre bordereau depuis votre espace comptabilité.
+        
+        Télécharger le bordereau : ${fileUrl}
+        Accéder à mon espace comptabilité : ${process.env.FRONTEND_URL || 'http://localhost:5173'}/#comptabilite
+        
+        Pour toute question concernant votre bordereau, n'hésitez pas à nous contacter.
+        
+        © ${new Date().getFullYear()} Alliance Courtage
+      `
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    
+    console.log('✅ Email de notification bordereau envoyé avec succès:', info.messageId);
+    return { success: true, messageId: info.messageId };
+    
+  } catch (error) {
+    console.error('❌ Erreur envoi email notification bordereau:', error);
+    throw new Error('Erreur lors de l\'envoi de l\'email: ' + error.message);
+  }
+};
+
 module.exports = {
   sendPasswordResetEmail,
+  sendReservationApprovedEmail,
+  sendReservationRejectedEmail,
+  sendBordereauNotificationEmail,
   createTransporter
 };
 

@@ -572,16 +572,28 @@ router.put('/reservations/:id/approve', auth, authorize('admin'), async (req, re
     
     // Envoyer un email à l'utilisateur
     try {
-      const { sendReservationApprovedEmail } = require('../services/emailService');
-      const userName = `${reservation.prenom} ${reservation.nom}`;
-      await sendReservationApprovedEmail(
-        reservation.email,
-        userName,
-        reservation.product_title,
-        parseFloat(reservation.montant)
-      );
+      if (!reservation.email) {
+        console.warn(`⚠️  Impossible d'envoyer l'email : utilisateur #${reservation.user_id} n'a pas d'email`);
+      } else {
+        const { sendReservationApprovedEmail } = require('../services/emailService');
+        const userName = `${reservation.prenom} ${reservation.nom}`;
+        console.log(`📧 Envoi email d'approbation à ${reservation.email} pour la réservation #${reservationId}`);
+        const emailResult = await sendReservationApprovedEmail(
+          reservation.email,
+          userName,
+          reservation.product_title,
+          parseFloat(reservation.montant)
+        );
+        console.log(`✅ Email d'approbation envoyé avec succès à ${reservation.email}`, emailResult);
+      }
     } catch (emailError) {
-      console.error('Erreur envoi email d\'approbation:', emailError);
+      console.error('❌ Erreur envoi email d\'approbation:', emailError);
+      console.error('Détails:', {
+        message: emailError.message,
+        stack: emailError.stack,
+        email: reservation.email,
+        userName: `${reservation.prenom} ${reservation.nom}`
+      });
       // Ne pas bloquer la réponse si l'email échoue
     }
     
