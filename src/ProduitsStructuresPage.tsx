@@ -507,7 +507,7 @@ const ProduitsStructuresPageComponent: React.FC = () => {
                         </div>
                         <button
                           onClick={() => openReservationModal(product)}
-                          className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white text-center py-2 px-3 rounded-lg text-sm font-medium transition-all shadow-md hover:shadow-lg flex items-center justify-center"
+                          className="w-full bg-gradient-to-r from-[#0B1220] to-[#1D4ED8] hover:from-[#1D4ED8] hover:to-[#2563EB] text-white text-center py-2 px-3 rounded-lg text-sm font-medium transition-all shadow-md hover:shadow-lg flex items-center justify-center"
                         >
                           <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
@@ -563,7 +563,7 @@ const ProduitsStructuresPageComponent: React.FC = () => {
                     step="0.01"
                     value={reservationMontant}
                     onChange={(e) => setReservationMontant(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1D4ED8] focus:border-transparent"
                     placeholder="Ex: 5000.00"
                     required
                   />
@@ -577,7 +577,7 @@ const ProduitsStructuresPageComponent: React.FC = () => {
                     id="notes"
                     value={reservationNotes}
                     onChange={(e) => setReservationNotes(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1D4ED8] focus:border-transparent"
                     rows={3}
                     placeholder="Ajoutez des informations complémentaires..."
                   />
@@ -594,7 +594,7 @@ const ProduitsStructuresPageComponent: React.FC = () => {
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg font-medium transition-all shadow-md hover:shadow-lg flex items-center justify-center disabled:opacity-50"
+                    className="flex-1 px-4 py-3 bg-gradient-to-r from-[#0B1220] to-[#1D4ED8] hover:from-[#1D4ED8] hover:to-[#2563EB] text-white rounded-lg font-medium transition-all shadow-md hover:shadow-lg flex items-center justify-center disabled:opacity-50"
                     disabled={reservationLoading}
                   >
                     {reservationLoading ? (

@@ -206,17 +206,6 @@ function ExtranetLoginPage({ onLogin, users }: { onLogin: (user: User) => void, 
             </div>
           </form>
         </div>
-
-        <div className="mt-8 text-center">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h3 className="text-sm font-medium text-blue-800 mb-2">🔐 Comptes de démonstration</h3>
-            <div className="text-xs text-blue-600 space-y-1">
-              <div><strong>Super Admin:</strong> admin@alliance.com</div>
-              <div><strong>Utilisateur:</strong> martin@alliance.com</div>
-              <div className="mt-2">Mot de passe: n'importe quel mot de passe</div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -408,16 +397,6 @@ function AdminLoginPage({ onLogin, users }: { onLogin: (user: User) => void, use
             </div>
           </form>
         </div>
-
-        <div className="mt-8 text-center">
-          <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
-            <h3 className="text-sm font-medium text-red-800 mb-2">🔐 Compte Administrateur</h3>
-            <div className="text-xs text-red-700 space-y-1">
-              <div><strong>Super Admin:</strong> admin@alliance.com</div>
-              <div className="mt-2">Mot de passe: n'importe quel mot de passe</div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -551,13 +530,35 @@ function App() {
   // Initialize URL hash and listen for hash changes
   // Must be after currentUser declaration to avoid initialization order issues
   useEffect(() => {
-    // Set initial hash if none exists
-    if (!window.location.hash) {
+    // Correction automatique de la faute de frappe "acceuil" -> "accueil"
+    const currentHash = window.location.hash.slice(1);
+    if (currentHash === 'acceuil') {
       window.location.hash = 'accueil';
+      return;
+    }
+    
+    // Set initial hash if none exists (mais pas si on vient de /manage)
+    const comingFromManage = sessionStorage.getItem('comingFromManage') === 'true';
+    
+    if (!currentHash && !comingFromManage) {
+      window.location.hash = 'accueil';
+    }
+    
+    // Nettoyer le flag après utilisation
+    if (comingFromManage) {
+      sessionStorage.removeItem('comingFromManage');
     }
 
     const handleHashChange = () => {
       const hash = window.location.hash.slice(1);
+      
+      // Correction automatique de la faute de frappe "acceuil" -> "accueil"
+      if (hash === 'acceuil') {
+        window.location.hash = 'accueil';
+        setCurrentPage('accueil');
+        return;
+      }
+      
       const validPages = ['accueil', 'gamme-produits', 'partenaires', 'rencontres', 'reglementaire', 'produits-structures', 'simulateurs', 'comptabilite', 'gestion-comptabilite', 'nos-archives', 'notifications', 'favoris', 'manage'];
       
       // Bloquer l'accès à /manage si l'utilisateur n'est pas admin
@@ -574,8 +575,16 @@ function App() {
     };
 
     // Vérifier aussi au chargement initial
-    const hash = window.location.hash.slice(1);
-    if (hash === 'manage' && currentUser && currentUser.role !== 'admin') {
+    const initialHash = window.location.hash.slice(1);
+    
+    // Correction automatique de la faute de frappe "acceuil" -> "accueil"
+    if (initialHash === 'acceuil') {
+      window.location.hash = 'accueil';
+      setCurrentPage('accueil');
+      return;
+    }
+    
+    if (initialHash === 'manage' && currentUser && currentUser.role !== 'admin') {
       alert('Accès refusé : Seuls les administrateurs peuvent accéder à cette page.');
       window.location.hash = 'accueil';
       setCurrentPage('accueil');
@@ -874,6 +883,13 @@ function App() {
                   localStorage.removeItem('token');
                   localStorage.removeItem('user');
                   localStorage.removeItem('manageAuth');
+                  // Si on est sur /manage, rediriger vers la page de login /manage
+                  if (currentPage === 'manage') {
+                    window.location.hash = 'manage';
+                    window.location.reload();
+                  } else {
+                    window.location.hash = 'accueil';
+                  }
                 }}
                 className="text-gray-500 hover:text-gray-700 text-xs sm:text-sm font-medium whitespace-nowrap flex-shrink-0"
               >
@@ -1374,17 +1390,13 @@ function HomePage() {
   interface HomePageContent {
     welcomeTitle: string;
     news: Array<{ title: string; content: string; date: string; color: string }>;
-    newsletter: { title: string; badge: string; description: string; filePath: string; isRecent: boolean } | null;
     services: Array<{ name: string }>;
-    contact: { phone: string; email: string; location: string };
   }
 
   const [content, setContent] = useState<HomePageContent>({
     welcomeTitle: 'Bienvenue chez Alliance Courtage',
     news: [],
-    newsletter: null,
-    services: [],
-    contact: { phone: '07.45.06.43.88', email: 'contact@alliance-courtage.fr', location: 'Paris, France' }
+    services: []
   });
   const [loading, setLoading] = useState(true);
 
@@ -1447,63 +1459,11 @@ function HomePage() {
           </div>
             ))
           ) : null}
-          {content.newsletter && (
-          <div className="relative overflow-hidden bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl border border-green-200 shadow-sm hover:shadow-md transition-all duration-300">
-            <div className="absolute top-0 right-0 w-20 h-20 bg-green-100 rounded-full -mr-10 -mt-10 opacity-50"></div>
-            <div className="absolute bottom-0 left-0 w-16 h-16 bg-emerald-100 rounded-full -ml-8 -mb-8 opacity-30"></div>
-            
-            <div className="relative p-4 sm:p-6">
-              <div className="flex items-start space-x-4">
-                <div className="flex-shrink-0">
-                  <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
-                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                  </div>
-                </div>
-                
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <h3 className="text-lg font-bold text-gray-800">Newsletter patrimoniale</h3>
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                      Rentrée 2025
-                    </span>
-                  </div>
-                  
-                  <p className="text-gray-600 text-sm mb-4 leading-relaxed">
-                    Découvrez notre newsletter patrimoniale spéciale rentrée 2025 avec les dernières tendances et conseils d'investissement pour optimiser votre patrimoine.
-                  </p>
-                  
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <a 
-                      href="/Newsletter patrimoniale - Rentrée 2025.pdf" 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-medium rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
-                    >
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      Télécharger le PDF
-                    </a>
-                    
-                    <div className="flex items-center text-xs text-gray-500">
-                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      Publication récente
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          )}
         </div>
       </div>
 
-      {/* Services and Contact Section */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+      {/* Services Section */}
+      <div className="grid grid-cols-1 gap-4 sm:gap-6">
         <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-4 sm:p-6 border border-white/20">
           <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-3 sm:mb-4">Nos Services</h3>
           <ul className="space-y-1 sm:space-y-2 text-gray-600 text-sm sm:text-base">
@@ -1513,24 +1473,6 @@ function HomePage() {
               ))
             ) : null}
           </ul>
-        </div>
-
-        <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-4 sm:p-6 border border-white/20">
-          <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-3 sm:mb-4">Contact</h3>
-          <div className="space-y-1 sm:space-y-2 text-gray-600 text-sm sm:text-base">
-            <p className="flex items-center">
-              <span className="mr-2">📞</span>
-              <a href={`tel:${content.contact.phone.replace(/\./g, '')}`} className="hover:text-indigo-600 transition-colors">{content.contact.phone}</a>
-            </p>
-            <p className="flex items-center">
-              <span className="mr-2">✉️</span>
-              <a href={`mailto:${content.contact.email}`} className="hover:text-indigo-600 transition-colors">{content.contact.email}</a>
-            </p>
-            <p className="flex items-center">
-              <span className="mr-2">📍</span>
-              {content.contact.location}
-            </p>
-          </div>
         </div>
       </div>
     </div>
@@ -1607,14 +1549,6 @@ function GammeProduitsPage() {
     return (matrix[selectedClientType] && matrix[selectedClientType][selectedProductType]) || [];
   };
 
-  // Resolve catalogue URL from CMS (safe for hash routing)
-  const catalogUrl = (() => {
-    const url = cmsProducts?.catalogue?.fileUrl || '';
-    if (!url) return '';
-    if (/^https?:\/\//i.test(url)) return url; // absolute
-    return url.startsWith('/') ? url : `/${url}`; // make absolute path
-  })();
-
   return (
     <div className="max-w-6xl mx-auto space-y-8">
       {/* Page Header */}
@@ -1690,67 +1624,6 @@ function GammeProduitsPage() {
           ))}
         </div>
       </div>
-
-      {/* Download Block Footer */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-slate-800 to-blue-700 rounded-xl border border-white/20 shadow-sm hover:shadow-md transition-all duration-300">
-        <div className="p-4 sm:p-6">
-          <div className="flex items-start space-x-4">
-            <div className="flex-shrink-0">
-              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              </div>
-            </div>
-            
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center space-x-2 mb-2">
-                <h3 className="text-lg font-bold text-white">{cmsProducts?.catalogue?.title || 'Téléchargez notre catalogue produits'}</h3>
-                {cmsProducts?.catalogue?.badge && (
-                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-white/20 text-white">
-                    {cmsProducts.catalogue.badge}
-                </span>
-                )}
-              </div>
-              
-              {(
-              <p className="text-white/80 text-sm mb-4 leading-relaxed">
-                  {cmsProducts?.catalogue?.description || "Découvrez notre gamme complète de produits d'assurance et d'investissement pour tous vos besoins."}
-              </p>
-              )}
-              
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                {catalogUrl ? (
-                  <a href={catalogUrl} target="_blank" rel="noopener noreferrer" download className="inline-flex items-center justify-center px-4 py-2 bg-white/20 text-white text-sm font-medium rounded-lg hover:bg-white/30 transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5">
-                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  {cmsProducts?.catalogue?.downloadLabel || 'Télécharger le PDF'}
-                </a>
-                ) : (
-                  <button disabled className="inline-flex items-center justify-center px-4 py-2 bg-white/10 text-white/70 text-sm font-medium rounded-lg cursor-not-allowed">
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    {cmsProducts?.catalogue?.downloadLabel || 'Télécharger le PDF'}
-                </button>
-                )}
-                
-                <div className="flex items-center text-xs text-white/60">
-                  <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  {cmsProducts?.catalogue?.updatedAtLabel || 'Mise à jour 2025'}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        {/* Decorative elements */}
-        <div className="absolute top-0 right-0 w-20 h-20 bg-white/5 rounded-full -translate-y-10 translate-x-10"></div>
-        <div className="absolute bottom-0 left-0 w-16 h-16 bg-white/5 rounded-full translate-y-8 -translate-x-8"></div>
-      </div>
     </div>
   );
 }
@@ -1811,9 +1684,23 @@ function PartenairesPage() {
         
         console.log('📊 Partners loaded from API:', data.length);
         
-        // Cache the data
-        setCachedData(CACHE_KEYS.PARTNERS, data, CACHE_TTL.LONG);
+        // Filter out large base64 logos before caching to avoid quota issues
+        const dataForCache = data.map((partner: Partner) => {
+          // Remove logo_content if it's too large (over 100KB)
+          if (partner.logo_content) {
+            const logoSize = partner.logo_content.length;
+            if (logoSize > 100 * 1024) { // 100KB
+              console.warn(`Removing large logo_content from partner ${partner.id} (${(logoSize / 1024).toFixed(2)}KB)`);
+              return { ...partner, logo_content: undefined };
+            }
+          }
+          return partner;
+        });
         
+        // Cache the data (without large logos)
+        setCachedData(CACHE_KEYS.PARTNERS, dataForCache, CACHE_TTL.LONG);
+        
+        // Use original data for display (with logos)
         // Organiser par catégorie (only active partners for display)
         const coa: Partner[] = data.filter((p: Partner) => p.is_active && (p.category === 'coa' || p.category?.toLowerCase() === 'coa'));
         const cif: Partner[] = data.filter((p: Partner) => p.is_active && (p.category === 'cif' || p.category?.toLowerCase() === 'cif'));
@@ -2141,16 +2028,53 @@ function RencontresPage() {
       if (response.ok) {
         const data = await response.json();
         if (data.content) {
-          const parsedContent = JSON.parse(data.content);
-          if (typeof parsedContent === 'string') {
-            setContent(JSON.parse(parsedContent));
-          } else {
-            setContent(parsedContent);
+          try {
+            let parsedContent = data.content;
+            
+            // Si c'est une string, parser une première fois
+            if (typeof parsedContent === 'string') {
+              parsedContent = JSON.parse(parsedContent);
+            }
+            
+            // Si le résultat est encore une string, parser une deuxième fois
+            if (typeof parsedContent === 'string') {
+              parsedContent = JSON.parse(parsedContent);
+            }
+            
+            // S'assurer que les propriétés existent
+            setContent({
+              title: parsedContent.title || 'RENCONTRES',
+              subtitle: parsedContent.subtitle || 'Espace dédié aux rencontres et échanges de la communauté Alliance Courtage',
+              headerImage: parsedContent.headerImage || '',
+              introText: parsedContent.introText || '',
+              upcomingMeetings: Array.isArray(parsedContent.upcomingMeetings) ? parsedContent.upcomingMeetings : [],
+              historicalMeetings: Array.isArray(parsedContent.historicalMeetings) ? parsedContent.historicalMeetings : []
+            });
+          } catch (parseError) {
+            // Silencieusement utiliser les valeurs par défaut si le JSON est corrompu
+            // Ne pas logger l'erreur pour éviter le spam dans la console
+            setContent({
+              title: 'RENCONTRES',
+              subtitle: 'Espace dédié aux rencontres et échanges de la communauté Alliance Courtage',
+              headerImage: '',
+              introText: '',
+              upcomingMeetings: [],
+              historicalMeetings: []
+            });
           }
         }
       }
     } catch (error) {
       console.error('Erreur lors du chargement du contenu CMS:', error);
+      // En cas d'erreur, utiliser les valeurs par défaut
+      setContent({
+        title: 'RENCONTRES',
+        subtitle: 'Espace dédié aux rencontres et échanges de la communauté Alliance Courtage',
+        headerImage: '',
+        introText: '',
+        upcomingMeetings: [],
+        historicalMeetings: []
+      });
     } finally {
       setLoading(false);
     }
@@ -2185,29 +2109,32 @@ function RencontresPage() {
     <div className="max-w-7xl mx-auto space-y-8">
       {/* Page Header */}
       <div 
-        className={`bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-white/20 ${content.headerImage ? '' : ''}`}
+        className={`bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-white/20 relative ${content.headerImage ? '' : ''}`}
         style={content.headerImage ? {
           backgroundImage: `url(${content.headerImage})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
-          position: 'relative'
+          minHeight: '300px'
         } : {}}
       >
+        {/* Overlay très léger seulement pour améliorer la lisibilité du texte */}
         {content.headerImage && (
-          <div className="absolute inset-0 bg-black/40 rounded-2xl"></div>
+          <div className="absolute inset-0 bg-black/20 rounded-2xl"></div>
         )}
         <div className="relative z-10">
-          <h1 className={`text-3xl font-bold mb-4 ${content.headerImage ? 'text-white' : 'text-gray-800'}`}>
-            {content.title || 'RENCONTRES'}
-          </h1>
-          <p className={`text-lg ${content.headerImage ? 'text-white/90' : 'text-gray-600'}`}>
-            {content.subtitle || 'Espace dédié aux rencontres et échanges de la communauté Alliance Courtage'}
-          </p>
-          {content.introText && (
-            <div className={`mt-4 p-4 rounded-lg ${content.headerImage ? 'bg-white/10 backdrop-blur-sm border border-white/20' : 'bg-gray-50'}`}>
-              <p className={content.headerImage ? 'text-white italic' : 'text-gray-700 italic'}>{content.introText}</p>
-            </div>
-          )}
+          <div className={content.headerImage ? 'bg-white/10 backdrop-blur-sm rounded-lg p-4 shadow-lg' : ''}>
+            <h1 className={`text-3xl font-bold mb-4 ${content.headerImage ? 'text-white drop-shadow-lg' : 'text-gray-800'}`}>
+              {content.title || 'RENCONTRES'}
+            </h1>
+            <p className={`text-lg ${content.headerImage ? 'text-white drop-shadow-md' : 'text-gray-600'}`}>
+              {content.subtitle || 'Espace dédié aux rencontres et échanges de la communauté Alliance Courtage'}
+            </p>
+            {content.introText && (
+              <div className={`mt-4 p-4 rounded-lg ${content.headerImage ? 'bg-white/10 backdrop-blur-sm border border-white/20' : 'bg-gray-50'}`}>
+                <p className={content.headerImage ? 'text-white italic' : 'text-gray-700 italic'}>{content.introText}</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -2611,9 +2538,6 @@ function ReglementairePage({ currentUser }: { currentUser: User | null }) {
                   }`}
                 >
                   <div className="text-lg font-semibold">{category}</div>
-                  <div className="text-sm opacity-90">
-                    {completedHours}h / {requiredHours}h
-                  </div>
                   {isCompleted && (
                     <div className="text-xs mt-1">✓ Complété</div>
                   )}
@@ -4975,6 +4899,7 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
           formData.append('file', file);
           formData.append('user_id', targetUserId.toString());
           formData.append('title', file.name);
+          formData.append('bulk_upload', 'true'); // Indiquer que c'est un upload en masse
           // Ajouter la date configurée pour l'affichage
           if (bulkUploadDate) {
             formData.append('display_date', bulkUploadDate);
@@ -5120,6 +5045,7 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
         formData.append('file', file);
         formData.append('user_id', mapping.userId.toString());
         formData.append('title', file.name);
+        formData.append('bulk_upload', 'true'); // Indiquer que c'est un upload en masse
         // Ajouter la date configurée pour l'affichage
         if (bulkUploadDate) {
           formData.append('display_date', bulkUploadDate);

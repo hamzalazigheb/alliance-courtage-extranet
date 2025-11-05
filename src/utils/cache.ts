@@ -50,17 +50,61 @@ export function setCachedData<T>(key: string, data: T, ttl: number = DEFAULT_TTL
       expiresAt: now + ttl
     };
 
-    localStorage.setItem(`cache_${key}`, JSON.stringify(entry));
+    const entryString = JSON.stringify(entry);
+    const entrySize = new Blob([entryString]).size;
+    
+    // Skip caching if data is too large (over 2MB)
+    const MAX_CACHE_SIZE = 2 * 1024 * 1024; // 2MB
+    if (entrySize > MAX_CACHE_SIZE) {
+      console.warn(`Skipping cache for key ${key}: data too large (${(entrySize / 1024 / 1024).toFixed(2)}MB)`);
+      return;
+    }
+
+    localStorage.setItem(`cache_${key}`, entryString);
   } catch (error) {
     console.error(`Error setting cache for key ${key}:`, error);
-    // If quota exceeded, clear old cache entries
+    // If quota exceeded, clear old cache entries and try again
     if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+      console.warn('Quota exceeded, clearing old cache entries...');
       clearOldCacheEntries();
-      // Try again
+      // Try again with the same entry
       try {
-        localStorage.setItem(`cache_${key}`, JSON.stringify(entry));
+        const now = Date.now();
+        const entry: CacheEntry<T> = {
+          data,
+          timestamp: now,
+          expiresAt: now + ttl
+        };
+        const entryString = JSON.stringify(entry);
+        const entrySize = new Blob([entryString]).size;
+        
+        // If still too large, skip caching
+        if (entrySize > MAX_CACHE_SIZE) {
+          console.warn(`Skipping cache for key ${key}: data still too large after cleanup`);
+          return;
+        }
+        
+        localStorage.setItem(`cache_${key}`, entryString);
       } catch (retryError) {
         console.error('Failed to set cache after clearing old entries:', retryError);
+        // If still failing, clear all cache and try one more time
+        if (retryError instanceof DOMException && retryError.name === 'QuotaExceededError') {
+          console.warn('Still quota exceeded, clearing all cache...');
+          clearAllCache();
+          // Last attempt - if still fails, give up silently
+          try {
+            const now = Date.now();
+            const entry: CacheEntry<T> = {
+              data,
+              timestamp: now,
+              expiresAt: now + ttl
+            };
+            const entryString = JSON.stringify(entry);
+            localStorage.setItem(`cache_${key}`, entryString);
+          } catch (finalError) {
+            console.warn(`Final cache attempt failed for key ${key}, skipping cache`);
+          }
+        }
       }
     }
   }
@@ -94,21 +138,22 @@ export function clearAllCache(): void {
 }
 
 /**
- * Clear old cache entries (older than 1 hour)
+ * Clear old cache entries (older than 30 minutes) or clear all if still too large
  */
 function clearOldCacheEntries(): void {
   try {
     const keys = Object.keys(localStorage);
     const now = Date.now();
-    const oneHourAgo = now - (60 * 60 * 1000);
+    const thirtyMinutesAgo = now - (30 * 60 * 1000);
 
+    // First pass: clear expired entries
     keys.forEach(key => {
       if (key.startsWith('cache_')) {
         try {
           const cached = localStorage.getItem(key);
           if (cached) {
             const entry: CacheEntry<any> = JSON.parse(cached);
-            if (entry.timestamp < oneHourAgo) {
+            if (entry.timestamp < thirtyMinutesAgo || now > entry.expiresAt) {
               localStorage.removeItem(key);
             }
           }
@@ -118,6 +163,34 @@ function clearOldCacheEntries(): void {
         }
       }
     });
+
+    // Second pass: if still too full, clear more aggressively (anything older than 10 minutes)
+    try {
+      const stats = getCacheStats();
+      const totalSizeMB = stats.totalSize / 1024 / 1024;
+      
+      // If cache is still over 3MB, clear entries older than 10 minutes
+      if (totalSizeMB > 3) {
+        const tenMinutesAgo = now - (10 * 60 * 1000);
+        keys.forEach(key => {
+          if (key.startsWith('cache_')) {
+            try {
+              const cached = localStorage.getItem(key);
+              if (cached) {
+                const entry: CacheEntry<any> = JSON.parse(cached);
+                if (entry.timestamp < tenMinutesAgo) {
+                  localStorage.removeItem(key);
+                }
+              }
+            } catch (error) {
+              localStorage.removeItem(key);
+            }
+          }
+        });
+      }
+    } catch (error) {
+      // Ignore errors in stats calculation
+    }
   } catch (error) {
     console.error('Error clearing old cache entries:', error);
   }

@@ -1,8 +1,61 @@
 const express = require('express');
+const multer = require('multer');
 const router = express.Router();
 const { query } = require('../config/database');
 const { auth, authorize } = require('../middleware/auth');
 const { notifyAdmins } = require('./notifications');
+
+// Configuration de multer pour l'upload de PDF
+const pdfStorage = multer.memoryStorage();
+
+const uploadPDF = multer({
+  storage: pdfStorage,
+  limits: {
+    fileSize: 50 * 1024 * 1024 // 50MB max pour les PDF
+  },
+  fileFilter: (req, file, cb) => {
+    // Accepter seulement les PDF
+    if (file.mimetype === 'application/pdf') {
+      return cb(null, true);
+    } else {
+      cb(new Error('Seuls les fichiers PDF sont autorisés'));
+    }
+  }
+});
+
+// Configuration de multer pour l'upload d'images en mémoire (base64)
+const imageStorage = multer.memoryStorage();
+
+const uploadImage = multer({
+  storage: imageStorage,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB max pour les images
+  },
+  fileFilter: (req, file, cb) => {
+    // Accepter seulement les images
+    const allowedMimeTypes = /^image\/(jpeg|jpg|png|gif|webp)$/;
+    const isValidMimeType = allowedMimeTypes.test(file.mimetype);
+    
+    if (isValidMimeType) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Seuls les fichiers images sont autorisés (JPEG, PNG, GIF, WebP)'));
+    }
+  }
+});
+
+// Middleware pour gérer les erreurs multer
+const handleMulterError = (err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: 'Fichier trop volumineux. Taille maximale: 10MB' });
+    }
+    return res.status(400).json({ error: 'Erreur upload fichier: ' + err.message });
+  } else if (err) {
+    return res.status(400).json({ error: err.message || 'Erreur upload fichier' });
+  }
+  next();
+};
 
 // @route   GET /api/cms/home
 // @desc    Get CMS content for home page
@@ -23,13 +76,7 @@ router.get('/home', auth, async (req, res) => {
         content: JSON.stringify({
           welcomeTitle: 'Bienvenue chez Alliance Courtage',
           news: [],
-          newsletter: null,
-          services: [],
-          contact: {
-            phone: '',
-            email: '',
-            location: ''
-          }
+          services: []
         })
       });
     }
@@ -293,6 +340,18 @@ router.put('/rencontres', auth, async (req, res) => {
   try {
     const { content } = req.body;
 
+    // Valider que le contenu est un JSON valide
+    try {
+      if (typeof content === 'string') {
+        JSON.parse(content);
+      }
+    } catch (validateError) {
+      return res.status(400).json({
+        error: 'Le contenu JSON fourni est invalide',
+        details: process.env.NODE_ENV === 'development' ? validateError.message : undefined
+      });
+    }
+
     const existing = await query(
       'SELECT id FROM cms_content WHERE page = ?',
       ['rencontres']
@@ -358,7 +417,29 @@ router.get('/gamme-financiere', auth, async (req, res) => {
     );
 
     if (result.length > 0) {
-      res.json(result[0]);
+      // Valider et nettoyer le JSON si nécessaire
+      try {
+        let content = result[0].content;
+        
+        // Si c'est une string, essayer de parser pour valider
+        if (typeof content === 'string') {
+          JSON.parse(content);
+        }
+        
+        res.json(result[0]);
+      } catch (parseError) {
+        console.error('JSON corrompu pour gamme-financiere, retour des valeurs par défaut:', parseError);
+        // Retourner des valeurs par défaut si le JSON est corrompu
+        res.json({
+          page: 'gamme-financiere',
+          content: JSON.stringify({
+            title: 'Gamme Financière',
+            subtitle: 'Découvrez notre sélection de produits financiers',
+            description: 'Explorez notre gamme complète de produits financiers conçus pour répondre à vos besoins d\'investissement et de gestion patrimoniale.',
+            headerImage: ''
+          })
+        });
+      }
     } else {
       res.json({
         page: 'gamme-financiere',
@@ -384,6 +465,18 @@ router.get('/gamme-financiere', auth, async (req, res) => {
 router.put('/gamme-financiere', auth, async (req, res) => {
   try {
     const { content } = req.body;
+
+    // Valider que le contenu est un JSON valide
+    try {
+      if (typeof content === 'string') {
+        JSON.parse(content);
+      }
+    } catch (validateError) {
+      return res.status(400).json({
+        error: 'Le contenu JSON fourni est invalide',
+        details: process.env.NODE_ENV === 'development' ? validateError.message : undefined
+      });
+    }
 
     const existing = await query(
       'SELECT id FROM cms_content WHERE page = ?',
@@ -472,6 +565,149 @@ router.put('/partenaires', auth, async (req, res) => {
     console.error('Erreur update CMS content (partenaires):', error);
     res.status(500).json({
       error: 'Erreur serveur lors de la mise à jour du contenu CMS (partenaires)'
+    });
+  }
+});
+
+// @route   POST /api/cms/upload-image
+// @desc    Upload an image and return base64 data URL
+// @access  Private (Admin seulement)
+router.post('/upload-image', auth, authorize('admin'), uploadImage.single('image'), handleMulterError, async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ 
+        error: 'Aucun fichier image fourni' 
+      });
+    }
+
+    // Check if buffer exists
+    if (!req.file.buffer) {
+      return res.status(400).json({ 
+        error: 'Erreur: fichier non reçu correctement' 
+      });
+    }
+
+    console.log('📤 Upload image reçu:', {
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+      bufferLength: req.file.buffer.length
+    });
+
+    // Convert file buffer to base64
+    const fileBase64 = req.file.buffer.toString('base64');
+    const base64Prefix = `data:${req.file.mimetype};base64,`;
+    const dataUrl = base64Prefix + fileBase64;
+
+    console.log('✅ Image convertie en base64:', {
+      base64Length: fileBase64.length,
+      dataUrlLength: dataUrl.length,
+      prefix: base64Prefix,
+      startsWith: dataUrl.substring(0, 50)
+    });
+
+    res.json({
+      success: true,
+      imageUrl: dataUrl,
+      mimeType: req.file.mimetype,
+      size: req.file.size
+    });
+  } catch (error) {
+    console.error('❌ Erreur upload image CMS:', error);
+    
+    // Gérer les erreurs multer
+    if (error instanceof multer.MulterError) {
+      if (error.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: 'Fichier trop volumineux. Taille maximale: 10MB' });
+      }
+      return res.status(400).json({ error: 'Erreur upload fichier: ' + error.message });
+    }
+    
+    res.status(500).json({ 
+      error: 'Erreur serveur lors de l\'upload de l\'image',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// @route   POST /api/cms/upload-newsletter-pdf
+// @desc    Upload a PDF file for newsletter and return file URL
+// @access  Private (Admin seulement)
+router.post('/upload-newsletter-pdf', auth, authorize('admin'), uploadPDF.single('pdf'), handleMulterError, async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ 
+        error: 'Aucun fichier PDF fourni' 
+      });
+    }
+
+    // Check if buffer exists
+    if (!req.file.buffer) {
+      return res.status(400).json({ 
+        error: 'Erreur: fichier non reçu correctement' 
+      });
+    }
+
+    console.log('📤 Upload PDF newsletter reçu:', {
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+      bufferLength: req.file.buffer.length
+    });
+
+    // Generate unique filename
+    const timestamp = Date.now();
+    const sanitizedName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const filename = `newsletter_${timestamp}_${sanitizedName}`;
+    const filePath = `/uploads/newsletters/${filename}`;
+
+    // In production, you would save the file to disk or cloud storage
+    // For now, we'll store it in base64 in the database or use a file system
+    // For simplicity, we'll return a URL that can be used to access the file
+    
+    // Save file to uploads/newsletters directory (server serves /uploads from ../uploads)
+    const fs = require('fs');
+    const path = require('path');
+    const uploadDir = path.join(__dirname, '../../uploads/newsletters');
+    
+    // Create directory if it doesn't exist
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    
+    const fullPath = path.join(uploadDir, filename);
+    fs.writeFileSync(fullPath, req.file.buffer);
+    
+    console.log('✅ PDF newsletter sauvegardé:', {
+      filename,
+      path: fullPath,
+      size: req.file.size
+    });
+
+    // Return the URL to access the file (server serves /uploads from ../uploads)
+    const fileUrl = `${req.protocol}://${req.get('host')}/uploads/newsletters/${filename}`;
+
+    res.json({
+      success: true,
+      fileUrl: fileUrl,
+      filePath: filePath,
+      filename: filename,
+      size: req.file.size
+    });
+  } catch (error) {
+    console.error('❌ Erreur upload PDF newsletter:', error);
+    
+    // Gérer les erreurs multer
+    if (error instanceof multer.MulterError) {
+      if (error.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: 'Fichier trop volumineux. Taille maximale: 50MB' });
+      }
+      return res.status(400).json({ error: 'Erreur upload fichier: ' + error.message });
+    }
+    
+    res.status(500).json({ 
+      error: 'Erreur serveur lors de l\'upload du PDF',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });

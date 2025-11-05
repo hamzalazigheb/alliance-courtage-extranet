@@ -206,7 +206,10 @@ const ManagePage: React.FC = () => {
                   localStorage.removeItem('user');
                   localStorage.removeItem('isLoggedIn');
                   localStorage.removeItem('currentUser');
-                  window.location.href = '/';
+                  localStorage.removeItem('manageAuth');
+                  // Rediriger vers la page de login /manage
+                  window.location.hash = 'manage';
+                  window.location.reload();
                 }}
                 className="flex items-center space-x-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
               >

@@ -18,6 +18,7 @@ const GammeFinanciereCMSPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   useEffect(() => {
     loadContent();
@@ -140,15 +141,87 @@ const GammeFinanciereCMSPage: React.FC = () => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">URL de l'image d'en-tête</label>
-          <input
-            type="text"
-            value={pageContent.headerImage}
-            onChange={(e) => setPageContent({ ...pageContent, headerImage: e.target.value })}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            placeholder="https://example.com/image.jpg"
-          />
-          <p className="text-xs text-gray-500 mt-1">URL complète de l'image ou chemin relatif</p>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Image d'en-tête</label>
+          <div className="space-y-2">
+            <div className="flex items-center space-x-3">
+              <input
+                type="file"
+                accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  
+                  setUploadingImage(true);
+                  try {
+                    const formData = new FormData();
+                    formData.append('image', file);
+                    
+                    const token = localStorage.getItem('token');
+                    const response = await fetch(buildAPIURL('/cms/upload-image'), {
+                      method: 'POST',
+                      headers: {
+                        'x-auth-token': token || ''
+                      },
+                      body: formData
+                    });
+                    
+                    if (response.ok) {
+                      const data = await response.json();
+                      console.log('✅ Image uploadée:', {
+                        success: data.success,
+                        imageUrlLength: data.imageUrl?.length,
+                        mimeType: data.mimeType,
+                        size: data.size
+                      });
+                      setPageContent({ ...pageContent, headerImage: data.imageUrl });
+                    } else {
+                      const error = await response.json();
+                      console.error('❌ Erreur upload:', error);
+                      alert(error.error || 'Erreur lors de l\'upload de l\'image');
+                    }
+                  } catch (error) {
+                    console.error('Erreur upload image:', error);
+                    alert('Erreur lors de l\'upload de l\'image');
+                  } finally {
+                    setUploadingImage(false);
+                  }
+                }}
+                className="flex-1 text-sm text-gray-700 file:mr-3 file:px-4 file:py-2 file:rounded-md file:border-0 file:bg-indigo-500 file:text-white hover:file:bg-indigo-600"
+              />
+              {uploadingImage && <span className="text-gray-500 text-sm">Upload...</span>}
+            </div>
+            <input
+              type="text"
+              value={pageContent.headerImage}
+              onChange={(e) => setPageContent({ ...pageContent, headerImage: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              placeholder="URL de l'image ou utilisez l'upload ci-dessus"
+            />
+            {pageContent.headerImage && (
+              <div className="mt-2">
+                <p className="text-xs text-gray-400 mb-1">
+                  Preview ({pageContent.headerImage.length} caractères)
+                  {pageContent.headerImage.startsWith('data:image') ? ' - Base64' : ' - URL'}
+                </p>
+                <img 
+                  src={pageContent.headerImage} 
+                  alt="Preview" 
+                  className="max-w-md h-32 object-cover rounded-lg border border-gray-300"
+                  onError={(e) => {
+                    console.error('❌ Erreur affichage image:', {
+                      src: pageContent.headerImage.substring(0, 100) + '...',
+                      length: pageContent.headerImage.length
+                    });
+                    alert('Erreur: L\'image ne peut pas être affichée. Vérifiez le format.');
+                  }}
+                  onLoad={() => {
+                    console.log('✅ Image chargée avec succès');
+                  }}
+                />
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-gray-500 mt-1">Upload direct d'image ou URL complète</p>
         </div>
       </div>
     </div>

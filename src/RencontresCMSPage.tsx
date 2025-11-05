@@ -37,6 +37,7 @@ const RencontresCMSPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   useEffect(() => {
     loadContent();
@@ -53,16 +54,53 @@ const RencontresCMSPage: React.FC = () => {
       if (response.ok) {
         const data = await response.json();
         if (data.content) {
-          const parsedContent = JSON.parse(data.content);
-          if (typeof parsedContent === 'string') {
-            setContent(JSON.parse(parsedContent));
-          } else {
-            setContent(parsedContent);
+          try {
+            let parsedContent = data.content;
+            
+            // Si c'est une string, parser une première fois
+            if (typeof parsedContent === 'string') {
+              parsedContent = JSON.parse(parsedContent);
+            }
+            
+            // Si le résultat est encore une string, parser une deuxième fois
+            if (typeof parsedContent === 'string') {
+              parsedContent = JSON.parse(parsedContent);
+            }
+            
+            // S'assurer que les propriétés existent
+            setContent({
+              title: parsedContent.title || 'RENCONTRES',
+              subtitle: parsedContent.subtitle || 'Espace dédié aux rencontres et échanges de la communauté Alliance Courtage',
+              headerImage: parsedContent.headerImage || '',
+              introText: parsedContent.introText || '',
+              upcomingMeetings: Array.isArray(parsedContent.upcomingMeetings) ? parsedContent.upcomingMeetings : [],
+              historicalMeetings: Array.isArray(parsedContent.historicalMeetings) ? parsedContent.historicalMeetings : []
+            });
+          } catch (parseError) {
+            console.error('Error parsing CMS content:', parseError);
+            // Si le JSON est corrompu, utiliser les valeurs par défaut
+            setContent({
+              title: 'RENCONTRES',
+              subtitle: 'Espace dédié aux rencontres et échanges de la communauté Alliance Courtage',
+              headerImage: '',
+              introText: '',
+              upcomingMeetings: [],
+              historicalMeetings: []
+            });
           }
         }
       }
     } catch (error) {
       console.error('Erreur lors du chargement du contenu:', error);
+      // En cas d'erreur, utiliser les valeurs par défaut
+      setContent({
+        title: 'RENCONTRES',
+        subtitle: 'Espace dédié aux rencontres et échanges de la communauté Alliance Courtage',
+        headerImage: '',
+        introText: '',
+        upcomingMeetings: [],
+        historicalMeetings: []
+      });
     } finally {
       setLoading(false);
     }
@@ -208,26 +246,86 @@ const RencontresCMSPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-slate-300 mb-2">Image d'en-tête (URL)</label>
-            <input
-              type="text"
-              value={content.headerImage}
-              onChange={(e) => setContent({ ...content, headerImage: e.target.value })}
-              className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500"
-              placeholder="https://exemple.com/image.jpg"
-            />
-            {content.headerImage && (
-              <div className="mt-2">
-                <img 
-                  src={content.headerImage} 
-                  alt="Preview" 
-                  className="max-w-md h-32 object-cover rounded-lg border border-slate-600"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
+            <label className="block text-sm font-semibold text-slate-300 mb-2">Image d'en-tête</label>
+            <div className="space-y-2">
+              <div className="flex items-center space-x-3">
+                <input
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    
+                    setUploadingImage(true);
+                    try {
+                      const formData = new FormData();
+                      formData.append('image', file);
+                      
+                      const token = localStorage.getItem('token');
+                      const response = await fetch(buildAPIURL('/cms/upload-image'), {
+                        method: 'POST',
+                        headers: {
+                          'x-auth-token': token || ''
+                        },
+                        body: formData
+                      });
+                      
+                    if (response.ok) {
+                      const data = await response.json();
+                      console.log('✅ Image uploadée:', {
+                        success: data.success,
+                        imageUrlLength: data.imageUrl?.length,
+                        mimeType: data.mimeType,
+                        size: data.size
+                      });
+                      setContent({ ...content, headerImage: data.imageUrl });
+                    } else {
+                      const error = await response.json();
+                      console.error('❌ Erreur upload:', error);
+                      alert(error.error || 'Erreur lors de l\'upload de l\'image');
+                    }
+                    } catch (error) {
+                      console.error('Erreur upload image:', error);
+                      alert('Erreur lors de l\'upload de l\'image');
+                    } finally {
+                      setUploadingImage(false);
+                    }
                   }}
+                  className="flex-1 text-sm text-slate-300 file:mr-3 file:px-4 file:py-2 file:rounded-md file:border-0 file:bg-emerald-500 file:text-white hover:file:bg-emerald-600"
                 />
+                {uploadingImage && <span className="text-slate-300 text-sm">Upload...</span>}
               </div>
-            )}
+              <input
+                type="text"
+                value={content.headerImage}
+                onChange={(e) => setContent({ ...content, headerImage: e.target.value })}
+                className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500"
+                placeholder="URL de l'image ou utilisez l'upload ci-dessus"
+              />
+              {content.headerImage && (
+                <div className="mt-2">
+                  <p className="text-xs text-slate-400 mb-1">
+                    Preview ({content.headerImage.length} caractères)
+                    {content.headerImage.startsWith('data:image') ? ' - Base64' : ' - URL'}
+                  </p>
+                  <img 
+                    src={content.headerImage} 
+                    alt="Preview" 
+                    className="max-w-md h-32 object-cover rounded-lg border border-slate-600"
+                    onError={(e) => {
+                      console.error('❌ Erreur affichage image:', {
+                        src: content.headerImage.substring(0, 100) + '...',
+                        length: content.headerImage.length
+                      });
+                      alert('Erreur: L\'image ne peut pas être affichée. Vérifiez le format.');
+                    }}
+                    onLoad={() => {
+                      console.log('✅ Image chargée avec succès');
+                    }}
+                  />
+                </div>
+              )}
+            </div>
           </div>
 
           <div>

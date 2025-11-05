@@ -24,8 +24,8 @@ git pull origin main
 # Migration : Ajouter la colonne link à la table notifications
 docker exec -it alliance-courtage-backend node scripts/addLinkToNotifications.js
 
-# OU via SQL direct :
-docker exec -i alliance-courtage-mysql mysql -u root -palliance2024Secure alliance_courtage -e "ALTER TABLE notifications ADD COLUMN IF NOT EXISTS link VARCHAR(500) NULL AFTER related_type;"
+# OU via SQL direct (si le script Node.js échoue) :
+docker exec -i alliance-courtage-mysql mysql -u root -palliance2024Secure alliance_courtage -e "ALTER TABLE notifications ADD COLUMN link VARCHAR(500) NULL AFTER related_type;"
 
 # Redémarrer le backend pour appliquer les changements
 docker restart alliance-courtage-backend

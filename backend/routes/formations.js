@@ -245,6 +245,49 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
+// @route   GET /api/formations/all
+// @desc    Obtenir toutes les formations (Admin seulement)
+// @access  Private (Admin)
+router.get('/all', auth, authorize('admin'), async (req, res) => {
+  try {
+    const { statut } = req.query;
+    
+    let sql = `SELECT f.*, 
+               CONCAT(COALESCE(u.prenom, ''), ' ', COALESCE(u.nom, '')) as user_name, 
+               u.email as user_email 
+               FROM formations f
+               LEFT JOIN users u ON f.user_id = u.id`;
+    
+    const params = [];
+    
+    if (statut) {
+      sql += ' WHERE f.statut = ?';
+      params.push(statut);
+    }
+    
+    sql += ' ORDER BY f.created_at DESC';
+    
+    const formations = await query(sql, params);
+    
+    const host = `${req.protocol}://${req.get('host')}`;
+    
+    // Parse JSON categories and add file URL
+    const formationsWithParsedCategories = formations.map(formation => ({
+      ...formation,
+      categories: JSON.parse(formation.categories || '[]'),
+      fileUrl: formation.file_content ? `${host}/api/formations/${formation.id}/download` : (formation.file_path ? `${host}${formation.file_path}` : null),
+      hasFileContent: !!formation.file_content
+    }));
+    
+    res.json(formationsWithParsedCategories);
+  } catch (error) {
+    console.error('Erreur get all formations:', error);
+    res.status(500).json({ 
+      error: 'Erreur serveur lors de la récupération des formations' 
+    });
+  }
+});
+
 // @route   GET /api/formations/pending
 // @desc    Obtenir toutes les formations en attente d'approbation (Admin seulement)
 // @access  Private (Admin)
@@ -393,10 +436,31 @@ router.get('/:id/download', auth, async (req, res) => {
       
       // Déterminer le nom du fichier et le type MIME
       const mimeType = formation.file_type || 'application/octet-stream';
-      const fileName = formation.nom_document || 'formation';
+      let fileName = formation.nom_document || 'formation';
+      
+      // Ajouter l'extension appropriée selon le type MIME
+      const mimeToExt = {
+        'application/pdf': '.pdf',
+        'application/msword': '.doc',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+        'application/vnd.ms-excel': '.xls',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+        'application/vnd.ms-powerpoint': '.ppt',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
+        'image/jpeg': '.jpg',
+        'image/png': '.png'
+      };
+      
+      const ext = mimeToExt[mimeType] || '';
+      if (ext && !fileName.toLowerCase().endsWith(ext.toLowerCase())) {
+        fileName += ext;
+      }
+      
+      // Nettoyer le nom du fichier pour éviter les caractères problématiques
+      fileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
       
       res.setHeader('Content-Type', mimeType);
-      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
       res.setHeader('Content-Length', fileBuffer.length);
       
       return res.send(fileBuffer);

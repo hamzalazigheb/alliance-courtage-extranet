@@ -84,7 +84,8 @@ function FinancialDocumentsPage() {
       });
 
       if (!response.ok) {
-        throw new Error('Erreur lors de l\'upload');
+        const errorData = await response.json().catch(() => ({ error: 'Erreur lors de l\'upload' }));
+        throw new Error(errorData.error || `Erreur ${response.status}: ${response.statusText}`);
       }
 
       setUploadForm({

@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { query } = require('../config/database');
 const { auth, authorize } = require('../middleware/auth');
+const { notifyAdmins } = require('./notifications');
 
 const router = express.Router();
 
@@ -160,13 +161,19 @@ router.post('/', auth, authorize('admin'), uploadDocument.single('file'), handle
     const fileUrl = `${host}/api/financial-documents/${result.insertId}/download`;
 
     // Notifier tous les utilisateurs (via notification globale)
-    await notifyAdmins(
-      'document',
-      'Nouveau document financier',
-      `Un nouveau document financier "${title}" a été ajouté dans la catégorie ${category}.`,
-      result.insertId,
-      'financial_document'
-    );
+    try {
+      await notifyAdmins(
+        'document',
+        'Nouveau document financier',
+        `Un nouveau document financier "${title}" a été ajouté dans la catégorie ${category}.`,
+        result.insertId,
+        'financial_document'
+      );
+      console.log('✅ Admins notified about new financial document');
+    } catch (notifError) {
+      console.error('⚠️ Error notifying admins (non-blocking):', notifError);
+      // Ne pas bloquer la réponse si la notification échoue
+    }
 
     console.log('✅ Document created:', { id: result.insertId, title, category });
     res.status(201).json({ 

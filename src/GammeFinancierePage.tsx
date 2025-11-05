@@ -48,16 +48,47 @@ const GammeFinancierePage = () => {
       if (response.ok) {
         const data = await response.json();
         if (data.content) {
-          const parsedContent = JSON.parse(data.content);
-          if (typeof parsedContent === 'string') {
-            setPageContent(JSON.parse(parsedContent));
-          } else {
-            setPageContent(parsedContent);
+          try {
+            let parsedContent = data.content;
+            
+            // Si c'est une string, parser une première fois
+            if (typeof parsedContent === 'string') {
+              parsedContent = JSON.parse(parsedContent);
+            }
+            
+            // Si le résultat est encore une string, parser une deuxième fois
+            if (typeof parsedContent === 'string') {
+              parsedContent = JSON.parse(parsedContent);
+            }
+            
+            // S'assurer que les propriétés existent
+            setPageContent({
+              title: parsedContent.title || 'Gamme Financière',
+              subtitle: parsedContent.subtitle || 'Découvrez notre sélection de produits financiers',
+              description: parsedContent.description || '',
+              headerImage: parsedContent.headerImage || ''
+            });
+          } catch (parseError) {
+            // Silencieusement utiliser les valeurs par défaut si le JSON est corrompu
+            // Ne pas logger l'erreur pour éviter le spam dans la console
+            setPageContent({
+              title: 'Gamme Financière',
+              subtitle: 'Découvrez notre sélection de produits financiers',
+              description: '',
+              headerImage: ''
+            });
           }
         }
       }
     } catch (error) {
       console.error('Error loading CMS content:', error);
+      // En cas d'erreur, utiliser les valeurs par défaut
+      setPageContent({
+        title: 'Gamme Financière',
+        subtitle: 'Découvrez notre sélection de produits financiers',
+        description: '',
+        headerImage: ''
+      });
     }
   };
 
@@ -66,27 +97,38 @@ const GammeFinancierePage = () => {
       <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
         {/* Header - Following project's graphic charter */}
         <div className="mb-8">
-          <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden border border-white/20">
-            <div className="p-6 sm:p-8 text-white bg-gradient-to-r from-[#0B1220] to-[#1D4ED8]">
-              {pageContent.headerImage && (
-                <div className="mb-4">
-                  <img 
-                    src={pageContent.headerImage} 
-                    alt="Header" 
-                    className="w-full h-48 object-cover rounded-lg"
-                  />
-                </div>
-              )}
-              <div>
-                <h1 className="text-2xl sm:text-3xl font-bold mb-2">{pageContent.title}</h1>
-                <p className="text-white/80">{pageContent.subtitle}</p>
+          <div 
+            className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden border border-white/20 relative"
+            style={pageContent.headerImage ? {
+              backgroundImage: `url(${pageContent.headerImage})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              minHeight: '300px'
+            } : {}}
+          >
+            {/* Overlay très léger seulement pour améliorer la lisibilité du texte */}
+            {pageContent.headerImage && (
+              <div className="absolute inset-0 bg-black/20 rounded-2xl"></div>
+            )}
+            
+            {/* Contenu */}
+            <div className={`relative z-10 p-6 sm:p-8 ${pageContent.headerImage ? '' : 'bg-gradient-to-r from-[#0B1220] to-[#1D4ED8]'}`}>
+              <div className={pageContent.headerImage ? 'bg-white/10 backdrop-blur-sm rounded-lg p-4 shadow-lg' : ''}>
+                <h1 className={`text-2xl sm:text-3xl font-bold mb-2 ${pageContent.headerImage ? 'text-white drop-shadow-lg' : 'text-white'}`}>
+                  {pageContent.title}
+                </h1>
+                <p className={`${pageContent.headerImage ? 'text-white drop-shadow-md' : 'text-white/80'}`}>
+                  {pageContent.subtitle}
+                </p>
                 {pageContent.description && (
-                  <p className="text-white/70 mt-2 text-sm">{pageContent.description}</p>
+                  <p className={`mt-2 text-sm ${pageContent.headerImage ? 'text-white drop-shadow-md' : 'text-white/70'}`}>
+                    {pageContent.description}
+                  </p>
                 )}
               </div>
             </div>
+          </div>
         </div>
-      </div>
 
         {/* Documents Section - Following project's graphic charter */}
         <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-6 sm:p-8">
