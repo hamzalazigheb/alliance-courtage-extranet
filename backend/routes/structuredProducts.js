@@ -361,7 +361,7 @@ router.post('/:id/reservations', auth, async (req, res) => {
     
     // Vérifier que le produit existe
     const products = await query(
-      'SELECT id, title FROM archives WHERE id = ?',
+      'SELECT id, title, assurance FROM archives WHERE id = ?',
       [id]
     );
     
@@ -554,7 +554,7 @@ router.put('/reservations/:id/approve', auth, authorize('admin'), async (req, re
       [reservationId]
     );
     
-    // Notifier l'utilisateur
+    // Notifier l'utilisateur (notification dans l'app)
     const { createNotification } = require('./notifications');
     const montantFormatted = new Intl.NumberFormat('fr-FR', { 
       style: 'currency', 
@@ -569,6 +569,21 @@ router.put('/reservations/:id/approve', auth, authorize('admin'), async (req, re
       reservationId,
       'product_reservation'
     );
+    
+    // Envoyer un email à l'utilisateur
+    try {
+      const { sendReservationApprovedEmail } = require('../services/emailService');
+      const userName = `${reservation.prenom} ${reservation.nom}`;
+      await sendReservationApprovedEmail(
+        reservation.email,
+        userName,
+        reservation.product_title,
+        parseFloat(reservation.montant)
+      );
+    } catch (emailError) {
+      console.error('Erreur envoi email d\'approbation:', emailError);
+      // Ne pas bloquer la réponse si l'email échoue
+    }
     
     res.json({
       message: 'Réservation approuvée avec succès'
@@ -624,7 +639,7 @@ router.put('/reservations/:id/reject', auth, authorize('admin'), async (req, res
       [reservationId]
     );
     
-    // Notifier l'utilisateur
+    // Notifier l'utilisateur (notification dans l'app)
     const { createNotification } = require('./notifications');
     const montantFormatted = new Intl.NumberFormat('fr-FR', { 
       style: 'currency', 
@@ -643,6 +658,22 @@ router.put('/reservations/:id/reject', auth, authorize('admin'), async (req, res
       reservationId,
       'product_reservation'
     );
+    
+    // Envoyer un email à l'utilisateur
+    try {
+      const { sendReservationRejectedEmail } = require('../services/emailService');
+      const userName = `${reservation.prenom} ${reservation.nom}`;
+      await sendReservationRejectedEmail(
+        reservation.email,
+        userName,
+        reservation.product_title,
+        parseFloat(reservation.montant),
+        reason || null
+      );
+    } catch (emailError) {
+      console.error('Erreur envoi email de rejet:', emailError);
+      // Ne pas bloquer la réponse si l'email échoue
+    }
     
     res.json({
       message: 'Réservation rejetée avec succès'
@@ -671,11 +702,12 @@ router.get('/assurances/montants', async (req, res) => {
     const result = await Promise.all(
       assurances.map(async (assurance) => {
         try {
+          // Calculer le montant réservé (seulement les réservations approuvées) pour cette assurance
           const reservations = await query(
             `SELECT COALESCE(SUM(pr.montant), 0) as total_reserve
              FROM product_reservations pr
              INNER JOIN archives a ON pr.product_id = a.id
-             WHERE a.assurance = ? AND pr.status = 'pending'`,
+             WHERE a.assurance = ? AND pr.status = 'approved'`,
             [assurance.name]
           );
 
@@ -689,7 +721,8 @@ router.get('/assurances/montants', async (req, res) => {
             montant_restant: montantRestant
           };
         } catch (error) {
-          // Si la table product_reservations n'existe pas encore
+          console.error(`Erreur calcul montant pour ${assurance.name}:`, error);
+          // Si la table product_reservations n'existe pas encore ou erreur
           return {
             assurance: assurance.name,
             montant_enveloppe: parseFloat(assurance.montant_enveloppe),
@@ -717,6 +750,7 @@ router.get('/assurances/montants', async (req, res) => {
         montant_restant: parseFloat(a.montant_enveloppe)
       })));
     } catch (fallbackError) {
+      console.error('Erreur fallback get montants:', fallbackError);
       res.status(500).json({ 
         error: 'Erreur serveur lors de la récupération des montants' 
       });
