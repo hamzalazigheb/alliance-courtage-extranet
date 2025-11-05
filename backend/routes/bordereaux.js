@@ -126,6 +126,15 @@ router.post('/', auth, authorize('admin'), upload.single('file'), async (req, re
       bulk_upload // Flag pour indiquer si c'est un upload en masse
     } = req.body;
     
+    // Debug: Log the bulk_upload value
+    console.log(`📋 Upload bordereau - bulk_upload reçu:`, {
+      bulk_upload: bulk_upload,
+      type: typeof bulk_upload,
+      isTrue: bulk_upload === 'true',
+      isTrueBoolean: bulk_upload === true,
+      bodyKeys: Object.keys(req.body)
+    });
+    
     // Vérifier qu'un fichier a été uploadé
     if (!req.file) {
       return res.status(400).json({ 
