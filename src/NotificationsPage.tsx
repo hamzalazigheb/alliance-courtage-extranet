@@ -8,6 +8,7 @@ interface Notification {
   message: string;
   related_id: number | null;
   related_type: string | null;
+  link: string | null;
   is_read: boolean;
   created_at: string;
 }
@@ -181,11 +182,26 @@ const NotificationsPage: React.FC = () => {
             {notifications.map((notification) => (
               <div
                 key={notification.id}
+                onClick={() => {
+                  if (notification.link) {
+                    // Si c'est un lien interne (commence par #), utiliser hash navigation
+                    if (notification.link.startsWith('#')) {
+                      window.location.hash = notification.link;
+                    } else {
+                      // Sinon, ouvrir le lien dans un nouvel onglet
+                      window.open(notification.link, '_blank');
+                    }
+                    // Marquer comme lu si pas déjà lu
+                    if (!notification.is_read) {
+                      handleMarkAsRead(notification.id);
+                    }
+                  }
+                }}
                 className={`bg-white/70 backdrop-blur-sm rounded-xl shadow-lg border-2 p-6 transition-all hover:shadow-xl ${
                   notification.is_read
                     ? 'border-gray-200 opacity-75'
                     : 'border-indigo-300 bg-indigo-50/50'
-                }`}
+                } ${notification.link ? 'cursor-pointer hover:scale-[1.02]' : ''}`}
               >
                 <div className="flex items-start gap-4">
                   {/* Icon */}
@@ -199,6 +215,9 @@ const NotificationsPage: React.FC = () => {
                       <div className="flex-1">
                         <h3 className="text-lg font-semibold text-gray-800 mb-1">
                           {notification.title}
+                          {notification.link && (
+                            <span className="ml-2 text-xs text-indigo-600">🔗</span>
+                          )}
                         </h3>
                         <p className="text-gray-600 mb-2">{notification.message}</p>
                         <div className="flex items-center gap-4 text-xs text-gray-500">
@@ -208,13 +227,21 @@ const NotificationsPage: React.FC = () => {
                               {notification.related_type}
                             </span>
                           )}
+                          {notification.link && (
+                            <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded">
+                              Cliquez pour ouvrir
+                            </span>
+                          )}
                         </div>
                       </div>
 
                       {/* Actions */}
                       {!notification.is_read && (
                         <button
-                          onClick={() => handleMarkAsRead(notification.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleMarkAsRead(notification.id);
+                          }}
                           className="px-3 py-1 text-xs font-medium text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-all"
                         >
                           Marquer comme lu

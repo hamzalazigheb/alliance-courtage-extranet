@@ -26,18 +26,10 @@ interface ServiceItem {
   name: string;
 }
 
-interface ContactInfo {
-  phone: string;
-  email: string;
-  location: string;
-}
-
 interface HomePageContent {
   welcomeTitle: string;
   news: NewsItem[];
-  newsletter: NewsletterItem;
   services: ServiceItem[];
-  contact: ContactInfo;
 }
 
 const CMSManagementPage: React.FC = () => {
@@ -63,33 +55,23 @@ const CMSManagementPage: React.FC = () => {
         color: 'pink'
       }
     ],
-    newsletter: {
-      title: 'Newsletter patrimoniale',
-      badge: 'Rentrée 2025',
-      description: 'Découvrez notre newsletter patrimoniale spéciale rentrée 2025 avec les dernières tendances et conseils d\'investissement pour optimiser votre patrimoine.',
-      filePath: '/Newsletter patrimoniale - Rentrée 2025.pdf',
-      isRecent: true
-    },
     services: [
       { name: 'Epargne et retraite' },
       { name: 'Prévoyance et santé' },
       { name: 'Assurances collectives' },
       { name: 'Investissement financier (CIF)' }
-    ],
-    contact: {
-      phone: '07.45.06.43.88',
-      email: 'contact@alliance-courtage.fr',
-      location: 'Paris, France'
-    }
+    ]
   });
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
-  const [activePage, setActivePage] = useState<'home' | 'gamme-produits' | 'formations' | 'produits-structures' | 'rencontres' | 'reglementaire' | 'gamme-financiere' | 'partenaires'>('home');
-  const [activeSection, setActiveSection] = useState<'welcome' | 'news' | 'newsletter' | 'services' | 'contact'>('welcome');
+  const [activePage, setActivePage] = useState<'home' | 'gamme-produits' | 'formations' | 'produits-structures' | 'rencontres' | 'reglementaire' | 'gamme-financiere' | 'partenaires' | 'notifications'>('home');
+  const [activeSection, setActiveSection] = useState<'welcome' | 'news' | 'services'>('welcome');
   const [pendingFormations, setPendingFormations] = useState<any[]>([]);
+  const [allFormations, setAllFormations] = useState<any[]>([]);
   const [loadingFormations, setLoadingFormations] = useState(false);
+  const [formationFilter, setFormationFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -139,7 +121,7 @@ const CMSManagementPage: React.FC = () => {
   useEffect(() => {
     loadContent();
     if (activePage === 'formations') {
-      loadPendingFormations();
+      loadFormations();
     }
     loadNotifications();
     loadUnreadCount();
@@ -149,12 +131,12 @@ const CMSManagementPage: React.FC = () => {
       loadNotifications();
       loadUnreadCount();
       if (activePage === 'formations') {
-        loadPendingFormations();
+        loadFormations();
       }
     }, 30000);
     
     return () => clearInterval(interval);
-  }, [activePage]);
+  }, [activePage, formationFilter]);
   
   const loadNotifications = async () => {
     try {
@@ -199,7 +181,7 @@ const CMSManagementPage: React.FC = () => {
     setShowNotifications(false);
     if (notification.related_type === 'formation' && notification.related_id) {
       setActivePage('formations');
-      loadPendingFormations();
+      loadFormations();
     }
   };
   
@@ -218,6 +200,32 @@ const CMSManagementPage: React.FC = () => {
     }
   }, [showNotifications]);
 
+  const loadFormations = async () => {
+    setLoadingFormations(true);
+    try {
+      if (formationFilter === 'pending') {
+        const data = await formationsAPI.getPending();
+        setPendingFormations(data);
+        setAllFormations(data);
+      } else {
+        const statut = formationFilter === 'all' ? null : formationFilter;
+        const data = await formationsAPI.getAllAdmin(statut);
+        setAllFormations(data);
+        // Garder aussi pendingFormations pour le badge
+        if (formationFilter === 'all') {
+          const pendingData = await formationsAPI.getPending();
+          setPendingFormations(pendingData);
+        } else {
+          setPendingFormations([]);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading formations:', error);
+    } finally {
+      setLoadingFormations(false);
+    }
+  };
+
   const loadPendingFormations = async () => {
     setLoadingFormations(true);
     try {
@@ -234,7 +242,7 @@ const CMSManagementPage: React.FC = () => {
     try {
       await formationsAPI.approve(id);
       alert('✅ Formation approuvée avec succès');
-      loadPendingFormations();
+      loadFormations();
     } catch (error: any) {
       console.error('Error approving formation:', error);
       alert('Erreur: ' + (error.message || 'Erreur lors de l\'approbation de la formation'));
@@ -248,7 +256,7 @@ const CMSManagementPage: React.FC = () => {
     try {
       await formationsAPI.reject(id, reason || null);
       alert('✅ Formation rejetée');
-      loadPendingFormations();
+      loadFormations();
     } catch (error: any) {
       console.error('Error rejecting formation:', error);
       alert('Erreur: ' + (error.message || 'Erreur lors du rejet de la formation'));
@@ -268,7 +276,8 @@ const CMSManagementPage: React.FC = () => {
         const data = await response.json();
         if (data?.content) {
           if (activePage === 'home') {
-            setContent(JSON.parse(data.content));
+            const parsedContent = JSON.parse(data.content);
+            setContent(parsedContent);
           } else {
             const parsed = JSON.parse(data.content);
             setGpContent({
@@ -517,6 +526,12 @@ const CMSManagementPage: React.FC = () => {
           >
             🤝 Partenaires
           </button>
+          <button
+            onClick={() => { setActivePage('notifications'); }}
+            className={`px-4 py-2 rounded-lg font-medium transition-all ${activePage === 'notifications' ? 'bg-purple-500 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
+          >
+            📢 Notifications
+          </button>
         </div>
       </div>
 
@@ -527,9 +542,7 @@ const CMSManagementPage: React.FC = () => {
             {[
               { id: 'welcome', label: '🏠 Accueil' },
               { id: 'news', label: '📰 Actualités' },
-              { id: 'newsletter', label: '📧 Newsletter' },
-              { id: 'services', label: '⚙️ Services' },
-              { id: 'contact', label: '📞 Contact' }
+              { id: 'services', label: '⚙️ Services' }
             ].map(tab => (
               <button
                 key={tab.id}
@@ -821,13 +834,42 @@ const CMSManagementPage: React.FC = () => {
         {activePage === 'formations' && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h3 className="text-xl font-bold text-white">Formations en attente d'approbation</h3>
+              <h3 className="text-xl font-bold text-white">Gestion des formations</h3>
               <button
-                onClick={loadPendingFormations}
+                onClick={loadFormations}
                 className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-all"
               >
                 🔄 Actualiser
               </button>
+            </div>
+
+            {/* Filtres par statut */}
+            <div className="bg-slate-800 rounded-xl p-4">
+              <div className="flex space-x-2">
+                {[
+                  { id: 'all' as const, label: 'Toutes', count: null },
+                  { id: 'pending' as const, label: 'En attente', count: pendingFormations.length },
+                  { id: 'approved' as const, label: 'Approuvées', count: null },
+                  { id: 'rejected' as const, label: 'Rejetées', count: null }
+                ].map(filter => (
+                  <button
+                    key={filter.id}
+                    onClick={() => setFormationFilter(filter.id)}
+                    className={`px-4 py-2 rounded-lg font-medium transition-all relative ${
+                      formationFilter === filter.id
+                        ? 'bg-emerald-500 text-white'
+                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                    }`}
+                  >
+                    {filter.label}
+                    {filter.count !== null && filter.count > 0 && (
+                      <span className="ml-2 bg-red-500 text-white text-xs rounded-full px-2 py-0.5">
+                        {filter.count}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {loadingFormations ? (
@@ -835,20 +877,39 @@ const CMSManagementPage: React.FC = () => {
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500 mx-auto"></div>
                 <p className="text-slate-300 mt-4">Chargement...</p>
               </div>
-            ) : pendingFormations.length === 0 ? (
+            ) : allFormations.length === 0 ? (
               <div className="bg-slate-700/40 rounded-lg p-8 text-center">
-                <p className="text-slate-300 text-lg">✅ Aucune formation en attente</p>
+                <p className="text-slate-300 text-lg">
+                  {formationFilter === 'all' 
+                    ? 'Aucune formation trouvée' 
+                    : formationFilter === 'pending'
+                    ? '✅ Aucune formation en attente'
+                    : formationFilter === 'approved'
+                    ? 'Aucune formation approuvée'
+                    : 'Aucune formation rejetée'}
+                </p>
               </div>
             ) : (
               <div className="space-y-4">
-                {pendingFormations.map((formation: any) => {
+                {allFormations.map((formation: any) => {
                   const dateStr = formation.date ? new Date(formation.date).toLocaleDateString('fr-FR') : '';
                   const categories = Array.isArray(formation.categories) ? formation.categories : JSON.parse(formation.categories || '[]');
+                  const statutColor = {
+                    pending: 'bg-yellow-500',
+                    approved: 'bg-green-500',
+                    rejected: 'bg-red-500'
+                  }[formation.statut] || 'bg-gray-500';
+                  
                   return (
                     <div key={formation.id} className="bg-slate-700/40 rounded-lg p-6 border border-slate-600">
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex-1">
-                          <h4 className="text-lg font-bold text-white mb-2">{formation.nom_document}</h4>
+                          <div className="flex items-center space-x-3 mb-2">
+                            <h4 className="text-lg font-bold text-white">{formation.nom_document}</h4>
+                            <span className={`px-3 py-1 rounded-full text-xs font-semibold text-white ${statutColor}`}>
+                              {formation.statut === 'pending' ? 'En attente' : formation.statut === 'approved' ? 'Approuvée' : 'Rejetée'}
+                            </span>
+                          </div>
                           <div className="grid grid-cols-2 gap-4 text-slate-300 text-sm">
                             <div>
                               <span className="font-semibold">Utilisateur:</span> {formation.user_name || formation.userName || 'N/A'}
@@ -868,6 +929,16 @@ const CMSManagementPage: React.FC = () => {
                             <div>
                               <span className="font-semibold">Soumis le:</span> {formation.created_at ? new Date(formation.created_at).toLocaleDateString('fr-FR') : '-'}
                             </div>
+                            {formation.approved_at && (
+                              <div>
+                                <span className="font-semibold">Approuvée le:</span> {new Date(formation.approved_at).toLocaleDateString('fr-FR')}
+                              </div>
+                            )}
+                            {formation.rejected_reason && (
+                              <div className="col-span-2">
+                                <span className="font-semibold">Raison du rejet:</span> <span className="text-red-400">{formation.rejected_reason}</span>
+                              </div>
+                            )}
                           </div>
                           <div className="mt-3">
                             <span className="font-semibold text-slate-300 text-sm">Catégories:</span>
@@ -879,33 +950,111 @@ const CMSManagementPage: React.FC = () => {
                               ))}
                             </div>
                           </div>
-                          {formation.file_path && (
-                            <div className="mt-3">
-                              <a
-                                href={buildFileURL(formation.file_path)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-400 hover:text-blue-300 text-sm underline"
-                              >
-                                📄 Voir le fichier
-                              </a>
+                          {(formation.fileUrl || formation.file_path || formation.hasFileContent || formation.file_content) && (
+                            <div className="mt-4 p-4 bg-slate-800/60 rounded-lg border border-slate-500">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-3">
+                                  <div className="w-12 h-12 bg-blue-600/20 rounded-lg flex items-center justify-center">
+                                    <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                  </div>
+                                  <div>
+                                    <p className="text-white font-semibold text-sm">Document uploadé</p>
+                                    {formation.file_type && (
+                                      <p className="text-slate-400 text-xs mt-1">
+                                        {formation.file_type} • {formation.file_size ? `${(formation.file_size / 1024).toFixed(2)} KB` : 'Taille inconnue'}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={async (e) => {
+                                    e.preventDefault();
+                                    try {
+                                      const token = localStorage.getItem('token');
+                                      if (!token) {
+                                        alert('❌ Vous devez être connecté pour télécharger le document');
+                                        return;
+                                      }
+
+                                      const downloadUrl = formation.fileUrl || buildFileURL(formation.file_path);
+                                      
+                                      // Si c'est un fichier base64 (via API), utiliser fetch avec token
+                                      if (formation.fileUrl && formation.fileUrl.includes('/api/formations/')) {
+                                        const response = await fetch(downloadUrl, {
+                                          headers: {
+                                            'x-auth-token': token
+                                          }
+                                        });
+
+                                        if (!response.ok) {
+                                          throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+                                        }
+
+                                        const blob = await response.blob();
+                                        const url = window.URL.createObjectURL(blob);
+                                        const a = document.createElement('a');
+                                        a.href = url;
+                                        
+                                        // Récupérer le nom du fichier depuis les headers ou utiliser le nom de la formation
+                                        const contentDisposition = response.headers.get('Content-Disposition');
+                                        let fileName = formation.nom_document || 'formation';
+                                        if (contentDisposition) {
+                                          const fileNameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                                          if (fileNameMatch && fileNameMatch[1]) {
+                                            fileName = decodeURIComponent(fileNameMatch[1].replace(/['"]/g, ''));
+                                          }
+                                        }
+                                        
+                                        a.download = fileName;
+                                        document.body.appendChild(a);
+                                        a.click();
+                                        window.URL.revokeObjectURL(url);
+                                        document.body.removeChild(a);
+                                      } else {
+                                        // Pour les fichiers statiques (file_path), ouvrir directement
+                                        window.open(downloadUrl, '_blank');
+                                      }
+                                    } catch (error: any) {
+                                      console.error('Erreur téléchargement:', error);
+                                      alert('❌ Erreur lors du téléchargement: ' + (error.message || 'Erreur inconnue'));
+                                    }
+                                  }}
+                                  className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors shadow-md hover:shadow-lg"
+                                >
+                                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                  </svg>
+                                  Télécharger
+                                </button>
+                              </div>
                             </div>
                           )}
                         </div>
                       </div>
                       <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-600">
-                        <button
-                          onClick={() => handleRejectFormation(formation.id)}
-                          className="px-6 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
-                        >
-                          ❌ Rejeter
-                        </button>
-                        <button
-                          onClick={() => handleApproveFormation(formation.id)}
-                          className="px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors"
-                        >
-                          ✅ Approuver
-                        </button>
+                        {formation.statut === 'pending' && (
+                          <>
+                            <button
+                              onClick={() => handleRejectFormation(formation.id)}
+                              className="px-6 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+                            >
+                              ❌ Rejeter
+                            </button>
+                            <button
+                              onClick={() => handleApproveFormation(formation.id)}
+                              className="px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors"
+                            >
+                              ✅ Approuver
+                            </button>
+                          </>
+                        )}
+                        {formation.statut !== 'pending' && (
+                          <div className="text-slate-400 text-sm">
+                            {formation.statut === 'approved' ? '✅ Formation approuvée' : '❌ Formation rejetée'}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
@@ -933,6 +1082,16 @@ const CMSManagementPage: React.FC = () => {
 
         {activePage === 'partenaires' && (
           <PartenairesCMSPage />
+        )}
+
+        {activePage === 'notifications' && (
+          <div className="space-y-6">
+            <div className="bg-slate-800 rounded-xl p-6 shadow-lg">
+              <h3 className="text-xl font-bold text-white mb-4">📢 Envoyer une notification à tous les utilisateurs</h3>
+              
+              <NotificationBroadcastForm />
+            </div>
+          </div>
         )}
 
         {activeSection === 'welcome' && (
@@ -1040,55 +1199,6 @@ const CMSManagementPage: React.FC = () => {
           </div>
         )}
 
-        {activeSection === 'newsletter' && (
-          <div className="space-y-4">
-            <h3 className="text-xl font-bold text-white mb-4">Newsletter</h3>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-slate-300 mb-2">Titre</label>
-                <input
-                  type="text"
-                  value={content.newsletter.title}
-                  onChange={(e) => setContent({ ...content, newsletter: { ...content.newsletter, title: e.target.value } })}
-                  className="w-full px-4 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-semibold text-slate-300 mb-2">Badge</label>
-                <input
-                  type="text"
-                  value={content.newsletter.badge}
-                  onChange={(e) => setContent({ ...content, newsletter: { ...content.newsletter, badge: e.target.value } })}
-                  className="w-full px-4 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500"
-                />
-              </div>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-semibold text-slate-300 mb-2">Description</label>
-              <textarea
-                value={content.newsletter.description}
-                onChange={(e) => setContent({ ...content, newsletter: { ...content.newsletter, description: e.target.value } })}
-                rows={4}
-                className="w-full px-4 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-semibold text-slate-300 mb-2">Chemin du fichier PDF</label>
-              <input
-                type="text"
-                value={content.newsletter.filePath}
-                onChange={(e) => setContent({ ...content, newsletter: { ...content.newsletter, filePath: e.target.value } })}
-                className="w-full px-4 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500"
-                placeholder="/path/to/file.pdf"
-              />
-            </div>
-          </div>
-        )}
-
         {activeSection === 'services' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between mb-4">
@@ -1123,42 +1233,6 @@ const CMSManagementPage: React.FC = () => {
             ))}
           </div>
         )}
-
-        {activeSection === 'contact' && (
-          <div className="space-y-4">
-            <h3 className="text-xl font-bold text-white mb-4">Contact</h3>
-            
-            <div>
-              <label className="block text-sm font-semibold text-slate-300 mb-2">Téléphone</label>
-              <input
-                type="text"
-                value={content.contact.phone}
-                onChange={(e) => setContent({ ...content, contact: { ...content.contact, phone: e.target.value } })}
-                className="w-full px-4 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-semibold text-slate-300 mb-2">Email</label>
-              <input
-                type="email"
-                value={content.contact.email}
-                onChange={(e) => setContent({ ...content, contact: { ...content.contact, email: e.target.value } })}
-                className="w-full px-4 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-semibold text-slate-300 mb-2">Localisation</label>
-              <input
-                type="text"
-                value={content.contact.location}
-                onChange={(e) => setContent({ ...content, contact: { ...content.contact, location: e.target.value } })}
-                className="w-full px-4 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500"
-              />
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Live Preview */}
@@ -1186,6 +1260,152 @@ const CMSManagementPage: React.FC = () => {
         </div>
       </div>
     </div>
+  );
+};
+
+// Composant pour le formulaire de notification globale
+const NotificationBroadcastForm: React.FC = () => {
+  const [type, setType] = useState<string>('info');
+  const [title, setTitle] = useState<string>('');
+  const [message, setMessage] = useState<string>('');
+  const [link, setLink] = useState<string>('');
+  const [sending, setSending] = useState<boolean>(false);
+  const [successMessage, setSuccessMessage] = useState<string>('');
+  const [errorMessage, setErrorMessage] = useState<string>('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!title.trim() || !message.trim()) {
+      setErrorMessage('Veuillez remplir tous les champs obligatoires');
+      return;
+    }
+
+    // Validation du lien si fourni
+    if (link.trim() && !link.trim().startsWith('http://') && !link.trim().startsWith('https://') && !link.trim().startsWith('#')) {
+      setErrorMessage('Le lien doit commencer par http://, https:// ou # pour un lien interne');
+      return;
+    }
+
+    setSending(true);
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    try {
+      const result = await notificationsAPI.broadcast(
+        type, 
+        title.trim(), 
+        message.trim(), 
+        link.trim() || null
+      );
+      setSuccessMessage(`✅ Notification envoyée avec succès à ${result.recipientCount || 'tous les'} utilisateur(s) !`);
+      setTitle('');
+      setMessage('');
+      setLink('');
+      setType('info');
+    } catch (error: any) {
+      console.error('Erreur envoi notification:', error);
+      setErrorMessage(error.message || 'Erreur lors de l\'envoi de la notification');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Type de notification */}
+      <div>
+        <label className="block text-sm font-semibold text-slate-300 mb-2">Type de notification</label>
+        <select
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+          className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+        >
+          <option value="info">ℹ️ Information</option>
+          <option value="success">✅ Succès</option>
+          <option value="warning">⚠️ Avertissement</option>
+          <option value="error">❌ Erreur</option>
+          <option value="announcement">📢 Annonce</option>
+        </select>
+      </div>
+
+      {/* Titre */}
+      <div>
+        <label className="block text-sm font-semibold text-slate-300 mb-2">Titre *</label>
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+          placeholder="Ex: Nouvelle fonctionnalité disponible"
+          required
+        />
+      </div>
+
+      {/* Message */}
+      <div>
+        <label className="block text-sm font-semibold text-slate-300 mb-2">Message *</label>
+        <textarea
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          rows={5}
+          className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+          placeholder="Ex: Nous avons le plaisir de vous informer que..."
+          required
+        />
+      </div>
+
+      {/* Lien */}
+      <div>
+        <label className="block text-sm font-semibold text-slate-300 mb-2">Lien (optionnel)</label>
+        <input
+          type="text"
+          value={link}
+          onChange={(e) => setLink(e.target.value)}
+          className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+          placeholder="Ex: https://example.com ou #produits-structures"
+        />
+        <p className="mt-2 text-xs text-slate-400">
+          Lien externe (http:// ou https://) ou lien interne (commence par #, ex: #produits-structures)
+        </p>
+      </div>
+
+      {/* Messages d'erreur/succès */}
+      {errorMessage && (
+        <div className="bg-red-500/20 border border-red-500 rounded-lg p-4">
+          <p className="text-red-300">{errorMessage}</p>
+        </div>
+      )}
+
+      {successMessage && (
+        <div className="bg-green-500/20 border border-green-500 rounded-lg p-4">
+          <p className="text-green-300">{successMessage}</p>
+        </div>
+      )}
+
+      {/* Bouton d'envoi */}
+      <div className="flex justify-end">
+        <button
+          type="submit"
+          disabled={sending || !title.trim() || !message.trim()}
+          className="px-6 py-3 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 disabled:from-gray-500 disabled:to-gray-600 text-white rounded-lg font-medium transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+        >
+          {sending ? (
+            <>
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+              <span>Envoi en cours...</span>
+            </>
+          ) : (
+            <>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
+              <span>Envoyer à tous les utilisateurs</span>
+            </>
+          )}
+        </button>
+      </div>
+    </form>
   );
 };
 

@@ -96,16 +96,57 @@ router.put('/read-all', auth, async (req, res) => {
 });
 
 // Fonction utilitaire pour créer une notification (peut être utilisée depuis d'autres routes)
-async function createNotification(type, title, message, userId = null, relatedId = null, relatedType = null) {
+async function createNotification(type, title, message, userId = null, relatedId = null, relatedType = null, link = null) {
   try {
-    const result = await query(
-      `INSERT INTO notifications (user_id, type, title, message, related_id, related_type) 
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [userId, type, title, message, relatedId, relatedType]
-    );
+    // Vérifier si la colonne link existe
+    let hasLinkColumn = false;
+    try {
+      const columns = await query(
+        `SELECT COUNT(*) as count FROM INFORMATION_SCHEMA.COLUMNS 
+         WHERE TABLE_SCHEMA = DATABASE() 
+         AND TABLE_NAME = 'notifications' 
+         AND COLUMN_NAME = 'link'`
+      );
+      hasLinkColumn = columns && columns.length > 0 && columns[0]?.count > 0;
+    } catch (checkError) {
+      console.warn('Erreur vérification colonne link:', checkError);
+      hasLinkColumn = false;
+    }
+    
+    // Si la colonne n'existe pas et qu'un lien est fourni, essayer de l'ajouter
+    if (!hasLinkColumn && link) {
+      try {
+        await query(`ALTER TABLE notifications ADD COLUMN link VARCHAR(500) NULL AFTER related_type`);
+        hasLinkColumn = true;
+        console.log('✅ Colonne link ajoutée à la table notifications');
+      } catch (alterError) {
+        // Si l'ajout échoue, ignorer et continuer sans la colonne
+        console.warn('⚠️  Impossible d\'ajouter la colonne link:', alterError.message);
+        hasLinkColumn = false;
+      }
+    }
+    
+    // Construire la requête selon la présence de la colonne
+    let sql, values;
+    if (hasLinkColumn) {
+      sql = `INSERT INTO notifications (user_id, type, title, message, related_id, related_type, link) 
+             VALUES (?, ?, ?, ?, ?, ?, ?)`;
+      values = [userId, type, title, message, relatedId, relatedType, link];
+    } else {
+      sql = `INSERT INTO notifications (user_id, type, title, message, related_id, related_type) 
+             VALUES (?, ?, ?, ?, ?, ?)`;
+      values = [userId, type, title, message, relatedId, relatedType];
+    }
+    
+    const result = await query(sql, values);
     return result.insertId;
   } catch (error) {
     console.error('Erreur création notification:', error);
+    console.error('Détails:', {
+      message: error.message,
+      code: error.code,
+      sqlMessage: error.sqlMessage
+    });
     return null;
   }
 }
@@ -122,6 +163,66 @@ async function notifyAdmins(type, title, message, relatedId = null, relatedType 
     return 0;
   }
 }
+
+// @route   POST /api/notifications/broadcast
+// @desc    Créer une notification globale pour tous les utilisateurs (Admin seulement)
+// @access  Private (Admin seulement)
+router.post('/broadcast', auth, authorize('admin'), async (req, res) => {
+  try {
+    const { type, title, message, link } = req.body;
+    
+    // Validation
+    if (!title || !message) {
+      return res.status(400).json({ 
+        error: 'Le titre et le message sont requis' 
+      });
+    }
+    
+    // Créer une notification globale (user_id = NULL) visible par tous les utilisateurs
+    const result = await createNotification(
+      type || 'info',
+      title,
+      message,
+      null, // user_id = NULL pour notification globale
+      null,
+      null,
+      link || null // Lien optionnel
+    );
+    
+    if (!result) {
+      return res.status(500).json({ 
+        error: 'Erreur lors de la création de la notification. Vérifiez les logs du serveur pour plus de détails.' 
+      });
+    }
+    
+    // Récupérer le nombre total d'utilisateurs pour information
+    let userCount = 0;
+    try {
+      const users = await query('SELECT COUNT(*) as count FROM users WHERE role != "admin"');
+      userCount = users && users.length > 0 ? (users[0]?.count || 0) : 0;
+    } catch (countError) {
+      console.warn('Erreur comptage utilisateurs:', countError);
+    }
+    
+    res.status(201).json({
+      message: 'Notification envoyée à tous les utilisateurs',
+      notificationId: result,
+      recipientCount: userCount
+    });
+  } catch (error) {
+    console.error('Erreur broadcast notification:', error);
+    console.error('Détails:', {
+      message: error.message,
+      code: error.code,
+      sqlMessage: error.sqlMessage,
+      stack: error.stack
+    });
+    res.status(500).json({ 
+      error: 'Erreur serveur lors de l\'envoi de la notification',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
 
 module.exports = router;
 module.exports.createNotification = createNotification;

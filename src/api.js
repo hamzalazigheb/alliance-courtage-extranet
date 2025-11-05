@@ -328,6 +328,11 @@ export const formationsAPI = {
     return apiRequest(`/formations?${queryParams}`);
   },
 
+  getAllAdmin: async (statut = null) => {
+    const url = statut ? `/formations/all?statut=${statut}` : '/formations/all';
+    return apiRequest(url);
+  },
+
   getPending: async () => {
     return apiRequest('/formations/pending');
   },
@@ -403,6 +408,16 @@ export const notificationsAPI = {
   markAllAsRead: async () => {
     return apiRequest('/notifications/read-all', {
       method: 'PUT',
+    });
+  },
+
+  broadcast: async (type, title, message, link = null) => {
+    return apiRequest('/notifications/broadcast', {
+      method: 'POST',
+      body: JSON.stringify({ type, title, message, link }),
+      headers: {
+        'Content-Type': 'application/json',
+      },
     });
   },
 };
