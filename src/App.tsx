@@ -4722,7 +4722,11 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
           });
           if (res.ok) {
             const data = await res.json();
-            setRecentUploads(data);
+            // Filtrer les valeurs null/undefined et s'assurer que chaque objet a un title
+            const validUploads = Array.isArray(data) 
+              ? data.filter((r: any) => r && r.title && typeof r.title === 'string')
+              : [];
+            setRecentUploads(validUploads);
           }
         } catch {}
       })();
@@ -5204,15 +5208,17 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
               <h3 className="text-xl font-bold text-gray-800">Derniers fichiers uploadés</h3>
             </div>
             <div className="divide-y divide-gray-200">
-              {recentUploads.map((r) => (
+              {recentUploads
+                .filter((r) => r && r.title) // Filtrer les valeurs null/undefined
+                .map((r) => (
                 <div key={r.archiveId} className="p-4 flex items-center justify-between">
                   <div>
                     <div className="font-medium text-gray-900">{r.title}</div>
-                    <div className="text-sm text-gray-600">→ {r.userLabel}</div>
+                    <div className="text-sm text-gray-600">→ {r.userLabel || 'Inconnu'}</div>
                   </div>
                   <div className="flex items-center space-x-3">
-                    <a href={r.fileUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700">Ouvrir</a>
-                    <span className="text-xs text-gray-500">{new Date(r.createdAt).toLocaleString('fr-FR')}</span>
+                    <a href={r.fileUrl || '#'} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700">Ouvrir</a>
+                    <span className="text-xs text-gray-500">{r.createdAt ? new Date(r.createdAt).toLocaleString('fr-FR') : 'Date inconnue'}</span>
                   </div>
                 </div>
               ))}

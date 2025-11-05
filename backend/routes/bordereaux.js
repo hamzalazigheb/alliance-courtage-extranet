@@ -249,15 +249,18 @@ router.get('/recent', auth, authorize('admin'), async (req, res) => {
     );
 
     const host = `${req.protocol}://${req.get('host')}`;
-    const result = rows.map(r => ({
-      bordereauId: r.bordereauId,
-      title: r.title,
-      filePath: r.filePath,
-      fileUrl: `${host}${r.filePath}`,
-      userId: r.userId,
-      userLabel: r.userLabel,
-      createdAt: r.created_at
-    }));
+    // Filtrer les lignes avec des données invalides et mapper les données valides
+    const result = rows
+      .filter(r => r && r.bordereauId && r.title) // Filtrer les valeurs null/undefined
+      .map(r => ({
+        archiveId: r.bordereauId,
+        title: r.title || 'Sans titre',
+        filePath: r.filePath,
+        fileUrl: r.filePath ? `${host}${r.filePath}` : null,
+        userId: r.userId || null,
+        userLabel: r.userLabel || 'Inconnu',
+        createdAt: r.created_at || new Date().toISOString()
+      }));
 
     res.json(result);
   } catch (error) {

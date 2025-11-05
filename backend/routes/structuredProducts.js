@@ -477,6 +477,184 @@ router.get('/reservations/my', auth, async (req, res) => {
   }
 });
 
+// @route   GET /api/structured-products/reservations/all
+// @desc    Récupérer toutes les réservations (Admin seulement)
+// @access  Private (Admin seulement)
+router.get('/reservations/all', auth, authorize('admin'), async (req, res) => {
+  try {
+    const { status } = req.query;
+    
+    let sql = `
+      SELECT pr.*, 
+             u.nom, u.prenom, u.email,
+             a.title as product_title, a.assurance, a.category
+      FROM product_reservations pr
+      LEFT JOIN users u ON pr.user_id = u.id
+      LEFT JOIN archives a ON pr.product_id = a.id
+    `;
+    
+    const params = [];
+    if (status) {
+      sql += ' WHERE pr.status = ?';
+      params.push(status);
+    }
+    
+    sql += ' ORDER BY pr.created_at DESC';
+    
+    const reservations = await query(sql, params);
+    
+    res.json(reservations);
+  } catch (error) {
+    console.error('Erreur get all reservations:', error);
+    res.status(500).json({ 
+      error: 'Erreur serveur lors de la récupération des réservations' 
+    });
+  }
+});
+
+// @route   PUT /api/structured-products/reservations/:id/approve
+// @desc    Approuver une réservation (Admin seulement)
+// @access  Private (Admin seulement)
+router.put('/reservations/:id/approve', auth, authorize('admin'), async (req, res) => {
+  try {
+    const reservationId = parseInt(req.params.id);
+    
+    // Vérifier que la réservation existe
+    const reservations = await query(
+      `SELECT pr.*, u.nom, u.prenom, u.email, u.id as user_id,
+              a.title as product_title, a.assurance
+       FROM product_reservations pr
+       LEFT JOIN users u ON pr.user_id = u.id
+       LEFT JOIN archives a ON pr.product_id = a.id
+       WHERE pr.id = ?`,
+      [reservationId]
+    );
+    
+    if (reservations.length === 0) {
+      return res.status(404).json({ 
+        error: 'Réservation non trouvée' 
+      });
+    }
+    
+    const reservation = reservations[0];
+    
+    // Vérifier que la réservation n'est pas déjà approuvée/rejetée
+    if (reservation.status !== 'pending') {
+      return res.status(400).json({ 
+        error: `Cette réservation a déjà été ${reservation.status === 'approved' ? 'approuvée' : 'rejetée'}` 
+      });
+    }
+    
+    // Approuver la réservation
+    await query(
+      `UPDATE product_reservations 
+       SET status = 'approved', 
+           updated_at = NOW() 
+       WHERE id = ?`,
+      [reservationId]
+    );
+    
+    // Notifier l'utilisateur
+    const { createNotification } = require('./notifications');
+    const montantFormatted = new Intl.NumberFormat('fr-FR', { 
+      style: 'currency', 
+      currency: 'EUR' 
+    }).format(parseFloat(reservation.montant));
+    
+    await createNotification(
+      'reservation',
+      'Réservation approuvée',
+      `Votre réservation de ${montantFormatted} pour le produit "${reservation.product_title}" a été approuvée.`,
+      reservation.user_id,
+      reservationId,
+      'product_reservation'
+    );
+    
+    res.json({
+      message: 'Réservation approuvée avec succès'
+    });
+  } catch (error) {
+    console.error('Erreur approve reservation:', error);
+    res.status(500).json({ 
+      error: 'Erreur serveur lors de l\'approbation de la réservation' 
+    });
+  }
+});
+
+// @route   PUT /api/structured-products/reservations/:id/reject
+// @desc    Rejeter une réservation (Admin seulement)
+// @access  Private (Admin seulement)
+router.put('/reservations/:id/reject', auth, authorize('admin'), async (req, res) => {
+  try {
+    const reservationId = parseInt(req.params.id);
+    const { reason } = req.body;
+    
+    // Vérifier que la réservation existe
+    const reservations = await query(
+      `SELECT pr.*, u.nom, u.prenom, u.email, u.id as user_id,
+              a.title as product_title, a.assurance
+       FROM product_reservations pr
+       LEFT JOIN users u ON pr.user_id = u.id
+       LEFT JOIN archives a ON pr.product_id = a.id
+       WHERE pr.id = ?`,
+      [reservationId]
+    );
+    
+    if (reservations.length === 0) {
+      return res.status(404).json({ 
+        error: 'Réservation non trouvée' 
+      });
+    }
+    
+    const reservation = reservations[0];
+    
+    // Vérifier que la réservation n'est pas déjà approuvée/rejetée
+    if (reservation.status !== 'pending') {
+      return res.status(400).json({ 
+        error: `Cette réservation a déjà été ${reservation.status === 'approved' ? 'approuvée' : 'rejetée'}` 
+      });
+    }
+    
+    // Rejeter la réservation
+    await query(
+      `UPDATE product_reservations 
+       SET status = 'rejected', 
+           updated_at = NOW() 
+       WHERE id = ?`,
+      [reservationId]
+    );
+    
+    // Notifier l'utilisateur
+    const { createNotification } = require('./notifications');
+    const montantFormatted = new Intl.NumberFormat('fr-FR', { 
+      style: 'currency', 
+      currency: 'EUR' 
+    }).format(parseFloat(reservation.montant));
+    
+    const rejectionMessage = reason 
+      ? `Votre réservation de ${montantFormatted} pour le produit "${reservation.product_title}" a été rejetée. Raison: ${reason}`
+      : `Votre réservation de ${montantFormatted} pour le produit "${reservation.product_title}" a été rejetée.`;
+    
+    await createNotification(
+      'reservation',
+      'Réservation rejetée',
+      rejectionMessage,
+      reservation.user_id,
+      reservationId,
+      'product_reservation'
+    );
+    
+    res.json({
+      message: 'Réservation rejetée avec succès'
+    });
+  } catch (error) {
+    console.error('Erreur reject reservation:', error);
+    res.status(500).json({ 
+      error: 'Erreur serveur lors du rejet de la réservation' 
+    });
+  }
+});
+
 // @route   GET /api/structured-products/assurances/montants
 // @desc    Obtenir les montants enveloppe et réservés par assurance
 // @access  Public

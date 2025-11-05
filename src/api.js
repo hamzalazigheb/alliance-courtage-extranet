@@ -240,6 +240,29 @@ export const structuredProductsAPI = {
     return apiRequest('/structured-products/reservations/my');
   },
 
+  getAllReservations: async (status = null) => {
+    const url = status 
+      ? `/structured-products/reservations/all?status=${status}`
+      : '/structured-products/reservations/all';
+    return apiRequest(url);
+  },
+
+  approveReservation: async (reservationId) => {
+    return apiRequest(`/structured-products/reservations/${reservationId}/approve`, {
+      method: 'PUT',
+    });
+  },
+
+  rejectReservation: async (reservationId, reason = null) => {
+    return apiRequest(`/structured-products/reservations/${reservationId}/reject`, {
+      method: 'PUT',
+      body: JSON.stringify({ reason }),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  },
+
   getAssurancesMontants: async () => {
     return apiRequest('/structured-products/assurances/montants');
   },
