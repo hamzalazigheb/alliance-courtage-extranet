@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { query } = require('../config/database');
 const { auth, authorize } = require('../middleware/auth');
+const { notifyAdmins } = require('./notifications');
 
 const router = express.Router();
 

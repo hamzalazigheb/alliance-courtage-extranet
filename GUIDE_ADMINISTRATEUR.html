@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guide Administrateur - Alliance Courtage Extranet</title>
+    <style>
+        @page {
+            margin: 2.5cm;
+        }
+        body {
+            font-family: 'Calibri', 'Arial', sans-serif;
+            font-size: 11pt;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #1D4ED8;
+            font-size: 24pt;
+            font-weight: bold;
+            margin-top: 24pt;
+            margin-bottom: 12pt;
+            page-break-after: avoid;
+        }
+        h2 {
+            color: #2563EB;
+            font-size: 18pt;
+            font-weight: bold;
+            margin-top: 18pt;
+            margin-bottom: 10pt;
+            page-break-after: avoid;
+        }
+        h3 {
+            color: #3B82F6;
+            font-size: 14pt;
+            font-weight: bold;
+            margin-top: 14pt;
+            margin-bottom: 8pt;
+            page-break-after: avoid;
+        }
+        h4 {
+            color: #60A5FA;
+            font-size: 12pt;
+            font-weight: bold;
+            margin-top: 12pt;
+            margin-bottom: 6pt;
+        }
+        p {
+            margin-bottom: 8pt;
+            text-align: justify;
+        }
+        ul, ol {
+            margin-left: 20pt;
+            margin-bottom: 10pt;
+        }
+        li {
+            margin-bottom: 4pt;
+        }
+        strong {
+            font-weight: bold;
+            color: #1D4ED8;
+        }
+        code {
+            background-color: #F3F4F6;
+            padding: 2pt 4pt;
+            border-radius: 3pt;
+            font-family: 'Courier New', monospace;
+            font-size: 10pt;
+        }
+        pre {
+            background-color: #F3F4F6;
+            padding: 8pt;
+            border-radius: 4pt;
+            border-left: 4pt solid #1D4ED8;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 10pt;
+        }
+        hr {
+            border: none;
+            border-top: 1pt solid #D1D5DB;
+            margin: 20pt 0;
+        }
+        .toc {
+            background-color: #F9FAFB;
+            padding: 12pt;
+            margin-bottom: 20pt;
+            border-left: 4pt solid #1D4ED8;
+        }
+        .toc ul {
+            list-style-type: none;
+            margin-left: 0;
+        }
+        .toc li {
+            margin-bottom: 6pt;
+        }
+        .checklist {
+            list-style-type: none;
+            margin-left: 0;
+        }
+        .checklist li:before {
+            content: "☐ ";
+            margin-right: 8pt;
+        }
+        .warning {
+            background-color: #FEF3C7;
+            border-left: 4pt solid #F59E0B;
+            padding: 8pt;
+            margin: 12pt 0;
+        }
+        .info {
+            background-color: #DBEAFE;
+            border-left: 4pt solid #3B82F6;
+            padding: 8pt;
+            margin: 12pt 0;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Guide Administrateur - Alliance Courtage Extranet</h1>
+
+<div class="toc">
+<h2>Table des matières</h2>
+<ul>
+    <li><a href="#introduction">1. Introduction</a></li>
+    <li><a href="#acces">2. Accès administrateur</a></li>
+    <li><a href="#utilisateurs">3. Gestion des utilisateurs</a></li>
+    <li><a href="#contenu">4. Gestion du contenu</a></li>
+    <li><a href="#formations">5. Gestion des formations</a></li>
+    <li><a href="#reservations">6. Gestion des réservations</a></li>
+    <li><a href="#notifications">7. Gestion des notifications</a></li>
+    <li><a href="#maintenance">8. Maintenance</a></li>
+</ul>
+</div>
+
+<h2 id="introduction">🎯 Introduction</h2>
+
+<p>Ce guide est destiné aux administrateurs de la plateforme Alliance Courtage Extranet. Il décrit toutes les fonctionnalités administratives disponibles pour gérer les utilisateurs, le contenu et le système.</p>
+
+<hr>
+
+<h2 id="acces">🔐 Accès administrateur</h2>
+
+<h3>Connexion</h3>
+
+<ol>
+    <li><strong>Accédez à la page de connexion admin</strong> : <code>/manage</code> ou via le lien "Espace Admin"</li>
+    <li><strong>Identifiants</strong> :
+        <ul>
+            <li><strong>Email</strong> : admin@alliance-courtage.fr (ou selon votre configuration)</li>
+            <li><strong>Mot de passe</strong> : [Fourni lors de l'installation]</li>
+        </ul>
+    </li>
+    <li><strong>Première connexion</strong> :
+        <ul>
+            <li>Changez immédiatement le mot de passe par défaut</li>
+            <li>Configurez votre profil administrateur</li>
+            <li>Vérifiez les paramètres système</li>
+        </ul>
+    </li>
+</ol>
+
+<h3>Sécurité</h3>
+
+<ul>
+    <li><strong>Mot de passe fort</strong> : Minimum 12 caractères, majuscules, minuscules, chiffres, caractères spéciaux</li>
+    <li><strong>Authentification à deux facteurs</strong> : Recommandé si disponible</li>
+    <li><strong>Journalisation</strong> : Toutes les actions administratives sont loggées</li>
+</ul>
+
+<hr>
+
+<h2 id="utilisateurs">👥 Gestion des utilisateurs</h2>
+
+<h3>Créer un utilisateur</h3>
+
+<ol>
+    <li><strong>Accès</strong> : Menu Admin → "Gestion" → "Utilisateurs" → "Ajouter un utilisateur"</li>
+    <li><strong>Formulaire</strong> :
+        <ul>
+            <li>Nom : Nom de famille</li>
+            <li>Prénom : Prénom</li>
+            <li>Email : Adresse email professionnelle</li>
+            <li>Mot de passe : Mot de passe temporaire (à changer à la première connexion)</li>
+            <li>Rôle : Utilisateur (par défaut)</li>
+            <li>Téléphone : (optionnel)</li>
+            <li>Adresse : (optionnel)</li>
+        </ul>
+    </li>
+    <li><strong>Rôles disponibles</strong> :
+        <ul>
+            <li><strong>Admin</strong> : Accès complet à toutes les fonctionnalités</li>
+            <li><strong>Utilisateur</strong> : Accès standard aux fonctionnalités utilisateur</li>
+        </ul>
+    </li>
+    <li><strong>Après création</strong> :
+        <ul>
+            <li>L'utilisateur recevra un email avec ses identifiants</li>
+            <li>Il devra changer son mot de passe à la première connexion</li>
+        </ul>
+    </li>
+</ol>
+
+<h3>Modifier un utilisateur</h3>
+
+<ol>
+    <li><strong>Accès</strong> : Menu Admin → "Gestion" → "Utilisateurs"</li>
+    <li>Trouvez l'utilisateur dans la liste</li>
+    <li>Cliquez sur "Modifier"</li>
+    <li>Mettez à jour les informations nécessaires</li>
+    <li>Sauvegardez</li>
+</ol>
+
+<h3>Supprimer un utilisateur</h3>
+
+<div class="warning">
+<p><strong>⚠️ Attention</strong> : La suppression d'un utilisateur est irréversible et supprimera toutes ses données associées.</p>
+</div>
+
+<ol>
+    <li><strong>Accès</strong> : Menu Admin → "Gestion" → "Utilisateurs"</li>
+    <li>Trouvez l'utilisateur</li>
+    <li>Cliquez sur "Supprimer"</li>
+    <li>Confirmez la suppression</li>
+</ol>
+
+<h3>Réinitialiser un mot de passe</h3>
+
+<ol>
+    <li><strong>Accès</strong> : Menu Admin → "Gestion" → "Utilisateurs"</li>
+    <li>Trouvez l'utilisateur</li>
+    <li>Cliquez sur "Réinitialiser mot de passe"</li>
+    <li>Un nouveau mot de passe temporaire sera généré et envoyé par email</li>
+</ol>
+
+<hr>
+
+<h2 id="contenu">📄 Gestion du contenu</h2>
+
+<h3>Documents Financiers</h3>
+
+<h4>Ajouter un document financier</h4>
+
+<ol>
+    <li><strong>Accès</strong> : Menu Admin → "Gestion" → "Documents Financiers" → "Ajouter"</li>
+    <li><strong>Formulaire</strong> :
+        <ul>
+            <li>Titre : Nom du document</li>
+            <li>Description : Description détaillée (optionnel)</li>
+            <li>Catégorie : Sélectionner parmi les catégories disponibles</li>
+            <li>Sous-catégorie : (optionnel)</li>
+            <li>Année : Année du document</li>
+            <li>Fichier : Sélectionner le fichier PDF (max 50MB)</li>
+        </ul>
+    </li>
+    <li><strong>Processus</strong> :
+        <ul>
+            <li>Remplissez le formulaire</li>
+            <li>Sélectionnez le fichier PDF</li>
+            <li>Cliquez sur "Uploader"</li>
+            <li>Une notification globale est automatiquement envoyée à tous les utilisateurs</li>
+        </ul>
+    </li>
+</ol>
+
+<h3>CMS (Content Management System)</h3>
+
+<h4>Gérer le contenu des pages</h4>
+
+<ol>
+    <li><strong>Accès</strong> : Menu Admin → "CMS"</li>
+    <li><strong>Pages disponibles</strong> :
+        <ul>
+            <li><strong>Accueil</strong> : Contenu de la page d'accueil (titre, actualités, services)</li>
+            <li><strong>Gamme Produits</strong> : Contenu de la page produits</li>
+            <li><strong>Gamme Financière</strong> : Contenu de la page gamme financière</li>
+            <li><strong>Rencontres</strong> : Gestion des rencontres (prochaines et historiques)</li>
+            <li><strong>Partenaires</strong> : Contenu de la page partenaires</li>
+            <li><strong>Réglementaire</strong> : Gestion du contenu réglementaire</li>
+        </ul>
+    </li>
+    <li><strong>Upload d'images</strong> :
+        <ul>
+            <li>Cliquez sur "Uploader une image" pour les bannières</li>
+            <li>Les images sont converties en base64 et stockées dans la base de données</li>
+            <li>Format accepté : JPEG, PNG, GIF, WebP (max 10MB)</li>
+        </ul>
+    </li>
+    <li><strong>Sauvegarde</strong> :
+        <ul>
+            <li>Modifiez le contenu dans l'éditeur</li>
+            <li>Cliquez sur "Sauvegarder"</li>
+            <li>Les modifications sont immédiatement visibles sur le site public</li>
+        </ul>
+    </li>
+</ol>
+
+<hr>
+
+<h2 id="formations">🎓 Gestion des formations</h2>
+
+<h3>Consulter toutes les formations</h3>
+
+<ol>
+    <li><strong>Accès</strong> : Menu Admin → "Gestion" → "Formations"</li>
+    <li><strong>Filtres disponibles</strong> :
+        <ul>
+            <li><strong>Toutes</strong> : Toutes les formations</li>
+            <li><strong>En attente</strong> : Formations en attente de validation</li>
+            <li><strong>Approuvées</strong> : Formations approuvées</li>
+            <li><strong>Rejetées</strong> : Formations rejetées</li>
+        </ul>
+    </li>
+</ol>
+
+<h3>Approuver une formation</h3>
+
+<ol>
+    <li>Trouvez la formation dans la liste (statut "En attente")</li>
+    <li>Cliquez sur "✅ Approuver"</li>
+    <li>La formation est immédiatement approuvée</li>
+    <li>L'utilisateur reçoit une notification de confirmation</li>
+</ol>
+
+<h3>Rejeter une formation</h3>
+
+<ol>
+    <li>Trouvez la formation dans la liste</li>
+    <li>Cliquez sur "❌ Rejeter"</li>
+    <li>Entrez une raison de rejet (optionnel mais recommandé)</li>
+    <li>Confirmez le rejet</li>
+    <li>L'utilisateur reçoit une notification avec la raison du rejet</li>
+</ol>
+
+<h3>Télécharger le document d'une formation</h3>
+
+<ol>
+    <li>Dans la liste des formations, cliquez sur "Télécharger" à côté du document</li>
+    <li>Le fichier PDF se télécharge automatiquement</li>
+    <li>Vous pouvez vérifier le contenu avant approbation</li>
+</ol>
+
+<hr>
+
+<h2 id="reservations">💼 Gestion des réservations de produits structurés</h2>
+
+<h3>Consulter les réservations</h3>
+
+<ol>
+    <li><strong>Accès</strong> : Menu Admin → "Gestion" → "Produits Réservés"</li>
+    <li><strong>Filtres disponibles</strong> :
+        <ul>
+            <li><strong>Toutes</strong> : Toutes les réservations</li>
+            <li><strong>En attente</strong> : Réservations en attente d'approbation</li>
+            <li><strong>Approuvées</strong> : Réservations approuvées</li>
+            <li><strong>Rejetées</strong> : Réservations rejetées</li>
+        </ul>
+    </li>
+</ol>
+
+<h3>Approuver une réservation</h3>
+
+<ol>
+    <li>Trouvez la réservation dans la liste (statut "En attente")</li>
+    <li>Vérifiez que le montant disponible est suffisant</li>
+    <li>Cliquez sur "✅ Approuver"</li>
+    <li>La réservation est approuvée</li>
+    <li>Le montant disponible est déduit automatiquement</li>
+    <li>L'utilisateur reçoit un email de confirmation</li>
+</ol>
+
+<h3>Rejeter une réservation</h3>
+
+<ol>
+    <li>Trouvez la réservation dans la liste</li>
+    <li>Cliquez sur "❌ Rejeter"</li>
+    <li>Entrez une raison de rejet (optionnel mais recommandé)</li>
+    <li>Confirmez le rejet</li>
+    <li>L'utilisateur reçoit un email avec la raison du rejet</li>
+</ol>
+
+<hr>
+
+<h2>📊 Gestion Comptabilité</h2>
+
+<h3>Upload de bordereaux</h3>
+
+<h4>Upload en masse</h4>
+
+<ol>
+    <li><strong>Accès</strong> : Menu Admin → "Gestion" → "Comptabilité" → "Upload en masse"</li>
+    <li><strong>Processus</strong> :
+        <ul>
+            <li>Sélectionnez plusieurs fichiers PDF</li>
+            <li>Sélectionnez la date d'affichage (pour tous les fichiers)</li>
+            <li>Les fichiers sont uploadés automatiquement</li>
+            <li>Chaque utilisateur reçoit un email pour son bordereau mensuel</li>
+        </ul>
+    </li>
+    <li><strong>Convention de nommage recommandée</strong> :
+        <pre><code>Format : [Nom]_[Prenom]_[Mois]_[Annee].pdf
+Exemple : Dupont_Jean_01_2025.pdf</code></pre>
+    </li>
+</ol>
+
+<hr>
+
+<h2 id="notifications">🔔 Gestion des notifications</h2>
+
+<h3>Envoyer une notification globale</h3>
+
+<ol>
+    <li><strong>Accès</strong> : Menu Admin → "CMS" → "Notifications"</li>
+    <li><strong>Formulaire</strong> :
+        <ul>
+            <li>Type : Information, Succès, Avertissement, Erreur, Annonce</li>
+            <li>Titre : Titre de la notification</li>
+            <li>Message : Contenu de la notification</li>
+            <li>Lien : (optionnel) Lien externe ou interne (ex: #produits-structures)</li>
+        </ul>
+    </li>
+    <li><strong>Types de liens</strong> :
+        <ul>
+            <li><strong>Lien externe</strong> : Commence par <code>http://</code> ou <code>https://</code></li>
+            <li><strong>Lien interne</strong> : Commence par <code>#</code> (ex: <code>#produits-structures</code>)</li>
+        </ul>
+    </li>
+    <li><strong>Envoi</strong> :
+        <ul>
+            <li>Cliquez sur "Envoyer à tous les utilisateurs"</li>
+            <li>La notification est immédiatement visible pour tous les utilisateurs</li>
+        </ul>
+    </li>
+</ol>
+
+<hr>
+
+<h2 id="maintenance">🔧 Maintenance</h2>
+
+<h3>Vider la base de données</h3>
+
+<div class="warning">
+<p><strong>⚠️ ATTENTION</strong> : Cette opération supprime toutes les données sauf les utilisateurs admin. Elle est irréversible !</p>
+</div>
+
+<ol>
+    <li><strong>Script disponible</strong> : <code>backend/scripts/emptyDatabase.js</code></li>
+    <li><strong>Exécution</strong> :
+        <pre><code>docker exec -it alliance-courtage-backend node scripts/emptyDatabase.js</code></pre>
+    </li>
+    <li><strong>Ce qui est supprimé</strong> :
+        <ul>
+            <li>Tous les favoris</li>
+            <li>Toutes les notifications</li>
+            <li>Tous les documents financiers</li>
+            <li>Toutes les formations</li>
+            <li>Tous les bordereaux</li>
+            <li>Toutes les réservations</li>
+            <li>Toutes les archives</li>
+            <li>Tous les partenaires</li>
+            <li>Tout le contenu CMS</li>
+            <li>Tous les utilisateurs non-admin</li>
+        </ul>
+    </li>
+    <li><strong>Ce qui est conservé</strong> :
+        <ul>
+            <li>Les utilisateurs admin</li>
+            <li>La structure des tables (schéma de base de données)</li>
+        </ul>
+    </li>
+</ol>
+
+<h3>Backup de la base de données</h3>
+
+<ol>
+    <li><strong>Commande de backup</strong> :
+        <pre><code>docker exec alliance-courtage-mysql mysqldump -u root -p[PASSWORD] alliance_courtage > backup_$(date +%Y%m%d_%H%M%S).sql</code></pre>
+    </li>
+    <li><strong>Restauration</strong> :
+        <pre><code>docker exec -i alliance-courtage-mysql mysql -u root -p[PASSWORD] alliance_courtage < backup_YYYYMMDD_HHMMSS.sql</code></pre>
+    </li>
+</ol>
+
+<hr>
+
+<h2>✅ Checklist de maintenance mensuelle</h2>
+
+<ul class="checklist">
+    <li>Vérifier les logs d'erreurs</li>
+    <li>Faire un backup de la base de données</li>
+    <li>Vérifier l'espace disque disponible</li>
+    <li>Vérifier les formations en attente</li>
+    <li>Vérifier les réservations en attente</li>
+    <li>Envoyer les bordereaux mensuels</li>
+    <li>Vérifier les notifications non lues</li>
+    <li>Mettre à jour le contenu CMS si nécessaire</li>
+    <li>Vérifier les utilisateurs inactifs</li>
+    <li>Vérifier la sécurité (mots de passe, sessions)</li>
+</ul>
+
+<hr>
+
+<p><strong>Dernière mise à jour</strong> : [Date]</p>
+
+<p><strong>Version du document</strong> : 1.0</p>
+
+<p>Pour toute question technique, consultez la documentation technique ou contactez le support développeur.</p>
+
+</body>
+</html>
+
+

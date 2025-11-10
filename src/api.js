@@ -420,6 +420,16 @@ export const notificationsAPI = {
       },
     });
   },
+
+  send: async (userId, type, title, message, link = null) => {
+    return apiRequest('/notifications/send', {
+      method: 'POST',
+      body: JSON.stringify({ userId, type, title, message, link }),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  },
 };
 
 // Helper function to get the API base URL (for direct fetch calls)

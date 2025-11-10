@@ -80,37 +80,6 @@ const ManagePage: React.FC = () => {
     }
   };
 
-  const handleUpdateProfile = async () => {
-    if (!currentUser) return;
-
-    try {
-      setLoading(true);
-      const token = localStorage.getItem('token');
-      
-      const response = await fetch(buildAPIURL(`/users/${currentUser.id}/profile`), {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-auth-token': token || ''
-        },
-        body: JSON.stringify(profileData)
-      });
-
-      if (response.ok) {
-        alert('Profil mis à jour avec succès !');
-        await loadCurrentUser();
-        setShowProfileModal(false);
-      } else {
-        const error = await response.json();
-        alert(error.error || 'Erreur lors de la mise à jour du profil');
-      }
-    } catch (error) {
-      console.error('Error updating profile:', error);
-      alert('Erreur lors de la mise à jour du profil');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleChangePassword = async () => {
     if (!passwordData.currentPassword || !passwordData.newPassword) {
@@ -304,6 +273,12 @@ const ManagePage: React.FC = () => {
                 {/* Informations du profil */}
                 <div>
                   <h3 className="text-lg font-semibold text-gray-800 mb-4">Informations personnelles</h3>
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+                    <p className="text-sm text-yellow-800">
+                      <strong>ℹ️ Information :</strong> Le nom et le prénom ne peuvent être modifiés que par un administrateur. 
+                      Contactez votre administrateur si vous devez les modifier.
+                    </p>
+                  </div>
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -312,9 +287,10 @@ const ManagePage: React.FC = () => {
                       <input
                         type="text"
                         value={profileData.nom}
-                        onChange={(e) => setProfileData({ ...profileData, nom: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        disabled
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
                       />
+                      <p className="text-xs text-gray-500 mt-1">Le nom ne peut pas être modifié</p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -323,9 +299,10 @@ const ManagePage: React.FC = () => {
                       <input
                         type="text"
                         value={profileData.prenom}
-                        onChange={(e) => setProfileData({ ...profileData, prenom: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        disabled
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
                       />
+                      <p className="text-xs text-gray-500 mt-1">Le prénom ne peut pas être modifié</p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -334,9 +311,10 @@ const ManagePage: React.FC = () => {
                       <input
                         type="email"
                         value={profileData.email}
-                        onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        disabled
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
                       />
+                      <p className="text-xs text-gray-500 mt-1">L'email ne peut pas être modifié</p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -349,23 +327,27 @@ const ManagePage: React.FC = () => {
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600"
                       />
                     </div>
-                    <button
-                      onClick={handleUpdateProfile}
-                      disabled={loading}
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-medium transition-colors disabled:opacity-50"
-                    >
-                      {loading ? 'Mise à jour...' : 'Mettre à jour le profil'}
-                    </button>
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <p className="text-sm text-blue-800">
+                        <strong>💡 Astuce :</strong> Vous pouvez modifier votre mot de passe ci-dessous.
+                      </p>
+                    </div>
                   </div>
                 </div>
 
                 {/* Séparateur */}
                 <div className="border-t border-gray-200 pt-6">
                   <h3 className="text-lg font-semibold text-gray-800 mb-4">Changer le mot de passe</h3>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                    <p className="text-sm text-blue-800">
+                      <strong>ℹ️ Sécurité :</strong> Vous pouvez uniquement modifier votre propre mot de passe. 
+                      Le système vérifie automatiquement votre identité.
+                    </p>
+                  </div>
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Mot de passe actuel
+                        Mot de passe actuel *
                       </label>
                       <input
                         type="password"
@@ -373,11 +355,12 @@ const ManagePage: React.FC = () => {
                         onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         placeholder="Entrez votre mot de passe actuel"
+                        required
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Nouveau mot de passe
+                        Nouveau mot de passe *
                       </label>
                       <input
                         type="password"
@@ -385,11 +368,14 @@ const ManagePage: React.FC = () => {
                         onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         placeholder="Minimum 6 caractères"
+                        minLength={6}
+                        required
                       />
+                      <p className="text-xs text-gray-500 mt-1">Minimum 6 caractères</p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Confirmer le nouveau mot de passe
+                        Confirmer le nouveau mot de passe *
                       </label>
                       <input
                         type="password"
@@ -397,6 +383,8 @@ const ManagePage: React.FC = () => {
                         onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         placeholder="Répétez le nouveau mot de passe"
+                        minLength={6}
+                        required
                       />
                     </div>
                     <button

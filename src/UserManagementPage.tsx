@@ -7,6 +7,9 @@ interface User {
   email: string;
   nom: string;
   prenom: string;
+  denomination_sociale?: string | null;
+  telephone?: string | null;
+  code_postal?: string | null;
   role: string;
   is_active: boolean;
   created_at: string;
@@ -45,13 +48,26 @@ function UserManagementPage() {
   const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [fileUserMapping, setFileUserMapping] = useState<{fileIndex: number, userId: number}[]>([]);
+  
+  // Edit user state
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    nom: '',
+    prenom: '',
+    denomination_sociale: '',
+    telephone: '',
+    code_postal: ''
+  });
 
   const [formData, setFormData] = useState({
     email: '',
     nom: '',
     prenom: '',
+    denomination_sociale: '',
     password: '',
-    role: 'user'
+    role: 'user',
+    telephone: '',
+    code_postal: ''
   });
 
   useEffect(() => {
@@ -133,6 +149,17 @@ function UserManagementPage() {
 
       if (response.ok) {
         const data = await response.json();
+        console.log('📊 Utilisateurs chargés:', data.length);
+        if (data.length > 0) {
+          console.log('📝 Premier utilisateur (exemple):', {
+            id: data[0].id,
+            nom: data[0].nom,
+            prenom: data[0].prenom,
+            denomination_sociale: data[0].denomination_sociale,
+            telephone: data[0].telephone,
+            code_postal: data[0].code_postal
+          });
+        }
         setUsers(data);
       } else if (response.status === 403) {
         const errorData = await response.json().catch(() => ({ error: 'Accès refusé' }));
@@ -167,15 +194,18 @@ function UserManagementPage() {
           email: formData.email,
           nom: formData.nom,
           prenom: formData.prenom,
+          denomination_sociale: formData.denomination_sociale && formData.denomination_sociale.trim() !== '' ? formData.denomination_sociale.trim() : null,
           password: formData.password,
-          role: formData.role
+          role: formData.role,
+          telephone: formData.telephone && formData.telephone.trim() !== '' ? formData.telephone.trim() : null,
+          code_postal: formData.code_postal && formData.code_postal.trim() !== '' ? formData.code_postal.trim() : null
         })
       });
 
       if (response.ok) {
         const newUser = await response.json();
         alert('Utilisateur créé avec succès !');
-        setFormData({ email: '', nom: '', prenom: '', password: '', role: 'user' });
+        setFormData({ email: '', nom: '', prenom: '', denomination_sociale: '', password: '', role: 'user', telephone: '', code_postal: '' });
         setShowAddForm(false);
         loadUsers();
       } else {
@@ -234,6 +264,54 @@ function UserManagementPage() {
     } catch (error) {
       console.error('Error updating user:', error);
       alert('Erreur lors de la mise à jour');
+    }
+  };
+
+  const handleUpdateUser = async () => {
+    if (!editingUser) return;
+
+    if (!editFormData.nom.trim() || !editFormData.prenom.trim()) {
+      alert('Le nom et le prénom sont obligatoires');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const response = await fetch(buildAPIURL(`/users/${editingUser.id}`), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': localStorage.getItem('token') || ''
+        },
+        body: JSON.stringify({
+          nom: editFormData.nom.trim(),
+          prenom: editFormData.prenom.trim(),
+          denomination_sociale: editFormData.denomination_sociale.trim() || null,
+          telephone: editFormData.telephone.trim() || null,
+          code_postal: editFormData.code_postal.trim() || null
+        })
+      });
+
+      if (response.ok) {
+        alert('✅ Utilisateur mis à jour avec succès !');
+        setEditingUser(null);
+        setEditFormData({
+          nom: '',
+          prenom: '',
+          denomination_sociale: '',
+          telephone: '',
+          code_postal: ''
+        });
+        loadUsers();
+      } else {
+        const error = await response.json();
+        alert('❌ ' + (error.error || 'Erreur lors de la mise à jour'));
+      }
+    } catch (error) {
+      console.error('Error updating user:', error);
+      alert('❌ Erreur lors de la mise à jour de l\'utilisateur');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -566,6 +644,17 @@ function UserManagementPage() {
             </div>
 
             <div>
+              <label className="block text-sm font-semibold text-slate-300 mb-2">Dénomination sociale</label>
+              <input
+                type="text"
+                value={formData.denomination_sociale}
+                onChange={(e) => setFormData({ ...formData, denomination_sociale: e.target.value })}
+                className="w-full px-4 py-3 rounded-lg border-2 border-slate-600 bg-slate-700 text-white placeholder-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                placeholder="Ex: Alliance Courtage SARL"
+              />
+            </div>
+
+            <div>
               <label className="block text-sm font-semibold text-slate-300 mb-2">Mot de passe *</label>
               <input
                 type="password"
@@ -588,6 +677,30 @@ function UserManagementPage() {
                 <option value="user">Utilisateur</option>
                 <option value="admin">Administrateur</option>
               </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-slate-300 mb-2">Téléphone</label>
+                <input
+                  type="tel"
+                  value={formData.telephone}
+                  onChange={(e) => setFormData({ ...formData, telephone: e.target.value })}
+                  className="w-full px-4 py-3 rounded-lg border-2 border-slate-600 bg-slate-700 text-white placeholder-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  placeholder="06 12 34 56 78"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-300 mb-2">Code postal</label>
+                <input
+                  type="text"
+                  value={formData.code_postal}
+                  onChange={(e) => setFormData({ ...formData, code_postal: e.target.value })}
+                  className="w-full px-4 py-3 rounded-lg border-2 border-slate-600 bg-slate-700 text-white placeholder-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  placeholder="75001"
+                  maxLength={10}
+                />
+              </div>
             </div>
 
             <div className="flex space-x-3 pt-4">
@@ -631,24 +744,48 @@ function UserManagementPage() {
             <table className="w-full">
               <thead className="bg-slate-700">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Utilisateur</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Email</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Rôle</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Statut</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Utilisateur</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Dénomination sociale</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Email</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Téléphone</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Code postal</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Rôle</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Statut</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-slate-800 divide-y divide-slate-700">
                 {paginatedUsers.map((user) => (
                   <tr key={user.id} className="hover:bg-slate-700/50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-4 py-4">
                       <div className="text-sm font-medium text-white">{user.nom} {user.prenom}</div>
-                      <div className="text-xs text-slate-400">{new Date(user.created_at).toLocaleDateString()}</div>
+                      <div className="text-xs text-slate-400 mt-1">{new Date(user.created_at).toLocaleDateString('fr-FR')}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-4 py-4">
+                      <div className="text-sm text-slate-300">
+                        {user.denomination_sociale && user.denomination_sociale.trim() !== '' 
+                          ? user.denomination_sociale 
+                          : <span className="text-slate-500 italic">-</span>}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
                       <div className="text-sm text-slate-300">{user.email}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-4 py-4">
+                      <div className="text-sm text-slate-300">
+                        {user.telephone && user.telephone.trim() !== '' 
+                          ? user.telephone 
+                          : <span className="text-slate-500 italic">-</span>}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="text-sm text-slate-300">
+                        {user.code_postal && user.code_postal.trim() !== '' 
+                          ? user.code_postal 
+                          : <span className="text-slate-500 italic">-</span>}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
                       <div className="flex items-center space-x-2">
                         <select
                           value={user.role}
@@ -682,11 +819,11 @@ function UserManagementPage() {
                         <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
                           user.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
                         }`}>
-                          {user.role === 'admin' ? 'Administrateur' : 'Utilisateur'}
+                          {user.role === 'admin' ? 'Admin' : 'User'}
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-4 py-4">
                       <button
                         onClick={() => handleToggleActive(user.id, user.is_active)}
                         className={`inline-flex px-3 py-1 text-xs font-medium rounded-full ${
@@ -698,21 +835,39 @@ function UserManagementPage() {
                         {user.is_active ? '✓ Actif' : '✗ Inactif'}
                       </button>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                    <td className="px-4 py-4 text-sm font-medium space-x-2">
+                      <button
+                        onClick={() => {
+                          setEditingUser(user);
+                          setEditFormData({
+                            nom: user.nom,
+                            prenom: user.prenom,
+                            denomination_sociale: user.denomination_sociale || '',
+                            telephone: user.telephone || '',
+                            code_postal: user.code_postal || ''
+                          });
+                        }}
+                        className="text-emerald-400 hover:text-emerald-300 transition-colors mr-3"
+                        title="Modifier"
+                      >
+                        ✏️ Modifier
+                      </button>
                       <button
                         onClick={() => {
                           setSelectedUserForUpload(user.id);
                           setShowUploadForm(true);
                         }}
                         className="text-blue-400 hover:text-blue-300 transition-colors mr-3"
+                        title="Upload fichier"
                       >
                         📤 Upload
                       </button>
                       <button
                         onClick={() => handleDelete(user.id)}
                         className="text-red-400 hover:text-red-300 transition-colors"
+                        title="Supprimer"
                       >
-                        Supprimer
+                        🗑️ Supprimer
                       </button>
                     </td>
                   </tr>
@@ -917,6 +1072,135 @@ function UserManagementPage() {
                     setShowBulkUpload(false);
                     setSelectedFiles([]);
                     setFileUserMapping([]);
+                  }}
+                  className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-all"
+                >
+                  Annuler
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit User Modal */}
+      {editingUser && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-800 rounded-xl p-6 shadow-2xl border border-slate-700 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-white">Modifier l'utilisateur</h3>
+              <button
+                onClick={() => {
+                  setEditingUser(null);
+                  setEditFormData({
+                    nom: '',
+                    prenom: '',
+                    denomination_sociale: '',
+                    telephone: '',
+                    code_postal: ''
+                  });
+                }}
+                className="text-slate-400 hover:text-white text-2xl"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-blue-900/20 border border-blue-500 rounded-lg p-3 mb-4">
+                <p className="text-sm text-blue-300">
+                  <strong>ℹ️ Information :</strong> Vous pouvez modifier le nom, prénom et les informations complémentaires de l'utilisateur.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-300 mb-2">Email</label>
+                <input
+                  type="email"
+                  value={editingUser.email}
+                  disabled
+                  className="w-full px-4 py-3 rounded-lg border-2 border-slate-600 bg-slate-700 text-slate-400 cursor-not-allowed"
+                />
+                <p className="text-xs text-slate-400 mt-1">L'email ne peut pas être modifié</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-300 mb-2">Nom *</label>
+                  <input
+                    type="text"
+                    value={editFormData.nom}
+                    onChange={(e) => setEditFormData({ ...editFormData, nom: e.target.value })}
+                    className="w-full px-4 py-3 rounded-lg border-2 border-slate-600 bg-slate-700 text-white placeholder-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    placeholder="Dupont"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-300 mb-2">Prénom *</label>
+                  <input
+                    type="text"
+                    value={editFormData.prenom}
+                    onChange={(e) => setEditFormData({ ...editFormData, prenom: e.target.value })}
+                    className="w-full px-4 py-3 rounded-lg border-2 border-slate-600 bg-slate-700 text-white placeholder-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    placeholder="Jean"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-300 mb-2">Dénomination sociale</label>
+                <input
+                  type="text"
+                  value={editFormData.denomination_sociale}
+                  onChange={(e) => setEditFormData({ ...editFormData, denomination_sociale: e.target.value })}
+                  className="w-full px-4 py-3 rounded-lg border-2 border-slate-600 bg-slate-700 text-white placeholder-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                  placeholder="Ex: Alliance Courtage SARL"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-300 mb-2">Téléphone</label>
+                  <input
+                    type="text"
+                    value={editFormData.telephone}
+                    onChange={(e) => setEditFormData({ ...editFormData, telephone: e.target.value })}
+                    className="w-full px-4 py-3 rounded-lg border-2 border-slate-600 bg-slate-700 text-white placeholder-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    placeholder="Ex: 0123456789"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-300 mb-2">Code postal</label>
+                  <input
+                    type="text"
+                    value={editFormData.code_postal}
+                    onChange={(e) => setEditFormData({ ...editFormData, code_postal: e.target.value })}
+                    className="w-full px-4 py-3 rounded-lg border-2 border-slate-600 bg-slate-700 text-white placeholder-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                    placeholder="Ex: 75001"
+                  />
+                </div>
+              </div>
+
+              <div className="flex space-x-3 pt-4">
+                <button
+                  onClick={handleUpdateUser}
+                  disabled={isSubmitting || !editFormData.nom.trim() || !editFormData.prenom.trim()}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSubmitting ? 'Mise à jour...' : '✅ Enregistrer les modifications'}
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingUser(null);
+                    setEditFormData({
+                      nom: '',
+                      prenom: '',
+                      denomination_sociale: '',
+                      telephone: '',
+                      code_postal: ''
+                    });
                   }}
                   className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-all"
                 >

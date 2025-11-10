@@ -162,7 +162,22 @@ router.post('/register', auth, async (req, res) => {
       });
     }
 
-    const { email, password, nom, prenom, role } = req.body;
+    const { email, password, nom, prenom, denomination_sociale, role, telephone, code_postal } = req.body;
+    
+    // Normaliser les valeurs optionnelles (chaînes vides -> null)
+    const normalizedDenominationSociale = denomination_sociale && denomination_sociale.trim() !== '' ? denomination_sociale.trim() : null;
+    const normalizedTelephone = telephone && telephone.trim() !== '' ? telephone.trim() : null;
+    const normalizedCodePostal = code_postal && code_postal.trim() !== '' ? code_postal.trim() : null;
+    
+    console.log('📝 Données reçues:', {
+      email,
+      nom,
+      prenom,
+      denomination_sociale: normalizedDenominationSociale,
+      telephone: normalizedTelephone,
+      code_postal: normalizedCodePostal,
+      role
+    });
 
     // Validation des données
     if (!email || !password || !nom || !prenom) {
@@ -225,11 +240,70 @@ router.post('/register', auth, async (req, res) => {
     // Créer l'utilisateur
     let result;
     try {
-      result = await query(
-        'INSERT INTO users (email, password, nom, prenom, role, is_active) VALUES (?, ?, ?, ?, ?, ?)',
-        [email, hashedPassword, nom, prenom, finalRole, true]
+      // Vérifier si les colonnes optionnelles existent
+      let hasDenominationSociale = false;
+      let hasTelephone = false;
+      let hasCodePostal = false;
+      try {
+        const columns = await query(
+          `SELECT COLUMN_NAME 
+           FROM INFORMATION_SCHEMA.COLUMNS 
+           WHERE TABLE_SCHEMA = DATABASE() 
+           AND TABLE_NAME = 'users' 
+           AND COLUMN_NAME IN ('denomination_sociale', 'telephone', 'code_postal')`
+        );
+        const existingColumns = columns.map(col => col.COLUMN_NAME);
+        hasDenominationSociale = existingColumns.includes('denomination_sociale');
+        hasTelephone = existingColumns.includes('telephone');
+        hasCodePostal = existingColumns.includes('code_postal');
+      } catch (checkError) {
+        console.warn('⚠️  Erreur vérification colonnes:', checkError);
+      }
+      
+      // Construire la requête dynamiquement selon les colonnes disponibles
+      const baseFields = ['email', 'password', 'nom', 'prenom'];
+      const baseValues = [email, hashedPassword, nom, prenom];
+      
+      if (hasDenominationSociale) {
+        baseFields.push('denomination_sociale');
+        baseValues.push(normalizedDenominationSociale);
+      }
+      
+      if (hasTelephone) {
+        baseFields.push('telephone');
+        baseValues.push(normalizedTelephone);
+      }
+      
+      if (hasCodePostal) {
+        baseFields.push('code_postal');
+        baseValues.push(normalizedCodePostal);
+      }
+      
+      baseFields.push('role', 'is_active');
+      baseValues.push(finalRole, true);
+      
+      const placeholders = baseFields.map(() => '?').join(', ');
+      const sql = `INSERT INTO users (${baseFields.join(', ')}) VALUES (${placeholders})`;
+      
+      console.log('📝 Création utilisateur - SQL:', sql);
+      console.log('📝 Création utilisateur - Valeurs:', baseValues.map((v, i) => `${baseFields[i]}: ${v === null ? 'NULL' : (typeof v === 'string' && v.length > 20 ? v.substring(0, 20) + '...' : v)}`));
+      
+      result = await query(sql, baseValues);
+      console.log('✅ User created successfully:', { 
+        userId: result.insertId, 
+        email, 
+        role: finalRole, 
+        denomination_sociale: normalizedDenominationSociale, 
+        telephone: normalizedTelephone, 
+        code_postal: normalizedCodePostal 
+      });
+      
+      // Vérifier que les données ont bien été sauvegardées
+      const [savedUser] = await query(
+        `SELECT ${baseFields.join(', ')} FROM users WHERE id = ?`,
+        [result.insertId]
       );
-      console.log('✅ User created successfully:', { userId: result.insertId, email, role: finalRole });
+      console.log('🔍 Utilisateur sauvegardé (vérification):', savedUser);
     } catch (dbError) {
       console.error('❌ Database error during user creation:', dbError);
       // Vérifier si c'est une erreur de contrainte

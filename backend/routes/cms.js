@@ -141,16 +141,6 @@ router.get('/gamme-produits', auth, async (req, res) => {
       res.json({
         page: 'gamme-produits',
         content: JSON.stringify({
-          title: 'Gamme Produits',
-          subtitle: 'Découvrez nos solutions adaptées à chaque type de client et de produit',
-          catalogue: {
-            title: 'Téléchargez notre catalogue produits',
-            badge: 'Catalogue 2025',
-            description: "Découvrez notre gamme complète de produits d'assurance et d'investissement pour tous vos besoins.",
-            fileUrl: '/catalogue-produits-2025.pdf',
-            updatedAtLabel: 'Mise à jour 2025',
-            downloadLabel: 'Télécharger le PDF'
-          },
           products: {
             particulier: { epargne: [], retraite: [], prevoyance: [], sante: [], cif: [] },
             professionnel: { epargne: [], retraite: [], prevoyance: [], sante: [], cif: [] },

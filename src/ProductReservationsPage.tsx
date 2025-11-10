@@ -45,14 +45,16 @@ const ProductReservationsPage: React.FC = () => {
   };
 
   const handleApprove = async (reservationId: number) => {
-    if (!confirm('Êtes-vous sûr de vouloir approuver cette réservation ?')) {
+    if (!confirm('Êtes-vous sûr de vouloir approuver cette réservation ? Le montant sera soustrait de l\'enveloppe de l\'assurance.')) {
       return;
     }
 
     try {
       await structuredProductsAPI.approveReservation(reservationId);
-      alert('Réservation approuvée avec succès ! L\'utilisateur sera notifié.');
+      alert('Réservation approuvée avec succès ! Le montant a été soustrait de l\'enveloppe. L\'utilisateur sera notifié.');
       await loadReservations();
+      // Recharger la page pour mettre à jour les montants d'enveloppe
+      window.location.reload();
     } catch (error: any) {
       console.error('Erreur lors de l\'approbation:', error);
       alert(error.message || 'Erreur lors de l\'approbation de la réservation');

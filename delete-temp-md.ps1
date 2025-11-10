@@ -1,0 +1,112 @@
+# Script pour supprimer les fichiers .md temporaires
+
+# Fichiers à garder
+$keepFiles = @(
+    'README.md',
+    'GUIDE_UTILISATEUR.md',
+    'GUIDE_ADMINISTRATEUR.md',
+    'NOTIFICATIONS_ARCHITECTURE.md',
+    'PROJECT_FILES_ANALYSIS.md',
+    'PROJECT_FILES_ANALYSIS_FIXED.md'
+)
+
+# Fichiers à supprimer
+$deleteFiles = @(
+    'API_TESTING_GUIDE.md',
+    'BASE64_UPLOAD_VERIFICATION.md',
+    'CACHE_IMPLEMENTATION_SUMMARY.md',
+    'CACHE_IMPLEMENTATION.md',
+    'CHARTE_GRAPHIQUE_PUBLIC.md',
+    'CHECK_ALL_ERRORS.md',
+    'CHECK_BORDEREAUX_ERROR.md',
+    'CHECK_BORDEREAUX_RECENT_ERROR.md',
+    'CHECK_BORDEREAUX_RECENT_FINAL.md',
+    'CHECK_LATEST_ERROR.md',
+    'CHECK_REGLEMENTAIRE_ERROR.md',
+    'CLEAR_RECENT_UPLOADS.md',
+    'DEBUG_BROADCAST_ROUTE.md',
+    'DEBUG_EMAIL_RESERVATION.md',
+    'DEPLOY_BORDEREAUX_FIX.md',
+    'DEPLOY_CHECKLIST.md',
+    'DEPLOY_COMMANDS.md',
+    'DEPLOY_CORRECTED.md',
+    'DEPLOY_DOCKER_MIGRATION.md',
+    'DEPLOY_FIX_ROUTES_404.md',
+    'DEPLOY_FIX.md',
+    'DEPLOY_GITHUB_WORKFLOW.md',
+    'DEPLOY_NOTIFICATIONS_LINK.md',
+    'DEPLOY_NOW_TERMIUS.md',
+    'DEPLOY_RATE_LIMIT_FIX.md',
+    'DEPLOY_REGLEMENTAIRE_FIX.md',
+    'DEPLOY_SERVER_FIXES.md',
+    'DEPLOY_STEPS.md',
+    'DEPLOY_TERMIUS.md',
+    'DEPLOYMENT_GUIDE.md',
+    'DEPLOYMENT_PACKAGE.md',
+    'FILES_TO_DELETE.md',
+    'FINAL_CLEANUP.md',
+    'FINAL_RATE_LIMIT_FIX.md',
+    'FINAL_VERIFICATION.md',
+    'FIND_MYSQL_PASSWORD.md',
+    'FIX_404_BORDEREAUX.md',
+    'FIX_500_BORDEREAUX.md',
+    'FIX_ALL_TABLES_FILE_CONTENT.md',
+    'FIX_BORDEREAUX_STRUCTURE.md',
+    'FIX_BORDEREAUX_TABLE.md',
+    'FIX_BOTH_ROUTES.md',
+    'FIX_CORRUPTED_JSON_LOCAL.md',
+    'FIX_DOCKER_NETWORK.md',
+    'FIX_FINANCIAL_DOCUMENTS.md',
+    'FIX_MISSING_TABLES.md',
+    'FIX_OLD_VERSION.md',
+    'FIX_PARTNERS_TABLE.md',
+    'FIX_PRODUCT_RESERVATIONS.md',
+    'FIX_RATE_LIMIT_FINAL.md',
+    'FIX_RATE_LIMIT_PERMANENT.md',
+    'FIX_RATE_LIMIT.md',
+    'FIX_REGLEMENTAIRE_TABLES.md',
+    'FIX_RESERVATIONS_ROUTE.md',
+    'HOME_PAGE_STATIC_DATA.md',
+    'HTTPS_SETUP.md',
+    'IMPLEMENTATION_SUMMARY.md',
+    'INSTALLATION_DATABASE.md',
+    'MIGRATION_UTILISATEURS.md',
+    'PERMISSIONS_AUDIT.md',
+    'PROFILE_PHOTO_REMOVAL_SUMMARY.md',
+    'PROJECT_ANALYSIS.md',
+    'PROJECT_REVIEW.md',
+    'QUICK_DEPLOY.md',
+    'QUICK_FIX_BROADCAST.md',
+    'QUICK_GITHUB_DEPLOY.md',
+    'QUICK_INSTALL_GUIDE.md',
+    'QUICK_TEST_GUIDE.md',
+    'REBUILD_FRONTEND.md',
+    'REDEPLOY_FRONTEND.md',
+    'REDEPLOY_WITHOUT_NPM.md',
+    'RESET_DATABASE_FOR_CLIENT.md',
+    'RESET_DB_WITH_PASSWORD.md',
+    'SECURITY_AUDIT.md',
+    'SECURITY_RECOMMENDATIONS.md',
+    'TEST_LOCAL_IMAGE_UPLOAD.md',
+    'TEST_LOCAL_UPLOAD.md',
+    'TEST_RESULTS.md',
+    'TEST_SCRIPTS_README.md',
+    'TEST_SUMMARY.md',
+    'VERIFY_BORDEREAUX_TABLE.md'
+)
+
+$deleted = 0
+$notFound = 0
+
+foreach ($file in $deleteFiles) {
+    if (Test-Path $file) {
+        Remove-Item $file -Force
+        Write-Host "Supprime: $file"
+        $deleted++
+    } else {
+        $notFound++
+    }
+}
+
+Write-Host "`nSuppression terminee: $deleted fichiers supprimes, $notFound fichiers non trouves"
+

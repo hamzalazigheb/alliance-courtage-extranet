@@ -79,31 +79,15 @@ const CMSManagementPage: React.FC = () => {
   // Gamme Produits structured content
   type ClientId = 'particulier' | 'professionnel' | 'entreprise';
   type ProdId = 'epargne' | 'retraite' | 'prevoyance' | 'sante' | 'cif';
+  type Product = {
+    name: string;
+    description: string;
+  };
   type GPContent = { 
-    title?: string;
-    subtitle?: string;
-    catalogue?: {
-      title?: string;
-      badge?: string;
-      description?: string;
-      fileUrl?: string;
-      updatedAtLabel?: string;
-      downloadLabel?: string;
-    };
-    products: Record<ClientId, Record<ProdId, string[]>> 
+    products: Record<ClientId, Record<ProdId, Product[]>> 
   };
 
   const emptyGP: GPContent = {
-    title: 'Gamme Produits',
-    subtitle: 'Découvrez nos solutions adaptées à chaque type de client et de produit',
-    catalogue: {
-      title: 'Téléchargez notre catalogue produits',
-      badge: 'Catalogue 2025',
-      description: "Découvrez notre gamme complète de produits d'assurance et d'investissement pour tous vos besoins.",
-      fileUrl: '/catalogue-produits-2025.pdf',
-      updatedAtLabel: 'Mise à jour 2025',
-      downloadLabel: 'Télécharger le PDF'
-    },
     products: {
       particulier: { epargne: [], retraite: [], prevoyance: [], sante: [], cif: [] },
       professionnel: { epargne: [], retraite: [], prevoyance: [], sante: [], cif: [] },
@@ -113,10 +97,10 @@ const CMSManagementPage: React.FC = () => {
 
   const [gpContent, setGpContent] = useState<GPContent>(emptyGP);
   const [gpClient, setGpClient] = useState<ClientId>('particulier');
-  const [gpProd, setGpProd] = useState<ProdId>('epargne');
+  const [selectedFamilies, setSelectedFamilies] = useState<string[]>(['epargne']); // Multi-sélection
   const [newProductName, setNewProductName] = useState('');
+  const [newProductDescription, setNewProductDescription] = useState('');
   const [newFamilyName, setNewFamilyName] = useState('');
-  const [catalogUploading, setCatalogUploading] = useState(false);
 
   useEffect(() => {
     loadContent();
@@ -280,13 +264,38 @@ const CMSManagementPage: React.FC = () => {
             setContent(parsedContent);
           } else {
             const parsed = JSON.parse(data.content);
-            setGpContent({
+            const loadedContent = {
               products: {
                 particulier: { epargne: [], retraite: [], prevoyance: [], sante: [], cif: [], ...(parsed?.products?.particulier || {}) },
                 professionnel: { epargne: [], retraite: [], prevoyance: [], sante: [], cif: [], ...(parsed?.products?.professionnel || {}) },
                 entreprise: { epargne: [], retraite: [], prevoyance: [], sante: [], cif: [], ...(parsed?.products?.entreprise || {}) }
               }
+            };
+            // Convertir les anciens produits (strings) en objets {name, description}
+            const convertProducts = (products: any): Product[] => {
+              if (!Array.isArray(products)) return [];
+              return products.map((p: any) => {
+                if (typeof p === 'string') {
+                  return { name: p, description: '' };
+                }
+                return { name: p.name || '', description: p.description || '' };
+              });
+            };
+            // Convertir tous les produits
+            Object.keys(loadedContent.products).forEach((clientKey) => {
+              Object.keys(loadedContent.products[clientKey as ClientId]).forEach((familyKey) => {
+                const products = loadedContent.products[clientKey as ClientId][familyKey as ProdId] as any;
+                if (Array.isArray(products)) {
+                  (loadedContent.products[clientKey as ClientId] as any)[familyKey] = convertProducts(products);
+                }
+              });
             });
+            setGpContent(loadedContent);
+            // Initialiser la sélection avec la première famille disponible
+            const firstFamily = Object.keys(loadedContent.products[gpClient])[0];
+            if (firstFamily) {
+              setSelectedFamilies([firstFamily]);
+            }
           }
         }
       }
@@ -565,140 +574,24 @@ const CMSManagementPage: React.FC = () => {
         {activePage === 'gamme-produits' && (
           <div className="space-y-6">
             <h3 className="text-xl font-bold text-white mb-2">Gamme Produits</h3>
-            {/* Titre & Sous-titre */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-slate-300 mb-2">Titre</label>
-                <input
-                  type="text"
-                  value={gpContent.title || ''}
-                  onChange={(e) => setGpContent({ ...gpContent, title: e.target.value })}
-                  className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-slate-300 mb-2">Sous-titre</label>
-                <input
-                  type="text"
-                  value={gpContent.subtitle || ''}
-                  onChange={(e) => setGpContent({ ...gpContent, subtitle: e.target.value })}
-                  className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500"
-                />
-              </div>
-            </div>
-
-            {/* Bloc Catalogue PDF */}
-            <div className="bg-slate-700/40 rounded-lg p-4 space-y-4">
-              <h4 className="text-white font-semibold">Bloc Catalogue PDF</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-slate-300 mb-2">Titre</label>
-                  <input
-                    type="text"
-                    value={gpContent.catalogue?.title || ''}
-                    onChange={(e) => setGpContent({ ...gpContent, catalogue: { ...(gpContent.catalogue||{}), title: e.target.value } })}
-                    className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-300 mb-2">Badge</label>
-                  <input
-                    type="text"
-                    value={gpContent.catalogue?.badge || ''}
-                    onChange={(e) => setGpContent({ ...gpContent, catalogue: { ...(gpContent.catalogue||{}), badge: e.target.value } })}
-                    className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-300 mb-2">Description</label>
-                  <input
-                    type="text"
-                    value={gpContent.catalogue?.description || ''}
-                    onChange={(e) => setGpContent({ ...gpContent, catalogue: { ...(gpContent.catalogue||{}), description: e.target.value } })}
-                    className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-300 mb-2">URL du PDF</label>
-                  <div className="space-y-2">
-                    <input
-                      type="text"
-                      value={gpContent.catalogue?.fileUrl || ''}
-                      onChange={(e) => setGpContent({ ...gpContent, catalogue: { ...(gpContent.catalogue||{}), fileUrl: e.target.value } })}
-                      className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500"
-                      placeholder="/path/to/catalogue.pdf (ou utilisez l'upload ci-dessous)"
-                    />
-                    <div className="flex items-center space-x-3">
-                      <input
-                        id="catalog-file-input"
-                        type="file"
-                        accept="application/pdf"
-                        onChange={async (e) => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          setCatalogUploading(true);
-                          try {
-                            const formData = new FormData();
-                            formData.append('file', file);
-                            const resp = await fetch(buildAPIURL('/archives'), {
-                              method: 'POST',
-                              headers: {
-                                'x-auth-token': localStorage.getItem('token') || ''
-                              },
-                              body: formData
-                            });
-                            if (resp.ok) {
-                              const data = await resp.json().catch(() => ({}));
-                              const path = data.file_path || data.path || data.url;
-                              if (path) {
-                                setGpContent({ ...gpContent, catalogue: { ...(gpContent.catalogue||{}), fileUrl: path } });
-                              } else {
-                                alert('Upload réussi mais chemin de fichier non retourné.');
-                              }
-                            } else {
-                              const err = await resp.json().catch(() => ({}));
-                              alert(err.error || 'Erreur lors de l\'upload du fichier PDF');
-                            }
-                          } catch (err) {
-                            console.error('Upload catalog error:', err);
-                            alert('Erreur lors de l\'upload');
-                          } finally {
-                            setCatalogUploading(false);
-                          }
-                        }}
-                        className="flex-1 text-sm text-slate-300 file:mr-3 file:px-4 file:py-2 file:rounded-md file:border-0 file:bg-emerald-500 file:text-white hover:file:bg-emerald-600"
-                      />
-                      {catalogUploading && <span className="text-slate-300 text-sm">Upload...</span>}
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-300 mb-2">Libellé mise à jour</label>
-                  <input
-                    type="text"
-                    value={gpContent.catalogue?.updatedAtLabel || ''}
-                    onChange={(e) => setGpContent({ ...gpContent, catalogue: { ...(gpContent.catalogue||{}), updatedAtLabel: e.target.value } })}
-                    className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-300 mb-2">Libellé bouton</label>
-                  <input
-                    type="text"
-                    value={gpContent.catalogue?.downloadLabel || ''}
-                    onChange={(e) => setGpContent({ ...gpContent, catalogue: { ...(gpContent.catalogue||{}), downloadLabel: e.target.value } })}
-                    className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500"
-                  />
-                </div>
-              </div>
-            </div>
+            
             {/* Choix client / type de produit */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-semibold text-slate-300 mb-2">Type de client</label>
                 <select
                   value={gpClient}
-                  onChange={(e) => setGpClient(e.target.value as ClientId)}
+                  onChange={(e) => {
+                    const newClient = e.target.value as ClientId;
+                    setGpClient(newClient);
+                    // Réinitialiser la sélection avec la première famille du nouveau client
+                    const firstFamily = Object.keys(gpContent.products[newClient])[0];
+                    if (firstFamily) {
+                      setSelectedFamilies([firstFamily]);
+                    } else {
+                      setSelectedFamilies([]);
+                    }
+                  }}
                   className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500"
                 >
                   <option value="particulier">Particulier</option>
@@ -707,16 +600,62 @@ const CMSManagementPage: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-300 mb-2">Famille de produit</label>
-                <select
-                  value={gpProd}
-                  onChange={(e) => setGpProd(e.target.value as ProdId)}
-                  className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500"
-                >
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-semibold text-slate-300">Famille(s) de produit (multi-sélection)</label>
+                  <div className="flex space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allFamilies = Object.keys(gpContent.products[gpClient]);
+                        setSelectedFamilies(allFamilies);
+                      }}
+                      className="px-2 py-1 text-xs bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded"
+                    >
+                      Tout sélectionner
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedFamilies([]);
+                      }}
+                      className="px-2 py-1 text-xs bg-gray-500/20 hover:bg-gray-500/30 text-gray-300 rounded"
+                    >
+                      Tout désélectionner
+                    </button>
+                  </div>
+                </div>
+                <div className="bg-slate-700 rounded-lg p-3 border border-slate-600 max-h-48 overflow-y-auto">
                   {Object.keys(gpContent.products[gpClient]).map((k) => (
-                    <option key={k} value={k}>{k}</option>
+                    <label key={k} className="flex items-center space-x-2 py-2 cursor-pointer hover:bg-slate-600/50 rounded px-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedFamilies.includes(k)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedFamilies([...selectedFamilies, k]);
+                          } else {
+                            setSelectedFamilies(selectedFamilies.filter(f => f !== k));
+                          }
+                        }}
+                        className="w-4 h-4 text-emerald-500 bg-slate-600 border-slate-500 rounded focus:ring-emerald-500 focus:ring-2"
+                      />
+                      <span className="text-slate-300 text-sm">{k}</span>
+                    </label>
                   ))}
-                </select>
+                </div>
+                {selectedFamilies.length === 0 && (
+                  <p className="text-xs text-yellow-400 mt-2">⚠️ Sélectionnez au moins une famille pour ajouter des produits</p>
+                )}
+                {selectedFamilies.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <span className="text-xs text-slate-400">Sélectionnées:</span>
+                    {selectedFamilies.map((fam) => (
+                      <span key={fam} className="px-2 py-1 bg-emerald-500/20 text-emerald-300 text-xs rounded">
+                        {fam}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -744,7 +683,10 @@ const CMSManagementPage: React.FC = () => {
                       }
                     });
                     setGpContent(next);
-                    setGpProd(name as ProdId);
+                    // Ajouter la nouvelle famille à la sélection si aucune n'est sélectionnée
+                    if (selectedFamilies.length === 0) {
+                      setSelectedFamilies([name]);
+                    }
                     setNewFamilyName('');
                   }}
                   className="px-4 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-medium"
@@ -754,78 +696,184 @@ const CMSManagementPage: React.FC = () => {
                 <button
                   onClick={() => {
                     const families = Object.keys(gpContent.products[gpClient]);
-                    if (families.length <= 1) return; // garder au moins une famille
+                    if (families.length <= 1) {
+                      alert('⚠️ Il doit rester au moins une famille de produit');
+                      return; // garder au moins une famille
+                    }
+                    if (selectedFamilies.length === 0) {
+                      alert('⚠️ Veuillez sélectionner la famille à supprimer');
+                      return;
+                    }
+                    if (selectedFamilies.length > 1) {
+                      alert('⚠️ Veuillez sélectionner une seule famille à supprimer');
+                      return;
+                    }
+                    const familyToDelete = selectedFamilies[0];
                     const next: GPContent = JSON.parse(JSON.stringify(gpContent));
                     ['particulier','professionnel','entreprise'].forEach((c) => {
-                      delete (next.products[c as ClientId] as any)[gpProd];
+                      delete (next.products[c as ClientId] as any)[familyToDelete];
                     });
                     const remaining = Object.keys(next.products[gpClient]) as ProdId[];
                     setGpContent(next);
-                    setGpProd((remaining[0] || 'epargne') as ProdId);
+                    // Sélectionner la première famille restante
+                    if (remaining.length > 0) {
+                      setSelectedFamilies([remaining[0]]);
+                    } else {
+                      setSelectedFamilies([]);
+                    }
                   }}
-                  className="px-4 py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium"
+                  disabled={selectedFamilies.length !== 1}
+                  className="px-4 py-3 bg-red-500 hover:bg-red-600 disabled:bg-gray-500 disabled:cursor-not-allowed text-white rounded-lg font-medium"
                 >
-                  Supprimer la famille
+                  Supprimer la famille sélectionnée
                 </button>
               </div>
             </div>
 
             {/* Liste des produits */}
             <div className="bg-slate-700/40 rounded-lg p-4">
-              <div className="flex items-end space-x-3 mb-4">
-                <div className="flex-1">
-                  <label className="block text-sm font-semibold text-slate-300 mb-2">Ajouter un produit</label>
-                  <input
-                    type="text"
-                    value={newProductName}
-                    onChange={(e) => setNewProductName(e.target.value)}
-                    className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500"
-                    placeholder="Nom du produit"
-                  />
-                </div>
-                <button
-                  onClick={() => {
-                    const name = newProductName.trim();
-                    if (!name) return;
-                    const next = { ...gpContent };
-                    next.products[gpClient][gpProd] = [...next.products[gpClient][gpProd], name];
-                    setGpContent(next);
-                    setNewProductName('');
-                  }}
-                  className="px-4 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-medium"
-                >
-                  + Ajouter
-                </button>
-              </div>
-
-              <div className="space-y-2">
-                {gpContent.products[gpClient][gpProd].length === 0 && (
-                  <div className="text-slate-300 text-sm">Aucun produit. Ajoutez un élément ci-dessus.</div>
-                )}
-                {gpContent.products[gpClient][gpProd].map((p, idx) => (
-                  <div key={idx} className="flex items-center space-x-3">
-                    <input
-                      type="text"
-                      value={p}
-                      onChange={(e) => {
-                        const next = { ...gpContent };
-                        next.products[gpClient][gpProd][idx] = e.target.value;
-                        setGpContent(next);
-                      }}
-                      className="flex-1 px-4 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500"
-                    />
+              <div className="space-y-3 mb-4">
+                <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-300 mb-2">Nom du produit *</label>
+                      <input
+                        type="text"
+                        value={newProductName}
+                        onChange={(e) => setNewProductName(e.target.value)}
+                        className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500"
+                        placeholder="Ex: Assurance vie, PERP..."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-300 mb-2">Description</label>
+                      <textarea
+                        value={newProductDescription}
+                        onChange={(e) => setNewProductDescription(e.target.value)}
+                        rows={3}
+                        className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500 resize-none"
+                        placeholder="Décrivez le produit, ses avantages, caractéristiques..."
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-end">
                     <button
                       onClick={() => {
+                        const name = newProductName.trim();
+                        if (!name) {
+                          alert('⚠️ Le nom du produit est obligatoire');
+                          return;
+                        }
+                        if (selectedFamilies.length === 0) {
+                          alert('⚠️ Veuillez sélectionner au moins une famille de produit');
+                          return;
+                        }
                         const next = { ...gpContent };
-                        next.products[gpClient][gpProd] = next.products[gpClient][gpProd].filter((_, i) => i !== idx);
+                        const newProduct: Product = {
+                          name: name,
+                          description: newProductDescription.trim()
+                        };
+                        // Ajouter le produit à toutes les familles sélectionnées
+                        selectedFamilies.forEach((fam) => {
+                          if (!next.products[gpClient][fam as ProdId]) {
+                            (next.products[gpClient] as any)[fam] = [];
+                          }
+                          // Vérifier si le produit existe déjà (par nom)
+                          const existingIndex = next.products[gpClient][fam as ProdId].findIndex(
+                            (p: Product) => p.name === name
+                          );
+                          if (existingIndex === -1) {
+                            next.products[gpClient][fam as ProdId] = [...next.products[gpClient][fam as ProdId], newProduct];
+                          } else {
+                            // Mettre à jour le produit existant
+                            next.products[gpClient][fam as ProdId][existingIndex] = newProduct;
+                          }
+                        });
                         setGpContent(next);
+                        setNewProductName('');
+                        setNewProductDescription('');
                       }}
-                      className="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded"
+                      disabled={selectedFamilies.length === 0 || !newProductName.trim()}
+                      className="px-4 py-3 bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-500 disabled:cursor-not-allowed text-white rounded-lg font-medium whitespace-nowrap"
                     >
-                      Supprimer
+                      + Ajouter à {selectedFamilies.length} famille{selectedFamilies.length > 1 ? 's' : ''}
                     </button>
                   </div>
-                ))}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {selectedFamilies.length === 0 ? (
+                  <div className="text-slate-300 text-sm">⚠️ Sélectionnez au moins une famille pour voir les produits</div>
+                ) : (
+                  selectedFamilies.map((fam) => {
+                    const products = gpContent.products[gpClient][fam as ProdId] || [];
+                    return (
+                      <div key={fam} className="border border-slate-600 rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-white font-semibold text-sm">Famille: <span className="text-emerald-400">{fam}</span></h4>
+                          <span className="text-xs text-slate-400">{products.length} produit{products.length > 1 ? 's' : ''}</span>
+                        </div>
+                        {products.length === 0 ? (
+                          <div className="text-slate-400 text-sm italic">Aucun produit dans cette famille</div>
+                        ) : (
+                          <div className="space-y-3">
+                            {products.map((p, idx) => (
+                              <div key={idx} className="bg-slate-600/30 rounded-lg p-3 space-y-2">
+                                <div className="flex items-center space-x-2">
+                                  <input
+                                    type="text"
+                                    value={p.name}
+                                    onChange={(e) => {
+                                      const next = { ...gpContent };
+                                      if (!next.products[gpClient][fam as ProdId]) {
+                                        (next.products[gpClient] as any)[fam] = [];
+                                      }
+                                      next.products[gpClient][fam as ProdId][idx] = {
+                                        ...next.products[gpClient][fam as ProdId][idx],
+                                        name: e.target.value
+                                      };
+                                      setGpContent(next);
+                                    }}
+                                    className="flex-1 px-3 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500 text-sm font-medium"
+                                    placeholder="Nom du produit"
+                                  />
+                                  <button
+                                    onClick={() => {
+                                      const next = { ...gpContent };
+                                      next.products[gpClient][fam as ProdId] = next.products[gpClient][fam as ProdId].filter((_, i) => i !== idx);
+                                      setGpContent(next);
+                                    }}
+                                    className="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded text-sm whitespace-nowrap"
+                                  >
+                                    Supprimer
+                                  </button>
+                                </div>
+                                <textarea
+                                  value={p.description}
+                                  onChange={(e) => {
+                                    const next = { ...gpContent };
+                                    if (!next.products[gpClient][fam as ProdId]) {
+                                      (next.products[gpClient] as any)[fam] = [];
+                                    }
+                                    next.products[gpClient][fam as ProdId][idx] = {
+                                      ...next.products[gpClient][fam as ProdId][idx],
+                                      description: e.target.value
+                                    };
+                                    setGpContent(next);
+                                  }}
+                                  rows={2}
+                                  className="w-full px-3 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500 text-sm resize-none"
+                                  placeholder="Description du produit..."
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
           </div>
@@ -1090,6 +1138,12 @@ const CMSManagementPage: React.FC = () => {
               <h3 className="text-xl font-bold text-white mb-4">📢 Envoyer une notification à tous les utilisateurs</h3>
               
               <NotificationBroadcastForm />
+            </div>
+
+            <div className="bg-slate-800 rounded-xl p-6 shadow-lg">
+              <h3 className="text-xl font-bold text-white mb-4">👤 Envoyer une notification individuelle</h3>
+              
+              <NotificationIndividualForm />
             </div>
           </div>
         )}
@@ -1401,6 +1455,212 @@ const NotificationBroadcastForm: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
               </svg>
               <span>Envoyer à tous les utilisateurs</span>
+            </>
+          )}
+        </button>
+      </div>
+    </form>
+  );
+};
+
+// Composant pour le formulaire de notification individuelle
+const NotificationIndividualForm: React.FC = () => {
+  const [type, setType] = useState<string>('info');
+  const [title, setTitle] = useState<string>('');
+  const [message, setMessage] = useState<string>('');
+  const [link, setLink] = useState<string>('');
+  const [userId, setUserId] = useState<string>('');
+  const [users, setUsers] = useState<any[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState<boolean>(false);
+  const [sending, setSending] = useState<boolean>(false);
+  const [successMessage, setSuccessMessage] = useState<string>('');
+  const [errorMessage, setErrorMessage] = useState<string>('');
+
+  // Charger la liste des utilisateurs
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        setLoadingUsers(true);
+        const response = await fetch(buildAPIURL('/users'), {
+          headers: {
+            'x-auth-token': localStorage.getItem('token') || ''
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          // Filtrer pour ne garder que les utilisateurs non-admin
+          const nonAdminUsers = data.filter((user: any) => user.role !== 'admin');
+          setUsers(nonAdminUsers);
+        } else {
+          console.error('Erreur lors du chargement des utilisateurs');
+        }
+      } catch (error) {
+        console.error('Erreur chargement utilisateurs:', error);
+      } finally {
+        setLoadingUsers(false);
+      }
+    };
+
+    loadUsers();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!title.trim() || !message.trim() || !userId) {
+      setErrorMessage('Veuillez remplir tous les champs obligatoires');
+      return;
+    }
+
+    // Validation du lien si fourni
+    if (link.trim() && !link.trim().startsWith('http://') && !link.trim().startsWith('https://') && !link.trim().startsWith('#')) {
+      setErrorMessage('Le lien doit commencer par http://, https:// ou # pour un lien interne');
+      return;
+    }
+
+    setSending(true);
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    try {
+      const result = await notificationsAPI.send(
+        parseInt(userId),
+        type, 
+        title.trim(), 
+        message.trim(), 
+        link.trim() || null
+      );
+      const selectedUser = users.find(u => u.id === parseInt(userId));
+      setSuccessMessage(`✅ Notification envoyée avec succès à ${selectedUser?.prenom} ${selectedUser?.nom} (${selectedUser?.email}) !`);
+      setTitle('');
+      setMessage('');
+      setLink('');
+      setUserId('');
+      setType('info');
+    } catch (error: any) {
+      console.error('Erreur envoi notification:', error);
+      setErrorMessage(error.message || 'Erreur lors de l\'envoi de la notification');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Sélection utilisateur */}
+      <div>
+        <label className="block text-sm font-semibold text-slate-300 mb-2">Utilisateur *</label>
+        {loadingUsers ? (
+          <div className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 flex items-center space-x-2">
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+            <span>Chargement des utilisateurs...</span>
+          </div>
+        ) : (
+          <select
+            value={userId}
+            onChange={(e) => setUserId(e.target.value)}
+            className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+            required
+          >
+            <option value="">Sélectionner un utilisateur</option>
+            {users.map((user) => (
+              <option key={user.id} value={user.id}>
+                {user.prenom} {user.nom} ({user.email})
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      {/* Type de notification */}
+      <div>
+        <label className="block text-sm font-semibold text-slate-300 mb-2">Type de notification</label>
+        <select
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+          className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+        >
+          <option value="info">ℹ️ Information</option>
+          <option value="success">✅ Succès</option>
+          <option value="warning">⚠️ Avertissement</option>
+          <option value="error">❌ Erreur</option>
+          <option value="announcement">📢 Annonce</option>
+        </select>
+      </div>
+
+      {/* Titre */}
+      <div>
+        <label className="block text-sm font-semibold text-slate-300 mb-2">Titre *</label>
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+          placeholder="Ex: Notification importante"
+          required
+        />
+      </div>
+
+      {/* Message */}
+      <div>
+        <label className="block text-sm font-semibold text-slate-300 mb-2">Message *</label>
+        <textarea
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          rows={5}
+          className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+          placeholder="Ex: Nous avons le plaisir de vous informer que..."
+          required
+        />
+      </div>
+
+      {/* Lien */}
+      <div>
+        <label className="block text-sm font-semibold text-slate-300 mb-2">Lien (optionnel)</label>
+        <input
+          type="text"
+          value={link}
+          onChange={(e) => setLink(e.target.value)}
+          className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+          placeholder="Ex: https://example.com ou #produits-structures"
+        />
+        <p className="mt-2 text-xs text-slate-400">
+          Lien externe (http:// ou https://) ou lien interne (commence par #, ex: #produits-structures)
+        </p>
+      </div>
+
+      {/* Messages d'erreur/succès */}
+      {errorMessage && (
+        <div className="bg-red-500/20 border border-red-500 rounded-lg p-4">
+          <p className="text-red-300">{errorMessage}</p>
+        </div>
+      )}
+
+      {successMessage && (
+        <div className="bg-green-500/20 border border-green-500 rounded-lg p-4">
+          <p className="text-green-300">{successMessage}</p>
+        </div>
+      )}
+
+      {/* Bouton d'envoi */}
+      <div className="flex justify-end">
+        <button
+          type="submit"
+          disabled={sending || !title.trim() || !message.trim() || !userId}
+          className="px-6 py-3 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 disabled:from-gray-500 disabled:to-gray-600 text-white rounded-lg font-medium transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+        >
+          {sending ? (
+            <>
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+              <span>Envoi en cours...</span>
+            </>
+          ) : (
+            <>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
+              <span>Envoyer la notification</span>
             </>
           )}
         </button>

@@ -11,9 +11,16 @@ router.get('/', auth, async (req, res) => {
   try {
     const { unread_only } = req.query;
     
+    // Récupérer le rôle de l'utilisateur
+    const userResult = await query('SELECT role FROM users WHERE id = ?', [req.user.id]);
+    const userRole = userResult && userResult.length > 0 ? userResult[0].role : 'user';
+    const isAdmin = userRole === 'admin';
+    
     // Tous les utilisateurs voient leurs notifications personnelles + les notifications globales (user_id IS NULL)
-    let sql = `SELECT * FROM notifications WHERE (user_id = ? OR user_id IS NULL)`;
-    const params = [req.user.id];
+    // MAIS les utilisateurs non-admin ne voient PAS les notifications de type 'reservation' globales (pour protéger les noms)
+    // MAIS ils voient les notifications de type 'reservation_public' (sans noms)
+    let sql = `SELECT * FROM notifications WHERE (user_id = ? OR (user_id IS NULL AND (type = 'reservation_public' OR type != 'reservation' OR ? = 1)))`;
+    const params = [req.user.id, isAdmin ? 1 : 0];
     
     if (unread_only === 'true') {
       sql += ' AND is_read = FALSE';
@@ -23,6 +30,8 @@ router.get('/', auth, async (req, res) => {
     
     const notifications = await query(sql, params);
     
+    // Les notifications 'reservation_public' n'ont déjà pas de noms d'utilisateurs
+    // Les notifications 'reservation' ne sont visibles que par les admins
     res.json(notifications);
   } catch (error) {
     console.error('Erreur get notifications:', error);
@@ -37,10 +46,17 @@ router.get('/', auth, async (req, res) => {
 // @access  Private
 router.get('/unread-count', auth, async (req, res) => {
   try {
+    // Récupérer le rôle de l'utilisateur
+    const userResult = await query('SELECT role FROM users WHERE id = ?', [req.user.id]);
+    const userRole = userResult && userResult.length > 0 ? userResult[0].role : 'user';
+    const isAdmin = userRole === 'admin';
+    
     // Tous les utilisateurs voient leurs notifications personnelles + les notifications globales
+    // MAIS les utilisateurs non-admin ne voient PAS les notifications de type 'reservation' globales
+    // MAIS ils voient les notifications de type 'reservation_public' (sans noms)
     let sql = `SELECT COUNT(*) as count FROM notifications 
-               WHERE (user_id = ? OR user_id IS NULL) AND is_read = FALSE`;
-    const params = [req.user.id];
+               WHERE (user_id = ? OR (user_id IS NULL AND (type = 'reservation_public' OR type != 'reservation' OR ? = 1))) AND is_read = FALSE`;
+    const params = [req.user.id, isAdmin ? 1 : 0];
     
     const result = await query(sql, params);
     
@@ -60,10 +76,17 @@ router.put('/:id/read', auth, async (req, res) => {
   try {
     const notificationId = parseInt(req.params.id);
     
+    // Récupérer le rôle de l'utilisateur
+    const userResult = await query('SELECT role FROM users WHERE id = ?', [req.user.id]);
+    const userRole = userResult && userResult.length > 0 ? userResult[0].role : 'user';
+    const isAdmin = userRole === 'admin';
+    
     // Can mark as read if it's user's personal notification or a global notification
+    // MAIS les utilisateurs non-admin ne peuvent pas marquer les notifications de type 'reservation' globales
+    // MAIS ils peuvent marquer les notifications de type 'reservation_public'
     await query(
-      'UPDATE notifications SET is_read = TRUE WHERE id = ? AND (user_id = ? OR user_id IS NULL)',
-      [notificationId, req.user.id]
+      'UPDATE notifications SET is_read = TRUE WHERE id = ? AND (user_id = ? OR (user_id IS NULL AND (type = \'reservation_public\' OR type != \'reservation\' OR ? = 1)))',
+      [notificationId, req.user.id, isAdmin ? 1 : 0]
     );
     
     res.json({ message: 'Notification marquée comme lue' });
@@ -80,10 +103,16 @@ router.put('/:id/read', auth, async (req, res) => {
 // @access  Private
 router.put('/read-all', auth, async (req, res) => {
   try {
-    // Mark all notifications as read (personal + global)
+    // Récupérer le rôle de l'utilisateur
+    const userResult = await query('SELECT role FROM users WHERE id = ?', [req.user.id]);
+    const userRole = userResult && userResult.length > 0 ? userResult[0].role : 'user';
+    const isAdmin = userRole === 'admin';
+    
+    // Mark all notifications as read (personal + global, avec filtrage pour les non-admins)
+    // Les utilisateurs peuvent marquer les notifications 'reservation_public' comme lues
     await query(
-      'UPDATE notifications SET is_read = TRUE WHERE (user_id = ? OR user_id IS NULL) AND is_read = FALSE',
-      [req.user.id]
+      'UPDATE notifications SET is_read = TRUE WHERE (user_id = ? OR (user_id IS NULL AND (type = \'reservation_public\' OR type != \'reservation\' OR ? = 1))) AND is_read = FALSE',
+      [req.user.id, isAdmin ? 1 : 0]
     );
     
     res.json({ message: 'Toutes les notifications ont été marquées comme lues' });
@@ -211,6 +240,72 @@ router.post('/broadcast', auth, authorize('admin'), async (req, res) => {
     });
   } catch (error) {
     console.error('Erreur broadcast notification:', error);
+    console.error('Détails:', {
+      message: error.message,
+      code: error.code,
+      sqlMessage: error.sqlMessage,
+      stack: error.stack
+    });
+    res.status(500).json({ 
+      error: 'Erreur serveur lors de l\'envoi de la notification',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// @route   POST /api/notifications/send
+// @desc    Envoyer une notification à un utilisateur spécifique (Admin seulement)
+// @access  Private (Admin seulement)
+router.post('/send', auth, authorize('admin'), async (req, res) => {
+  try {
+    const { userId, type, title, message, link } = req.body;
+    
+    // Validation
+    if (!userId || !title || !message) {
+      return res.status(400).json({ 
+        error: 'L\'ID utilisateur, le titre et le message sont requis' 
+      });
+    }
+    
+    // Vérifier que l'utilisateur existe
+    const users = await query('SELECT id, email, nom, prenom FROM users WHERE id = ?', [userId]);
+    if (!users || users.length === 0) {
+      return res.status(404).json({ 
+        error: 'Utilisateur non trouvé' 
+      });
+    }
+    
+    const user = users[0];
+    
+    // Créer une notification individuelle pour cet utilisateur
+    const result = await createNotification(
+      type || 'info',
+      title,
+      message,
+      userId, // user_id spécifique pour notification individuelle
+      null,
+      null,
+      link || null // Lien optionnel
+    );
+    
+    if (!result) {
+      return res.status(500).json({ 
+        error: 'Erreur lors de la création de la notification. Vérifiez les logs du serveur pour plus de détails.' 
+      });
+    }
+    
+    res.status(201).json({
+      message: `Notification envoyée à ${user.prenom} ${user.nom} (${user.email})`,
+      notificationId: result,
+      recipient: {
+        id: user.id,
+        email: user.email,
+        nom: user.nom,
+        prenom: user.prenom
+      }
+    });
+  } catch (error) {
+    console.error('Erreur send notification:', error);
     console.error('Détails:', {
       message: error.message,
       code: error.code,

@@ -394,7 +394,7 @@ router.post('/:id/reservations', auth, async (req, res) => {
       [id, req.user.id, parseFloat(montant), notes || null]
     );
     
-    // Notifier les admins
+    // Notifier les admins (avec le nom de l'utilisateur)
     const userName = `${user.prenom} ${user.nom}`;
     const montantFormatted = new Intl.NumberFormat('fr-FR', { 
       style: 'currency', 
@@ -407,6 +407,18 @@ router.post('/:id/reservations', auth, async (req, res) => {
       `${userName} a réservé ${montantFormatted} pour le produit "${product.title}"`,
       result.insertId,
       'product_reservation'
+    );
+    
+    // Notifier tous les utilisateurs (sans le nom de l'utilisateur)
+    const { createNotification } = require('./notifications');
+    await createNotification(
+      'reservation_public',
+      'Nouvelle réservation',
+      `Un utilisateur a réservé ${montantFormatted} pour le produit "${product.title}"`,
+      null, // user_id = NULL pour notification globale
+      result.insertId,
+      'product_reservation',
+      null // pas de lien
     );
     
     res.status(201).json({

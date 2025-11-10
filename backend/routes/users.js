@@ -12,7 +12,22 @@ router.get('/', auth, authorize('admin'), async (req, res) => {
   try {
     const { role, active, search } = req.query;
     
-    let sql = 'SELECT id, email, nom, prenom, role, is_active, created_at FROM users';
+    // Construire la requête SELECT - essayer d'inclure toutes les colonnes
+    // On essaie d'abord avec toutes les colonnes, puis on fait un fallback si nécessaire
+    let selectFields = [
+      'id', 
+      'email', 
+      'nom', 
+      'prenom', 
+      'denomination_sociale',
+      'telephone',
+      'code_postal',
+      'role', 
+      'is_active', 
+      'created_at'
+    ];
+    
+    let sql = `SELECT ${selectFields.join(', ')} FROM users`;
     const conditions = [];
     const params = [];
     
@@ -37,7 +52,38 @@ router.get('/', auth, authorize('admin'), async (req, res) => {
     
     sql += ' ORDER BY nom, prenom';
     
-    const users = await query(sql, params);
+    console.log('📋 Requête SQL GET /api/users:', sql);
+    
+    let users;
+    try {
+      users = await query(sql, params);
+    } catch (sqlError) {
+      // Si erreur (colonnes n'existent pas), réessayer sans les colonnes optionnelles
+      if (sqlError.code === 'ER_BAD_FIELD_ERROR') {
+        console.warn('⚠️  Certaines colonnes n\'existent pas, utilisation des colonnes de base');
+        const baseFields = ['id', 'email', 'nom', 'prenom', 'role', 'is_active', 'created_at'];
+        sql = `SELECT ${baseFields.join(', ')} FROM users`;
+        if (conditions.length > 0) {
+          sql += ' WHERE ' + conditions.join(' AND ');
+        }
+        sql += ' ORDER BY nom, prenom';
+        users = await query(sql, params);
+      } else {
+        throw sqlError;
+      }
+    }
+    
+    console.log('📊 Utilisateurs récupérés:', users.length);
+    if (users.length > 0) {
+      console.log('📝 Premier utilisateur (exemple):', {
+        id: users[0].id,
+        nom: users[0].nom,
+        prenom: users[0].prenom,
+        denomination_sociale: users[0].denomination_sociale,
+        telephone: users[0].telephone,
+        code_postal: users[0].code_postal
+      });
+    }
     
     res.json(users);
   } catch (error) {
@@ -86,7 +132,10 @@ router.put('/:id', auth, authorize('admin'), async (req, res) => {
       nom,
       prenom,
       role,
-      is_active
+      is_active,
+      denomination_sociale,
+      telephone,
+      code_postal
     } = req.body;
     
     // Vérifier que l'utilisateur existe
@@ -145,6 +194,18 @@ router.put('/:id', auth, authorize('admin'), async (req, res) => {
     if (is_active !== undefined) {
       updates.push('is_active = ?');
       values.push(is_active);
+    }
+    if (denomination_sociale !== undefined) {
+      updates.push('denomination_sociale = ?');
+      values.push(denomination_sociale || null);
+    }
+    if (telephone !== undefined) {
+      updates.push('telephone = ?');
+      values.push(telephone || null);
+    }
+    if (code_postal !== undefined) {
+      updates.push('code_postal = ?');
+      values.push(code_postal || null);
     }
     
     if (updates.length === 0) {

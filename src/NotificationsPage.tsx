@@ -70,6 +70,9 @@ const NotificationsPage: React.FC = () => {
         return '🤝';
       case 'formation':
         return '🎓';
+      case 'reservation':
+      case 'reservation_public':
+        return '💰';
       default:
         return '🔔';
     }
@@ -86,6 +89,9 @@ const NotificationsPage: React.FC = () => {
         return 'bg-green-100 text-green-800 border-green-200';
       case 'formation':
         return 'bg-amber-100 text-amber-800 border-amber-200';
+      case 'reservation':
+      case 'reservation_public':
+        return 'bg-emerald-100 text-emerald-800 border-emerald-200';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200';
     }
