@@ -14,19 +14,35 @@ cd ~/alliance/alliance
 if ! command -v node &> /dev/null; then
     echo "⚠️  Node.js n'est pas installé, installation..."
     
-    # Installer Node.js via nvm ou directement
-    curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+    # Installer Node.js via le gestionnaire de paquets Ubuntu
+    sudo apt-get update
     sudo apt-get install -y nodejs
     
-    # Ou utiliser nvm
-    # curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
-    # source ~/.bashrc
-    # nvm install 18
+    # Si ça ne fonctionne pas, essayer avec NodeSource
+    if ! command -v node &> /dev/null; then
+        echo "⚠️  Tentative d'installation via NodeSource..."
+        curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash - || true
+        sudo apt-get install -y nodejs || true
+    fi
 fi
 
 if ! command -v npm &> /dev/null; then
-    echo "❌ npm n'est pas installé"
-    exit 1
+    echo "⚠️  npm n'est pas installé, installation..."
+    sudo apt-get install -y npm
+    
+    # Si npm n'est toujours pas disponible, l'installer via Node.js
+    if ! command -v npm &> /dev/null; then
+        echo "⚠️  Installation de npm via corepack..."
+        sudo corepack enable || true
+        sudo corepack prepare npm@latest --activate || true
+    fi
+    
+    # Vérifier à nouveau
+    if ! command -v npm &> /dev/null; then
+        echo "❌ Impossible d'installer npm automatiquement"
+        echo "💡 Essayez manuellement: sudo apt-get install -y npm"
+        exit 1
+    fi
 fi
 
 echo "✅ Node.js version: $(node --version)"
