@@ -74,29 +74,68 @@ async function apiRequest(endpoint, options = {}) {
         cache: 'no-store',
       };
       const retryResponse = await fetch(url, noCacheConfig);
-      const retryData = await retryResponse.json();
       
       if (!retryResponse.ok) {
-        throw new Error(retryData.error || 'Erreur de serveur');
+        let errorData;
+        try {
+          errorData = await retryResponse.json();
+        } catch (e) {
+          errorData = { error: `Erreur HTTP ${retryResponse.status}: ${retryResponse.statusText}` };
+        }
+        throw new Error(errorData.error || 'Erreur de serveur');
       }
       
+      const retryData = await retryResponse.json();
       return retryData;
     }
     
-    const data = await response.json();
+    // Vérifier si la réponse est OK avant de parser JSON
+    let data;
+    try {
+      const text = await response.text();
+      if (text) {
+        data = JSON.parse(text);
+      } else {
+        data = {};
+      }
+    } catch (parseError) {
+      console.error('Erreur de parsing JSON:', parseError);
+      console.error('Réponse texte:', await response.text());
+      throw new Error(`Erreur de format de réponse (${response.status}): ${response.statusText}`);
+    }
 
     if (!response.ok) {
-      throw new Error(data.error || 'Erreur de serveur');
+      const errorMessage = data.error || data.message || `Erreur HTTP ${response.status}: ${response.statusText}`;
+      console.error('Erreur API:', {
+        status: response.status,
+        statusText: response.statusText,
+        url: url,
+        error: errorMessage,
+        data: data
+      });
+      throw new Error(errorMessage);
     }
 
     return data;
   } catch (error) {
-    console.error('API Error:', error);
-    console.error('URL:', url);
-    console.error('Config:', config);
+    // Améliorer les messages d'erreur
+    const errorDetails = {
+      name: error.name,
+      message: error.message,
+      url: url,
+      stack: error.stack
+    };
+    
+    console.error('API Error:', errorDetails);
+    console.error('URL complète:', url);
+    console.error('Config:', {
+      method: config.method || 'GET',
+      headers: config.headers,
+      cache: config.cache
+    });
     
     // Si c'est une erreur de réseau, essayer une fois de plus
-    if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+    if (error.name === 'TypeError' && (error.message.includes('Failed to fetch') || error.message.includes('NetworkError'))) {
       console.warn('Retry after network error...');
       try {
         const retryResponse = await fetch(url, {
@@ -107,17 +146,30 @@ async function apiRequest(endpoint, options = {}) {
             'Cache-Control': 'no-cache',
           },
         });
-        const retryData = await retryResponse.json();
         
         if (!retryResponse.ok) {
-          throw new Error(retryData.error || 'Erreur de serveur');
+          let errorData;
+          try {
+            errorData = await retryResponse.json();
+          } catch (e) {
+            errorData = { error: `Erreur HTTP ${retryResponse.status}: ${retryResponse.statusText}` };
+          }
+          throw new Error(errorData.error || `Erreur HTTP ${retryResponse.status}`);
         }
         
+        const retryData = await retryResponse.json();
         return retryData;
       } catch (retryError) {
         console.error('Retry failed:', retryError);
-        throw new Error('Erreur de connexion au serveur. Veuillez réessayer.');
+        const finalError = new Error('Erreur de connexion au serveur. Vérifiez votre connexion internet et réessayez.');
+        finalError.originalError = retryError;
+        throw finalError;
       }
+    }
+    
+    // Améliorer le message d'erreur
+    if (!error.message || error.message === '') {
+      error.message = 'Erreur inconnue lors de la communication avec le serveur';
     }
     
     throw error;

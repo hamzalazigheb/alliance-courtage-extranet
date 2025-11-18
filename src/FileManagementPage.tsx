@@ -68,9 +68,16 @@ function FileManagementPage() {
 
       const response = await archivesAPI.getAll(params);
       setFiles(response);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erreur lors du chargement des fichiers:', error);
-      alert('Erreur lors du chargement des fichiers');
+      const errorMessage = error?.message || error?.toString() || 'Erreur inconnue';
+      console.error('Détails de l\'erreur:', {
+        message: errorMessage,
+        name: error?.name,
+        stack: error?.stack,
+        originalError: error?.originalError
+      });
+      alert(`Erreur lors du chargement des fichiers: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
