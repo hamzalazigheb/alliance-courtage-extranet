@@ -96,6 +96,53 @@ router.post('/', auth, upload.single('file'), handleMulterError, async (req, res
         error: 'Categories doit être un tableau JSON valide' 
       });
     }
+
+    // Heures minimum par catégorie
+    const minHoursByCategory = {
+      'IAS': 15,
+      'CIF': 7,
+      'IMMO': 14,
+      'IMMOBILIER': 14,
+      'IOBSP': 7,
+      'IOB': 7
+    };
+
+    // Convertir heures de format HH/MM en heures décimales
+    let heuresDecimal = 0;
+    if (typeof heures === 'string' && heures.includes('/')) {
+      // Format HH/MM
+      const [hours, minutes] = heures.split('/').map(Number);
+      if (isNaN(hours) || isNaN(minutes) || minutes < 0 || minutes >= 60) {
+        return res.status(400).json({ 
+          error: 'Format d\'heures invalide. Utilisez le format HH/MM (ex: 15/30 pour 15 heures 30 minutes)' 
+        });
+      }
+      heuresDecimal = hours + (minutes / 60);
+    } else {
+      // Format numérique (heures décimales)
+      heuresDecimal = parseFloat(heures);
+      if (isNaN(heuresDecimal) || heuresDecimal < 0) {
+        return res.status(400).json({ 
+          error: 'Format d\'heures invalide' 
+        });
+      }
+    }
+
+    // Valider les heures minimum par catégorie
+    const validationErrors = [];
+    for (const category of categoriesArray) {
+      const minHours = minHoursByCategory[category.toUpperCase()];
+      if (minHours && heuresDecimal < minHours) {
+        validationErrors.push(`${category}: minimum ${minHours} heures requis (vous avez déclaré ${heuresDecimal.toFixed(2)} heures)`);
+      }
+    }
+
+    if (validationErrors.length > 0) {
+      return res.status(400).json({ 
+        error: 'Heures insuffisantes pour les catégories sélectionnées',
+        details: validationErrors
+      });
+    }
     
     // Obtenir le nom de l'utilisateur
     const userResult = await query(
@@ -138,7 +185,7 @@ router.post('/', auth, upload.single('file'), handleMulterError, async (req, res
       userName,
       nom_document,
       date: formattedDate,
-      heures: parseInt(heures),
+      heures: heuresDecimal,
       categories: categoriesJson,
       delivree_par: delivree_par || null,
       fileSize: req.file.size,
@@ -152,7 +199,7 @@ router.post('/', auth, upload.single('file'), handleMulterError, async (req, res
       userName,
       nom_document,
       formattedDate,
-      parseInt(heures),
+      heuresDecimal,
       categoriesJson,
       delivree_par || null,
       '', // file_path is empty string when using base64

@@ -1,8 +1,25 @@
 import React, { useState, useEffect } from 'react';
+import { simulatorsAPI } from '../api';
 
 // Simulateurs Page Component
 function SimulateursPage() {
   const [activeSimulator, setActiveSimulator] = useState<string | null>(null);
+
+  // Fonction pour logger l'accès à un simulateur (quand l'utilisateur ouvre le modal)
+  const logSimulatorAccess = async (simulatorType: string) => {
+    try {
+      await simulatorsAPI.logUsage(simulatorType, null, 'Accès au simulateur');
+    } catch (error) {
+      // Ne pas afficher d'erreur à l'utilisateur, juste logger en console
+      console.error('Erreur lors de l\'enregistrement de l\'accès:', error);
+    }
+  };
+
+  // Handler pour ouvrir un simulateur et logger l'accès
+  const handleOpenSimulator = (simulatorType: string) => {
+    setActiveSimulator(simulatorType);
+    logSimulatorAccess(simulatorType);
+  };
 
   return (
     <div className="max-w-7xl mx-auto space-y-8">
@@ -26,11 +43,11 @@ function SimulateursPage() {
           <h3 className="text-xl font-bold text-gray-800 text-center mb-2">Impôt sur le Revenu</h3>
           <p className="text-gray-600 text-center text-sm mb-6">Calculez votre impôt sur le revenu selon les tranches d'imposition</p>
           <button 
-            onClick={() => setActiveSimulator('ir')}
+            onClick={() => handleOpenSimulator('ir')}
             className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg transition-colors font-medium"
           >
-              Simulation IR
-            </button>
+            Simulation IR
+          </button>
           </div>
 
         {/* 2. Simulateur IFI */}
@@ -43,11 +60,11 @@ function SimulateursPage() {
           <h3 className="text-xl font-bold text-gray-800 text-center mb-2">Fortune Immobilière (IFI)</h3>
           <p className="text-gray-600 text-center text-sm mb-6">Estimez votre impôt sur la fortune immobilière</p>
           <button 
-            onClick={() => setActiveSimulator('ifi')}
+            onClick={() => handleOpenSimulator('ifi')}
             className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 px-4 rounded-lg transition-colors font-medium"
           >
             Simulation IFI
-            </button>
+          </button>
           </div>
 
         {/* 3. Simulateur Succession */}
@@ -60,11 +77,11 @@ function SimulateursPage() {
           <h3 className="text-xl font-bold text-gray-800 text-center mb-2">Diagnostic Succession</h3>
           <p className="text-gray-600 text-center text-sm mb-6">Calculez les droits de succession pour vos héritiers</p>
           <button 
-            onClick={() => setActiveSimulator('succession')}
+            onClick={() => handleOpenSimulator('succession')}
             className="w-full bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg transition-colors font-medium"
           >
             Diagnostic Succession
-            </button>
+          </button>
       </div>
 
         {/* 4. Simulateur Placement */}
@@ -77,11 +94,11 @@ function SimulateursPage() {
           <h3 className="text-xl font-bold text-gray-800 text-center mb-2">Simulateur Placement</h3>
           <p className="text-gray-600 text-center text-sm mb-6">Estimez le rendement et le capital accumulé de vos placements</p>
           <button 
-            onClick={() => setActiveSimulator('placement')}
+            onClick={() => handleOpenSimulator('placement')}
             className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 px-4 rounded-lg transition-colors font-medium"
           >
             Simulateur Placement
-            </button>
+          </button>
           </div>
         </div>
 

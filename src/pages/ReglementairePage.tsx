@@ -91,13 +91,44 @@ export default function ReglementairePage({ currentUser }: { currentUser: User |
       return;
     }
 
+    // Valider le format des heures
+    if (!validateHoursFormat(formData.heures)) {
+      alert('Format d\'heures invalide. Utilisez le format HH/MM (ex: 15/30 pour 15 heures 30 minutes)');
+      return;
+    }
+
+    // Valider les heures minimum par catégorie
+    const minHoursByCategory: Record<string, number> = {
+      'IAS': 15,
+      'CIF': 7,
+      'IMMO': 14,
+      'IMMOBILIER': 14,
+      'IOBSP': 7,
+      'IOB': 7
+    };
+
+    const heuresDecimal = parseHHMMToDecimal(formData.heures);
+    const validationErrors: string[] = [];
+    
+    for (const category of formData.categories) {
+      const minHours = minHoursByCategory[category.toUpperCase()];
+      if (minHours && heuresDecimal < minHours) {
+        validationErrors.push(`${category}: minimum ${minHours} heures requis (vous avez déclaré ${formatHoursToHHMM(heuresDecimal)})`);
+      }
+    }
+
+    if (validationErrors.length > 0) {
+      alert('Heures insuffisantes pour les catégories sélectionnées:\n' + validationErrors.join('\n'));
+      return;
+    }
+
     setSubmitting(true);
     try {
       const formationData = {
         file: formData.file,
         nom_document: formData.nom_document,
         date: formData.date,
-        heures: formData.heures,
+        heures: formData.heures, // Envoyer en format HH/MM, le backend le convertira
         categories: formData.categories,
         delivree_par: formData.delivree_par,
         year: formData.year
@@ -134,6 +165,36 @@ export default function ReglementairePage({ currentUser }: { currentUser: User |
         ? prev.categories.filter(c => c !== category)
         : [...prev.categories, category]
     }));
+  };
+
+  // Convertir heures décimales en format HH/MM
+  const formatHoursToHHMM = (decimalHours: number): string => {
+    const hours = Math.floor(decimalHours);
+    const minutes = Math.round((decimalHours - hours) * 60);
+    return `${hours}/${minutes.toString().padStart(2, '0')}`;
+  };
+
+  // Convertir format HH/MM en heures décimales
+  const parseHHMMToDecimal = (hhmm: string): number => {
+    if (!hhmm || !hhmm.includes('/')) {
+      return parseFloat(hhmm) || 0;
+    }
+    const [hours, minutes] = hhmm.split('/').map(Number);
+    return hours + (minutes / 60);
+  };
+
+  // Valider le format HH/MM
+  const validateHoursFormat = (value: string): boolean => {
+    if (!value) return false;
+    if (!value.includes('/')) {
+      // Accepter aussi les nombres simples
+      return !isNaN(parseFloat(value)) && parseFloat(value) >= 0;
+    }
+    const parts = value.split('/');
+    if (parts.length !== 2) return false;
+    const hours = parseInt(parts[0]);
+    const minutes = parseInt(parts[1]);
+    return !isNaN(hours) && !isNaN(minutes) && hours >= 0 && minutes >= 0 && minutes < 60;
   };
 
   // Données des formations par année et catégorie (pour les heures obligatoires)
@@ -237,7 +298,12 @@ export default function ReglementairePage({ currentUser }: { currentUser: User |
     const approvedFormations = formations.filter(f => f.statut === 'approved');
     return approvedFormations
       .filter(formation => formation.categories.includes(category))
-      .reduce((total, formation) => total + (formation.heures || 0), 0);
+      .reduce((total, formation) => {
+        const heures = typeof formation.heures === 'number' 
+          ? formation.heures 
+          : parseHHMMToDecimal(String(formation.heures || '0'));
+        return total + heures;
+      }, 0);
   };
 
   // Get documents for a specific folder
@@ -285,7 +351,16 @@ export default function ReglementairePage({ currentUser }: { currentUser: User |
         <div className="p-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {['IAS', 'CIF', 'IOB', 'IMMOBILIER'].map((category) => {
-              const requiredHours = formationsData[selectedYear as keyof typeof formationsData]?.obligatoires?.[category as keyof typeof formationsData['2024']['obligatoires']] || 0;
+              // Heures minimum requises par catégorie
+              const minHoursByCategory: Record<string, number> = {
+                'IAS': 15,
+                'CIF': 7,
+                'IMMO': 14,
+                'IMMOBILIER': 14,
+                'IOBSP': 7,
+                'IOB': 7
+              };
+              const requiredHours = minHoursByCategory[category] || 0;
               const completedHours = getTotalHoursByCategory(category);
               const isCompleted = completedHours >= requiredHours;
               
@@ -303,8 +378,11 @@ export default function ReglementairePage({ currentUser }: { currentUser: User |
                   }`}
                 >
                   <div className="text-lg font-semibold">{category}</div>
+                  <div className="text-xs mt-1">
+                    {formatHoursToHHMM(completedHours)} / {formatHoursToHHMM(requiredHours)}
+                  </div>
                   {isCompleted && (
-                    <div className="text-xs mt-1">✓ Complété</div>
+                    <div className="text-xs mt-1 font-bold">✓ Complété</div>
                   )}
             </button>
               );
@@ -383,7 +461,11 @@ export default function ReglementairePage({ currentUser }: { currentUser: User |
                             {formation.statut === 'approved' ? 'Validée' : formation.statut === 'pending' ? 'En attente' : 'Rejetée'}
                         </span>
                       </td>
-                      <td className="border border-gray-300 px-4 py-2 font-medium">{formation.heures}h</td>
+                      <td className="border border-gray-300 px-4 py-2 font-medium">
+                        {typeof formation.heures === 'number' 
+                          ? formatHoursToHHMM(formation.heures) 
+                          : formation.heures}
+                      </td>
                       <td className="border border-gray-300 px-4 py-2">
                         <div className="flex flex-wrap gap-1">
                             {Array.isArray(formation.categories) ? formation.categories.map((category: string) => (
@@ -468,7 +550,7 @@ export default function ReglementairePage({ currentUser }: { currentUser: User |
               Ajouter une formation
             </button>
             <div className="text-gray-600 font-medium">
-              Total heures {selectedCategory === 'all' ? 'toutes catégories' : selectedCategory}: {getFilteredFormations().reduce((total, formation) => total + formation.heures, 0)}h
+              Total heures {selectedCategory === 'all' ? 'toutes catégories' : selectedCategory}: {formatHoursToHHMM(getFilteredFormations().reduce((total, formation) => total + (typeof formation.heures === 'number' ? formation.heures : parseHHMMToDecimal(String(formation.heures))), 0))}
             </div>
           </div>
         </div>
@@ -638,16 +720,50 @@ export default function ReglementairePage({ currentUser }: { currentUser: User |
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Nombre d'heures <span className="text-red-500">*</span>
+                    <span className="text-xs text-gray-500 ml-2">(Format: HH/MM)</span>
                   </label>
                   <input
-                    type="number"
+                    type="text"
                     required
-                    min="1"
                     value={formData.heures}
-                    onChange={(e) => setFormData({ ...formData, heures: e.target.value })}
+                    onChange={(e) => {
+                      // Valider le format HH/MM en temps réel
+                      const value = e.target.value;
+                      // Permettre: nombres, /, et format HH/MM
+                      if (value === '' || /^\d{0,2}\/?\d{0,2}$/.test(value)) {
+                        setFormData({ ...formData, heures: value });
+                      }
+                    }}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Ex: 7"
+                    placeholder="Ex: 15/30 (15h30min)"
+                    pattern="\d{1,2}/\d{1,2}"
                   />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Format: HH/MM (ex: 15/30 pour 15 heures 30 minutes)
+                  </p>
+                  {formData.categories.length > 0 && (
+                    <div className="mt-2 p-2 bg-blue-50 rounded-lg">
+                      <p className="text-xs font-semibold text-blue-800 mb-1">Heures minimum requises :</p>
+                      <ul className="text-xs text-blue-700 space-y-0.5">
+                        {formData.categories.map((cat) => {
+                          const minHours: Record<string, number> = {
+                            'IAS': 15,
+                            'CIF': 7,
+                            'IMMO': 14,
+                            'IMMOBILIER': 14,
+                            'IOBSP': 7,
+                            'IOB': 7
+                          };
+                          const min = minHours[cat] || 0;
+                          return (
+                            <li key={cat}>
+                              {cat}: {min} heures minimum
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -656,20 +772,32 @@ export default function ReglementairePage({ currentUser }: { currentUser: User |
                   Catégories <span className="text-red-500">*</span>
                 </label>
                 <div className="flex flex-wrap gap-2">
-                  {['CIF', 'IAS', 'IOB', 'IMMOBILIER'].map((category) => (
-                    <button
-                      key={category}
-                      type="button"
-                      onClick={() => toggleCategory(category)}
-                      className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                        formData.categories.includes(category)
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                      }`}
-                    >
-                      {category}
-                    </button>
-            ))}
+                  {['CIF', 'IAS', 'IOB', 'IMMOBILIER'].map((category) => {
+                    const minHoursByCategory: Record<string, number> = {
+                      'IAS': 15,
+                      'CIF': 7,
+                      'IMMO': 14,
+                      'IMMOBILIER': 14,
+                      'IOBSP': 7,
+                      'IOB': 7
+                    };
+                    const minHours = minHoursByCategory[category] || 0;
+                    return (
+                      <button
+                        key={category}
+                        type="button"
+                        onClick={() => toggleCategory(category)}
+                        className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                          formData.categories.includes(category)
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                        title={`Minimum ${minHours} heures requis`}
+                      >
+                        {category} <span className="text-xs">(min {minHours}h)</span>
+                      </button>
+                    );
+                  })}
           </div>
                 {formData.categories.length === 0 && (
                   <p className="text-red-500 text-sm mt-1">Sélectionnez au moins une catégorie</p>

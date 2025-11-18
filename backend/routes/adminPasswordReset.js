@@ -49,11 +49,28 @@ router.post('/request', async (req, res) => {
       });
     }
 
+    // Valider le format de l'email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ 
+        error: 'Format d\'email invalide' 
+      });
+    }
+
+    console.log(`🔍 Recherche de l'utilisateur admin avec l'email: ${email}`);
+
     // Vérifier que l'utilisateur existe et est un admin
-    const users = await query(
-      'SELECT id, email, nom, prenom, role FROM users WHERE email = ?',
-      [email]
-    );
+    let users;
+    try {
+      users = await query(
+        'SELECT id, email, nom, prenom, role FROM users WHERE email = ?',
+        [email]
+      );
+      console.log(`📊 Résultat de la requête: ${users.length} utilisateur(s) trouvé(s)`);
+    } catch (dbError) {
+      console.error('❌ Erreur base de données lors de la recherche:', dbError);
+      throw new Error(`Erreur base de données: ${dbError.message}`);
+    }
 
     if (users.length === 0) {
       // Pour la sécurité, on ne révèle pas si l'email existe ou non
@@ -74,23 +91,54 @@ router.post('/request', async (req, res) => {
 
     // Générer un nouveau mot de passe sécurisé
     const newPassword = generateSecurePassword(12);
+    console.log(`🔑 Mot de passe généré pour l'utilisateur ${user.id}`);
 
     // Hacher le nouveau mot de passe
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+    let hashedPassword;
+    try {
+      const saltRounds = 10;
+      hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+      console.log(`✅ Mot de passe hashé avec succès`);
+    } catch (hashError) {
+      console.error('❌ Erreur lors du hachage du mot de passe:', hashError);
+      throw new Error(`Erreur lors du hachage du mot de passe: ${hashError.message}`);
+    }
 
     // Mettre à jour le mot de passe dans la base de données
-    await query(
-      'UPDATE users SET password = ? WHERE id = ?',
-      [hashedPassword, user.id]
-    );
+    try {
+      await query(
+        'UPDATE users SET password = ? WHERE id = ?',
+        [hashedPassword, user.id]
+      );
+      console.log(`✅ Mot de passe mis à jour dans la base de données pour l'utilisateur ${user.id}`);
+    } catch (updateError) {
+      console.error('❌ Erreur lors de la mise à jour du mot de passe:', updateError);
+      throw new Error(`Erreur lors de la mise à jour du mot de passe: ${updateError.message}`);
+    }
+
+    // TOUJOURS logger le mot de passe dans les logs (même si l'email réussit)
+    console.log('\n' + '='.repeat(80));
+    console.log('🔐 RÉINITIALISATION DE MOT DE PASSE ADMIN');
+    console.log('='.repeat(80));
+    console.log(`👤 Utilisateur: ${user.prenom} ${user.nom} (${email})`);
+    console.log(`🆔 ID: ${user.id}`);
+    console.log(`📅 Date: ${new Date().toLocaleString('fr-FR')}`);
+    console.log('');
+    console.log('🔑 NOUVEAU MOT DE PASSE:');
+    console.log('   ' + '─'.repeat(76));
+    console.log('   ' + newPassword);
+    console.log('   ' + '─'.repeat(76));
+    console.log('');
+    console.log('⚠️  IMPORTANT: Ce mot de passe est visible dans les logs du serveur.');
+    console.log('⚠️  Changez-le immédiatement après la première connexion.');
+    console.log('='.repeat(80) + '\n');
 
     // Envoyer l'email avec le nouveau mot de passe
     try {
       const userName = `${user.prenom} ${user.nom}`;
       await sendPasswordResetEmail(email, newPassword, userName);
       
-      console.log(`✅ Mot de passe réinitialisé et email envoyé pour: ${email}`);
+      console.log(`✅ Email envoyé avec succès pour: ${email}`);
       
       // Enregistrer dans password_reset_requests pour traçabilité
       try {
@@ -105,25 +153,53 @@ router.post('/request', async (req, res) => {
       }
 
       res.status(200).json({
-        message: 'Un email avec votre nouveau mot de passe a été envoyé à ' + email + '. Vérifiez votre boîte de réception (et les spams).'
+        message: 'Un email avec votre nouveau mot de passe a été envoyé à ' + email + '. Vérifiez votre boîte de réception (et les spams). Le mot de passe est également disponible dans les logs du serveur.'
       });
     } catch (emailError) {
-      // Si l'email échoue, on annule la réinitialisation du mot de passe
-      console.error('❌ Erreur envoi email, annulation de la réinitialisation:', emailError);
+      // Si l'email échoue, le mot de passe est déjà dans les logs ci-dessus
+      console.error('❌ Erreur envoi email:', emailError.message);
+      console.log('ℹ️  Le mot de passe a été réinitialisé et est disponible dans les logs ci-dessus.');
       
-      // Optionnel : restaurer l'ancien mot de passe (si vous le stockez)
-      // Pour l'instant, on laisse le nouveau mot de passe mais on informe l'utilisateur
+      // Détecter le type d'erreur
+      const isMailtrapLimit = emailError.code === 'MAILTRAP_LIMIT_REACHED' || 
+                              (emailError.message && emailError.message.includes('email limit is reached'));
+      
+      let errorMessage = 'Le nouveau mot de passe a été généré mais l\'envoi de l\'email a échoué. Le mot de passe est disponible dans les logs du serveur.';
+      let errorDetails = {};
+      
+      if (isMailtrapLimit) {
+        errorMessage = 'Limite d\'emails Mailtrap atteinte. Le mot de passe a été réinitialisé. Consultez les logs du serveur pour récupérer le mot de passe.';
+        errorDetails = {
+          suggestion: 'Veuillez mettre à niveau votre plan Mailtrap ou configurer un autre service SMTP (Gmail, SendGrid, etc.)',
+          mailtrapUpgrade: 'https://mailtrap.io/billing/plans/testing',
+          note: 'Le mot de passe a été affiché dans les logs du serveur ci-dessus.'
+        };
+      } else {
+        errorDetails = {
+          message: emailError.message,
+          suggestion: 'Vérifiez la configuration SMTP dans config.env ou contactez le support technique.',
+          note: 'Le mot de passe a été affiché dans les logs du serveur ci-dessus.'
+        };
+      }
       
       res.status(500).json({
-        error: 'Le nouveau mot de passe a été généré mais l\'envoi de l\'email a échoué. Veuillez contacter le support technique.',
-        details: process.env.NODE_ENV === 'development' ? emailError.message : undefined
+        error: errorMessage,
+        details: errorDetails
       });
     }
 
   } catch (error) {
-    console.error('Erreur admin password reset:', error);
+    console.error('❌ Erreur admin password reset:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      sqlMessage: error.sqlMessage,
+      sqlState: error.sqlState,
+      stack: error.stack
+    });
     res.status(500).json({ 
-      error: 'Erreur serveur lors de la réinitialisation du mot de passe' 
+      error: 'Erreur serveur lors de la réinitialisation du mot de passe',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });

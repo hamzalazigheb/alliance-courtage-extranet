@@ -12,7 +12,9 @@
     "test:db": "node scripts/testDatabase.js",
     "test:security": "node scripts/testSecurity.js",
     "test:performance": "node scripts/testPerformance.js",
-    "install:db": "node scripts/freshDatabase.js"
+    "install:db": "node scripts/freshDatabase.js",
+    "list-tables": "node scripts/listTables.js",
+    "compare-db": "node scripts/compareDatabases.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -480,6 +480,35 @@ export const favorisAPI = {
   }
 };
 
+export const simulatorsAPI = {
+  logUsage: async (simulatorType, parameters = null, resultSummary = null) => {
+    return apiRequest('/simulators/usage', {
+      method: 'POST',
+      body: JSON.stringify({
+        simulator_type: simulatorType,
+        parameters,
+        result_summary: resultSummary
+      })
+    });
+  },
+
+  getUsage: async (filters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.simulator_type) params.append('simulator_type', filters.simulator_type);
+    if (filters.user_id) params.append('user_id', filters.user_id);
+    if (filters.start_date) params.append('start_date', filters.start_date);
+    if (filters.end_date) params.append('end_date', filters.end_date);
+    if (filters.limit) params.append('limit', filters.limit);
+    
+    const queryString = params.toString();
+    return apiRequest(`/simulators/usage${queryString ? `?${queryString}` : ''}`);
+  },
+
+  getStats: async () => {
+    return apiRequest('/simulators/usage/stats');
+  }
+};
+
 // Helper function to build full API URLs
 export function buildAPIURL(endpoint) {
   return `${API_BASE_URL}${endpoint}`;

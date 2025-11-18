@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import GammeFinancierePage from './GammeFinancierePage';
 import NosArchivesPage from './NosArchivesPage';
 import ManagePage from './ManagePage';
 import NotificationsPage from './NotificationsPage';
 import FavorisPage from './FavorisPage';
-import { authAPI, formationsAPI, notificationsAPI, favorisAPI, buildAPIURL, buildFileURL } from './api';
+import { notificationsAPI, buildAPIURL } from './api';
 import ExtranetLoginPage from './pages/ExtranetLoginPage';
 import AdminLoginPage from './pages/AdminLoginPage';
 import HomePage from './pages/HomePage';
@@ -25,11 +25,6 @@ interface AuthUserRecord {
   prenom: string;
   email: string;
   role: 'admin' | 'user' | string;
-}
-
-interface LoginResponse {
-  token: string;
-  user: AuthUserRecord;
 }
 
 // Login Page Components moved to pages/ExtranetLoginPage.tsx and pages/AdminLoginPage.tsx
@@ -159,8 +154,6 @@ function App() {
     }
   }, [currentUser, showProfileModal]);
 
-  // Initialize URL hash and listen for hash changes
-  // Must be after currentUser declaration to avoid initialization order issues
   useEffect(() => {
     // Correction automatique de la faute de frappe "acceuil" -> "accueil"
     const currentHash = window.location.hash.slice(1);
@@ -229,103 +222,6 @@ function App() {
   // Données bordereaux (simulation) - VIDÉES POUR LE TEST
   const [bordereaux, setBordereaux] = useState<BordereauFile[]>([]);
 
-  // Fonction pour détecter les initiales dans le nom du fichier
-  const detectUserFromFileName = (fileName: string): User[] => {
-    const fileNameUpper = fileName.toUpperCase();
-    const detectedUsers: User[] = [];
-    
-    console.log('🔍 Détection pour fichier:', fileName);
-    
-    // Chercher les 2 premières lettres au DÉBUT du nom du fichier
-    for (const user of users.filter(u => u.role === 'user')) {
-      const initials = user.name.substring(0, 2).toUpperCase();
-      // Détecter si le fichier commence par les 2 lettres
-      const isDetected = fileNameUpper.startsWith(initials);
-      console.log(`  - ${user.name} (${initials}) au début de "${fileNameUpper}" ?`, isDetected);
-      if (isDetected) {
-        detectedUsers.push(user);
-      }
-    }
-    
-    console.log('✅ Utilisateurs détectés:', detectedUsers.map(u => u.name));
-    return detectedUsers;
-  };
-
-  // Fonction pour vider tous les bordereaux
-  const clearAllBordereaux = () => {
-    if (confirm('Êtes-vous sûr de vouloir effacer TOUS les bordereaux ?\n\nCette action est irréversible.')) {
-      setBordereaux([]);
-      alert('✅ Tous les bordereaux ont été effacés !');
-    }
-  };
-
-  // Fonction pour uploader des fichiers avec détection automatique
-  const handleFileUpload = (file: File) => {
-    const currentDate = new Date();
-    const uploadDate = currentDate.toISOString().split('T')[0];
-    
-    // Extraire le mois et l'année du nom du fichier
-    let month = 'Janvier'; // Par défaut
-    let year = currentDate.getFullYear().toString(); // Par défaut année actuelle
-    
-    // Détecter le mois dans le nom du fichier
-    const fileNameUpper = file.name.toUpperCase();
-    if (fileNameUpper.includes('JANVIER')) month = 'Janvier';
-    else if (fileNameUpper.includes('FEVRIER')) month = 'Février';
-    else if (fileNameUpper.includes('MARS')) month = 'Mars';
-    else if (fileNameUpper.includes('AVRIL')) month = 'Avril';
-    else if (fileNameUpper.includes('MAI')) month = 'Mai';
-    else if (fileNameUpper.includes('JUIN')) month = 'Juin';
-    else if (fileNameUpper.includes('JUILLET')) month = 'Juillet';
-    else if (fileNameUpper.includes('AOUT')) month = 'Août';
-    else if (fileNameUpper.includes('SEPTEMBRE')) month = 'Septembre';
-    else if (fileNameUpper.includes('OCTOBRE')) month = 'Octobre';
-    else if (fileNameUpper.includes('NOVEMBRE')) month = 'Novembre';
-    else if (fileNameUpper.includes('DECEMBRE')) month = 'Décembre';
-    
-    // Détecter l'année dans le nom du fichier
-    const yearMatch = file.name.match(/20\d{2}/);
-    if (yearMatch) {
-      year = yearMatch[0];
-    }
-    
-    // Détecter les utilisateurs à partir du nom du fichier
-    const targetUsers = detectUserFromFileName(file.name);
-    
-    if (targetUsers.length === 0) {
-      alert(`Aucun utilisateur détecté dans le nom du fichier "${file.name}".\n\nUtilisez les 2 premières lettres AU DÉBUT du nom :\n- MA pour MARTIN\n- RA pour RICHARD\n- BE pour BERNARD\n- etc.\n\nExemple : MA_Rapport_Janvier_2025.pdf ou MA.pdf`);
-      return;
-    }
-    
-    // Créer un bordereau pour chaque utilisateur détecté
-    const newBordereaux: BordereauFile[] = targetUsers.map(user => ({
-      id: `${Date.now()}_${user.id}`,
-      fileName: file.name,
-      uploadDate: uploadDate,
-      month: month,
-      year: year,
-      userId: user.id,
-      uploadedBy: currentUser?.name || 'Admin'
-    }));
-    
-    // Debug: Vérifier l'assignation
-    console.log('📁 Fichier uploadé:', file.name);
-    console.log('📅 Mois détecté:', month);
-    console.log('📅 Année détectée:', year);
-    console.log('👥 Utilisateurs assignés:', targetUsers.map(u => `${u.name} (${u.id})`));
-    console.log('📋 Bordereaux créés:', newBordereaux.map(b => `${b.fileName} → ${b.userId} (${b.month} ${b.year})`));
-    
-    setBordereaux(prev => {
-      const newState = [...prev, ...newBordereaux];
-      console.log('📊 État des bordereaux après upload:', newState);
-      console.log('📊 Nombre total de bordereaux:', newState.length);
-      return newState;
-    });
-    
-    // Message de confirmation avec les utilisateurs détectés
-    const userNames = targetUsers.map(u => u.name).join(', ');
-    alert(`Fichier "${file.name}" uploadé avec succès pour :\n${userNames}\n\n(${targetUsers.length} utilisateur${targetUsers.length > 1 ? 's' : ''})`);
-  };
 
   const renderPage = () => {
     switch (currentPage) {
@@ -362,7 +258,6 @@ function App() {
     }
   };
 
-  // Si l'utilisateur n'est pas connecté, afficher la page de login appropriée
   if (!isLoggedIn) {
     // Déterminer quelle page de login afficher selon l'URL
     const hash = window.location.hash.slice(1);
@@ -391,8 +286,6 @@ function App() {
     }
   }
 
-  // Render ManagePage independently without sidebar
-  // Vérifier que seul un admin peut accéder à /manage
   if (currentPage === "manage") {
     // Si l'utilisateur n'est pas admin, bloquer l'accès
     if (currentUser?.role !== 'admin') {
@@ -987,17 +880,5 @@ function App() {
     </div>
   );
 }
-
-// HomePage moved to pages/HomePage.tsx
-// GammeProduitsPage moved to pages/GammeProduitsPage.tsx
-// Partner interface moved to types.ts
-
-// PartenairesPage moved to pages/PartenairesPage.tsx
-// RencontresPage moved to pages/RencontresPage.tsx
-// ReglementairePage moved to pages/ReglementairePage.tsx
-// ProduitsStructuresPage moved to pages/ProduitsStructuresPage.tsx
-// SimulateursPage moved to pages/SimulateursPage.tsx
-// ComptabilitePage moved to pages/ComptabilitePage.tsx
-// GestionComptabilitePage moved to pages/GestionComptabilitePage.tsx
 
 export default App;

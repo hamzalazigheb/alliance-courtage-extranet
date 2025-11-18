@@ -300,6 +300,22 @@ const sendPasswordResetEmail = async (email, newPassword, userName = '') => {
     
   } catch (error) {
     console.error('❌ Erreur envoi email:', error);
+    
+    // Détecter les erreurs spécifiques de Mailtrap
+    if (error.message && error.message.includes('email limit is reached')) {
+      const customError = new Error('Limite d\'emails Mailtrap atteinte. Veuillez mettre à niveau votre plan ou utiliser un autre service SMTP.');
+      customError.code = 'MAILTRAP_LIMIT_REACHED';
+      customError.originalError = error;
+      throw customError;
+    }
+    
+    if (error.message && error.message.includes('Invalid login')) {
+      const customError = new Error('Identifiants SMTP invalides. Vérifiez votre configuration SMTP.');
+      customError.code = 'SMTP_AUTH_ERROR';
+      customError.originalError = error;
+      throw customError;
+    }
+    
     throw new Error('Erreur lors de l\'envoi de l\'email: ' + error.message);
   }
 };

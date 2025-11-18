@@ -32,6 +32,32 @@ export interface BordereauFile {
   uploadedBy: string;
 }
 
+export interface PartnerContact {
+  id: number;
+  partner_id: number;
+  fonction: string;
+  nom: string;
+  prenom: string;
+  email: string;
+  telephone?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface PartnerDocument {
+  id: number;
+  partner_id: number;
+  title: string;
+  description?: string;
+  file_type?: string;
+  file_size?: number;
+  document_type?: string;
+  created_at?: string;
+  updated_at?: string;
+  uploaded_by?: number;
+  downloadUrl?: string;
+}
+
 export interface Partner {
   id: number;
   nom: string;
@@ -43,10 +69,9 @@ export interface Partner {
   logo_content?: string;
   category?: string;
   is_active?: boolean;
-  documents?: Array<{
-    nom: string;
-    type: string;
-    date: string;
-  }>;
+  contact_email?: string;
+  contact_phone?: string;
+  contacts?: PartnerContact[];
+  documents?: PartnerDocument[];
 }
 

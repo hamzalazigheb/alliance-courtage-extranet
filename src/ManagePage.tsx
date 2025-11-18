@@ -5,6 +5,7 @@ import FinancialDocumentsPage from './FinancialDocumentsPage';
 import UserManagementPage from './UserManagementPage';
 import CMSManagementPage from './CMSManagementPage';
 import ProductReservationsPage from './ProductReservationsPage';
+import SimulatorStatsPage from './SimulatorStatsPage';
 import { buildAPIURL } from './api';
 
 interface UserProfile {
@@ -16,7 +17,7 @@ interface UserProfile {
 }
 
 const ManagePage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'archives' | 'partenaires' | 'documents' | 'utilisateurs' | 'cms' | 'reservations'>('archives');
+  const [activeTab, setActiveTab] = useState<'archives' | 'partenaires' | 'documents' | 'utilisateurs' | 'cms' | 'reservations' | 'simulateurs'>('archives');
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [profileData, setProfileData] = useState({
@@ -35,9 +36,9 @@ const ManagePage: React.FC = () => {
     loadCurrentUser();
   }, []);
 
-  // If user tries to access 'utilisateurs' or 'reservations' tab but is not admin, redirect to first available tab
+  // If user tries to access 'utilisateurs', 'reservations', or 'simulateurs' tab but is not admin, redirect to first available tab
   useEffect(() => {
-    if ((activeTab === 'utilisateurs' || activeTab === 'reservations') && currentUser && currentUser.role !== 'admin') {
+    if ((activeTab === 'utilisateurs' || activeTab === 'reservations' || activeTab === 'simulateurs') && currentUser && currentUser.role !== 'admin') {
       setActiveTab('archives');
     }
   }, [activeTab, currentUser]);
@@ -139,7 +140,8 @@ const ManagePage: React.FC = () => {
     { id: 'documents' as const, label: 'Documents Financiers', icon: '📄', adminOnly: false },
     { id: 'utilisateurs' as const, label: 'Utilisateurs', icon: '👥', adminOnly: true },
     { id: 'cms' as const, label: 'CMS', icon: '✏️', adminOnly: false },
-    { id: 'reservations' as const, label: 'Produits Réservés', icon: '🛒', adminOnly: true }
+    { id: 'reservations' as const, label: 'Produits Réservés', icon: '🛒', adminOnly: true },
+    { id: 'simulateurs' as const, label: 'Statistiques Simulateurs', icon: '📊', adminOnly: true }
   ];
   
   const tabs = allTabs.filter(tab => !tab.adminOnly || currentUser?.role === 'admin');
@@ -235,6 +237,18 @@ const ManagePage: React.FC = () => {
           {activeTab === 'reservations' && (
             currentUser?.role === 'admin' ? (
               <ProductReservationsPage />
+            ) : (
+              <div className="p-8">
+                <div className="max-w-4xl mx-auto bg-red-50 border-2 border-red-200 rounded-xl p-6">
+                  <h1 className="text-2xl font-bold text-red-800 mb-4">Accès refusé</h1>
+                  <p className="text-red-600">Vous devez être administrateur pour accéder à cette fonctionnalité.</p>
+                </div>
+              </div>
+            )
+          )}
+          {activeTab === 'simulateurs' && (
+            currentUser?.role === 'admin' ? (
+              <SimulatorStatsPage />
             ) : (
               <div className="p-8">
                 <div className="max-w-4xl mx-auto bg-red-50 border-2 border-red-200 rounded-xl p-6">

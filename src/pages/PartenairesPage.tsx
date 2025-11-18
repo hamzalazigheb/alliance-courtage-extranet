@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { buildAPIURL, buildFileURL } from '../api';
-import { Partner } from '../types';
+import { Partner, PartnerDocument, PartnerContact } from '../types';
 
 export default function PartenairesPage() {
   const [selectedCategory, setSelectedCategory] = useState("tous");
@@ -35,9 +35,25 @@ export default function PartenairesPage() {
         
         // Load from API
         const response = await fetch(buildAPIURL('/partners?active=false'));
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Erreur inconnue' }));
+          console.error('❌ Erreur chargement partenaires:', response.status, errorData);
+          throw new Error(errorData.error || `Erreur ${response.status}: ${response.statusText}`);
+        }
+        
         const data = await response.json();
         
         console.log('📊 Partners loaded from API:', data.length);
+        // Debug: vérifier les documents et contacts
+        data.forEach((p: Partner) => {
+          if (p.documents && p.documents.length > 0) {
+            console.log(`📄 Partner ${p.nom} has ${p.documents.length} documents:`, p.documents.map((d: PartnerDocument) => d.title));
+          }
+          if (p.contacts && p.contacts.length > 0) {
+            console.log(`👤 Partner ${p.nom} has ${p.contacts.length} contacts:`, p.contacts.map((c: PartnerContact) => `${c.prenom} ${c.nom} (${c.fonction})`));
+          }
+        });
         
         // Filter out large base64 logos before caching to avoid quota issues
         const dataForCache = data.map((partner: Partner) => {
@@ -216,24 +232,95 @@ export default function PartenairesPage() {
                       🌐 Visiter le site
                     </a>
                     
-                    {/* Documents contractuels (seulement pour les fallback avec documents) */}
-                    {partenaire.documents && Array.isArray(partenaire.documents) && partenaire.documents.length > 0 && (
-                    <div className="space-y-2">
-                      <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Documents récents</h4>
-                        {partenaire.documents.slice(0, 2).map((doc: any, index: number) => (
-                        <div key={index} className="text-xs text-gray-600 bg-gray-50 p-2 rounded">
-                          <div className="font-medium">{doc.nom}</div>
-                          <div className="flex justify-between text-gray-500">
-                            <span>{doc.type}</span>
-                            <span>{doc.date}</span>
+                    {/* Contacts */}
+                    {partenaire.contacts && Array.isArray(partenaire.contacts) && partenaire.contacts.length > 0 && (
+                      <div className="space-y-2 border-t border-gray-200 pt-3 mt-3">
+                        <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2 flex items-center">
+                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                          </svg>
+                          Contacts ({partenaire.contacts.length})
+                        </h4>
+                        {partenaire.contacts.slice(0, 3).map((contact: PartnerContact) => (
+                          <div
+                            key={contact.id}
+                            className="flex items-center justify-between text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 p-2 rounded transition-colors border border-indigo-200"
+                          >
+                            <div className="flex items-center space-x-2 flex-1 min-w-0">
+                              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                              </svg>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium truncate">{contact.prenom} {contact.nom}</div>
+                                <a 
+                                  href={`mailto:${contact.email}`}
+                                  className="text-[10px] text-indigo-600 hover:text-indigo-800 truncate block"
+                                >
+                                  📧 {contact.email}
+                                </a>
+                                {contact.telephone && (
+                                  <a 
+                                    href={`tel:${contact.telephone}`}
+                                    className="text-[10px] text-indigo-600 hover:text-indigo-800 truncate block"
+                                  >
+                                    📞 {contact.telephone}
+                                  </a>
+                                )}
+                              </div>
+                              {contact.fonction && (
+                                <span className="text-[10px] bg-indigo-200 text-indigo-800 px-1.5 py-0.5 rounded ml-1 flex-shrink-0">
+                                  {contact.fonction.substring(0, 8)}
+                                </span>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                        {partenaire.contacts.length > 3 && (
+                          <p className="text-xs text-gray-500 text-center mt-1">+{partenaire.contacts.length - 3} autre(s) contact(s)</p>
+                        )}
+                      </div>
                     )}
                     
-                    {/* Description (seulement pour les partenaires de la DB) */}
-                    {(!partenaire.documents || !Array.isArray(partenaire.documents)) && partenaire.description && (
+                    {/* Documents téléchargeables */}
+                    {partenaire.documents && Array.isArray(partenaire.documents) && partenaire.documents.length > 0 && (
+                      <div className="space-y-2 border-t border-gray-200 pt-3 mt-3">
+                        <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2 flex items-center">
+                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          Documents ({partenaire.documents.length})
+                        </h4>
+                        {partenaire.documents.slice(0, 3).map((doc: PartnerDocument) => (
+                          <a
+                            key={doc.id}
+                            href={doc.downloadUrl}
+                            download
+                            className="flex items-center justify-between text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 p-2 rounded transition-colors group border border-blue-200"
+                          >
+                            <div className="flex items-center space-x-2 flex-1 min-w-0">
+                              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              <span className="font-medium truncate">{doc.title}</span>
+                              {doc.document_type && (
+                                <span className="text-[10px] bg-blue-200 text-blue-800 px-1.5 py-0.5 rounded ml-1">
+                                  {doc.document_type === 'convention' ? 'Conv.' : doc.document_type.substring(0, 3)}
+                                </span>
+                              )}
+                            </div>
+                            <svg className="w-4 h-4 flex-shrink-0 ml-2 group-hover:translate-y-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                          </a>
+                        ))}
+                        {partenaire.documents.length > 3 && (
+                          <p className="text-xs text-gray-500 text-center mt-1">+{partenaire.documents.length - 3} autre(s) document(s)</p>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Description */}
+                    {partenaire.description && (
                       <p className="text-xs text-gray-600 text-center line-clamp-2">{partenaire.description}</p>
                     )}
                   </div>
@@ -295,24 +382,95 @@ export default function PartenairesPage() {
                       🌐 Visiter le site
                     </a>
                     
-                    {/* Documents contractuels (seulement pour les fallback avec documents) */}
-                    {partenaire.documents && Array.isArray(partenaire.documents) && partenaire.documents.length > 0 && (
-                    <div className="space-y-2">
-                      <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Documents récents</h4>
-                        {partenaire.documents.slice(0, 2).map((doc: any, index: number) => (
-                        <div key={index} className="text-xs text-gray-600 bg-gray-50 p-2 rounded">
-                          <div className="font-medium">{doc.nom}</div>
-                          <div className="flex justify-between text-gray-500">
-                            <span>{doc.type}</span>
-                            <span>{doc.date}</span>
+                    {/* Contacts */}
+                    {partenaire.contacts && Array.isArray(partenaire.contacts) && partenaire.contacts.length > 0 && (
+                      <div className="space-y-2 border-t border-gray-200 pt-3 mt-3">
+                        <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2 flex items-center">
+                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                          </svg>
+                          Contacts ({partenaire.contacts.length})
+                        </h4>
+                        {partenaire.contacts.slice(0, 3).map((contact: PartnerContact) => (
+                          <div
+                            key={contact.id}
+                            className="flex items-center justify-between text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 p-2 rounded transition-colors border border-purple-200"
+                          >
+                            <div className="flex items-center space-x-2 flex-1 min-w-0">
+                              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                              </svg>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium truncate">{contact.prenom} {contact.nom}</div>
+                                <a 
+                                  href={`mailto:${contact.email}`}
+                                  className="text-[10px] text-purple-600 hover:text-purple-800 truncate block"
+                                >
+                                  📧 {contact.email}
+                                </a>
+                                {contact.telephone && (
+                                  <a 
+                                    href={`tel:${contact.telephone}`}
+                                    className="text-[10px] text-purple-600 hover:text-purple-800 truncate block"
+                                  >
+                                    📞 {contact.telephone}
+                                  </a>
+                                )}
+                              </div>
+                              {contact.fonction && (
+                                <span className="text-[10px] bg-purple-200 text-purple-800 px-1.5 py-0.5 rounded ml-1 flex-shrink-0">
+                                  {contact.fonction.substring(0, 8)}
+                                </span>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                        {partenaire.contacts.length > 3 && (
+                          <p className="text-xs text-gray-500 text-center mt-1">+{partenaire.contacts.length - 3} autre(s) contact(s)</p>
+                        )}
+                      </div>
                     )}
                     
-                    {/* Description (seulement pour les partenaires de la DB) */}
-                    {(!partenaire.documents || !Array.isArray(partenaire.documents)) && partenaire.description && (
+                    {/* Documents téléchargeables */}
+                    {partenaire.documents && Array.isArray(partenaire.documents) && partenaire.documents.length > 0 && (
+                      <div className="space-y-2 border-t border-gray-200 pt-3 mt-3">
+                        <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2 flex items-center">
+                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          Documents ({partenaire.documents.length})
+                        </h4>
+                        {partenaire.documents.slice(0, 3).map((doc: PartnerDocument) => (
+                          <a
+                            key={doc.id}
+                            href={doc.downloadUrl}
+                            download
+                            className="flex items-center justify-between text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 p-2 rounded transition-colors group border border-purple-200"
+                          >
+                            <div className="flex items-center space-x-2 flex-1 min-w-0">
+                              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              <span className="font-medium truncate">{doc.title}</span>
+                              {doc.document_type && (
+                                <span className="text-[10px] bg-purple-200 text-purple-800 px-1.5 py-0.5 rounded ml-1">
+                                  {doc.document_type === 'convention' ? 'Conv.' : doc.document_type.substring(0, 3)}
+                                </span>
+                              )}
+                            </div>
+                            <svg className="w-4 h-4 flex-shrink-0 ml-2 group-hover:translate-y-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                          </a>
+                        ))}
+                        {partenaire.documents.length > 3 && (
+                          <p className="text-xs text-gray-500 text-center mt-1">+{partenaire.documents.length - 3} autre(s) document(s)</p>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Description */}
+                    {partenaire.description && (
                       <p className="text-xs text-gray-600 text-center line-clamp-2">{partenaire.description}</p>
                     )}
                   </div>
@@ -323,35 +481,150 @@ export default function PartenairesPage() {
         )}
       </div>
 
-      {/* Section Protocoles */}
-      <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6">Protocoles et Documents Contractuels</h2>
-        <div className="space-y-4">
-          {getFilteredPartenaires()
-            .filter((partenaire: Partner) => partenaire.documents && Array.isArray(partenaire.documents) && partenaire.documents.length > 0)
-            .map((partenaire: Partner) => (
-            <div key={partenaire.id} className="border border-gray-200 rounded-lg p-4">
-              <h3 className="font-semibold text-gray-800 mb-3">{partenaire.nom}</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {partenaire.documents && partenaire.documents.map((doc: any, index: number) => (
-                  <div key={index} className="bg-gray-50 p-3 rounded border border-gray-200">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-medium text-gray-600 bg-white px-2 py-1 rounded">
-                        {doc.type}
-                      </span>
-                      <span className="text-xs text-gray-500">{doc.date}</span>
-                    </div>
-                    <div className="text-sm font-medium text-gray-800">{doc.nom}</div>
-                    <button className="mt-2 text-xs text-indigo-600 hover:text-indigo-800 font-medium hover:underline">
-                      📄 Voir le document
-                    </button>
+      {/* Section Contacts */}
+      {getFilteredPartenaires().some((p: Partner) => p.contacts && Array.isArray(p.contacts) && p.contacts.length > 0) && (
+        <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
+          <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+            <svg className="w-6 h-6 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            Contacts Partenaires
+          </h2>
+          <div className="space-y-6">
+            {getFilteredPartenaires()
+              .filter((partenaire: Partner) => partenaire.contacts && Array.isArray(partenaire.contacts) && partenaire.contacts.length > 0)
+              .map((partenaire: Partner) => (
+                <div key={partenaire.id} className="border border-gray-200 rounded-lg p-5 bg-white">
+                  <div className="flex items-center space-x-3 mb-4">
+                    {(partenaire.logoUrl || partenaire.logo_url) && (
+                      <img 
+                        src={partenaire.logoUrl || (partenaire.logo_url && partenaire.logo_url.startsWith('/uploads/') ? buildFileURL(partenaire.logo_url) : partenaire.logo_url)} 
+                        alt={`Logo ${partenaire.nom}`}
+                        className="w-12 h-12 object-contain"
+                      />
+                    )}
+                    <h3 className="text-lg font-semibold text-gray-800">{partenaire.nom}</h3>
                   </div>
-                ))}
-              </div>
-            </div>
-          ))}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {partenaire.contacts.map((contact: PartnerContact) => (
+                      <div
+                        key={contact.id}
+                        className="bg-gradient-to-br from-gray-50 to-gray-100 hover:from-indigo-50 hover:to-purple-50 p-4 rounded-lg border border-gray-200 hover:border-indigo-300 transition-all duration-200"
+                      >
+                        <div className="flex items-start space-x-3">
+                          <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center flex-shrink-0">
+                            <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold text-gray-800">
+                              {contact.prenom} {contact.nom}
+                            </div>
+                            {contact.fonction && (
+                              <div className="text-xs text-indigo-600 font-medium mt-1">
+                                {contact.fonction}
+                              </div>
+                            )}
+                            <a 
+                              href={`mailto:${contact.email}`}
+                              className="text-xs text-gray-600 hover:text-indigo-600 mt-1 block truncate"
+                            >
+                              📧 {contact.email}
+                            </a>
+                            {contact.telephone && (
+                              <a 
+                                href={`tel:${contact.telephone}`}
+                                className="text-xs text-gray-600 hover:text-indigo-600 mt-1 block"
+                              >
+                                📞 {contact.telephone}
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Section Documents et Conventions */}
+      {getFilteredPartenaires().some((p: Partner) => p.documents && Array.isArray(p.documents) && p.documents.length > 0) && (
+        <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
+          <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+            <svg className="w-6 h-6 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Conventions de Distribution et Documents
+          </h2>
+          <div className="space-y-6">
+            {getFilteredPartenaires()
+              .filter((partenaire: Partner) => partenaire.documents && Array.isArray(partenaire.documents) && partenaire.documents.length > 0)
+              .map((partenaire: Partner) => (
+                <div key={partenaire.id} className="border border-gray-200 rounded-lg p-5 bg-white">
+                  <div className="flex items-center space-x-3 mb-4">
+                    {(partenaire.logoUrl || partenaire.logo_url) && (
+                      <img 
+                        src={partenaire.logoUrl || (partenaire.logo_url && partenaire.logo_url.startsWith('/uploads/') ? buildFileURL(partenaire.logo_url) : partenaire.logo_url)} 
+                        alt={`Logo ${partenaire.nom}`}
+                        className="w-12 h-12 object-contain"
+                      />
+                    )}
+                    <h3 className="text-lg font-semibold text-gray-800">{partenaire.nom}</h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {partenaire.documents.map((doc: PartnerDocument) => (
+                      <a
+                        key={doc.id}
+                        href={doc.downloadUrl}
+                        download
+                        className="bg-gradient-to-br from-gray-50 to-gray-100 hover:from-indigo-50 hover:to-purple-50 p-4 rounded-lg border border-gray-200 hover:border-indigo-300 transition-all duration-200 group cursor-pointer"
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-10 h-10 bg-indigo-100 group-hover:bg-indigo-200 rounded-lg flex items-center justify-center transition-colors">
+                              <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-semibold text-gray-800 group-hover:text-indigo-700 truncate">
+                                {doc.title}
+                              </div>
+                              {doc.document_type && (
+                                <span className="inline-block mt-1 text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full">
+                                  {doc.document_type === 'convention' ? 'Convention' : 
+                                   doc.document_type === 'brochure' ? 'Brochure' : 
+                                   doc.document_type === 'contrat' ? 'Contrat' : 
+                                   doc.document_type}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <svg className="w-5 h-5 text-gray-400 group-hover:text-indigo-600 flex-shrink-0 group-hover:translate-y-0.5 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                        </div>
+                        {doc.description && (
+                          <p className="text-xs text-gray-600 mt-2 line-clamp-2">{doc.description}</p>
+                        )}
+                        <div className="flex items-center justify-between mt-3 text-xs text-gray-500">
+                          <span>{doc.file_type?.split('/')[1]?.toUpperCase() || 'PDF'}</span>
+                          {doc.file_size && (
+                            <span>{(doc.file_size / 1024).toFixed(1)} KB</span>
+                          )}
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
         </div>
   );
 }
