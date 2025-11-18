@@ -156,13 +156,22 @@ router.post('/request', async (req, res) => {
         message: 'Un email avec votre nouveau mot de passe a été envoyé à ' + email + '. Vérifiez votre boîte de réception (et les spams). Le mot de passe est également disponible dans les logs du serveur.'
       });
     } catch (emailError) {
-      // Si l'email échoue, le mot de passe est déjà dans les logs ci-dessus
+      // IMPORTANT: Le mot de passe a DÉJÀ été réinitialisé dans la base de données
+      // L'échec de l'email ne change rien - le mot de passe est valide
       console.error('❌ Erreur envoi email:', emailError.message);
-      console.log('ℹ️  Le mot de passe a été réinitialisé et est disponible dans les logs ci-dessus.');
+      console.log('');
+      console.log('✅ IMPORTANT: Le mot de passe a été RÉINITIALISÉ avec succès dans la base de données.');
+      console.log('✅ Le mot de passe est disponible dans les logs ci-dessus (section "🔐 RÉINITIALISATION DE MOT DE PASSE ADMIN").');
+      console.log('✅ Vous pouvez vous connecter avec ce nouveau mot de passe même si l\'email n\'a pas été envoyé.');
+      console.log('');
       
       // Détecter le type d'erreur
       const isMailtrapLimit = emailError.code === 'MAILTRAP_LIMIT_REACHED' || 
-                              (emailError.message && emailError.message.includes('email limit is reached'));
+                              (emailError.message && (
+                                emailError.message.includes('email limit is reached') ||
+                                emailError.message.includes('The email limit is reached') ||
+                                emailError.message.includes('limit is reached')
+                              ));
       
       let errorMessage = 'Le nouveau mot de passe a été généré mais l\'envoi de l\'email a échoué. Le mot de passe est disponible dans les logs du serveur.';
       let errorDetails = {};

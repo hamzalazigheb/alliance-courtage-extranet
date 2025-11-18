@@ -302,7 +302,11 @@ const sendPasswordResetEmail = async (email, newPassword, userName = '') => {
     console.error('❌ Erreur envoi email:', error);
     
     // Détecter les erreurs spécifiques de Mailtrap
-    if (error.message && error.message.includes('email limit is reached')) {
+    if (error.message && (
+      error.message.includes('email limit is reached') ||
+      error.message.includes('The email limit is reached') ||
+      error.message.includes('limit is reached')
+    )) {
       const customError = new Error('Limite d\'emails Mailtrap atteinte. Veuillez mettre à niveau votre plan ou utiliser un autre service SMTP.');
       customError.code = 'MAILTRAP_LIMIT_REACHED';
       customError.originalError = error;

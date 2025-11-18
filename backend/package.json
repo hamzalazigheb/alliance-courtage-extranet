@@ -14,7 +14,9 @@
     "test:performance": "node scripts/testPerformance.js",
     "install:db": "node scripts/freshDatabase.js",
     "list-tables": "node scripts/listTables.js",
-    "compare-db": "node scripts/compareDatabases.js"
+    "compare-db": "node scripts/compareDatabases.js",
+    "show-prod-data": "node scripts/showProductionData.js",
+    "migrate-prod": "node scripts/migrateProduction.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
