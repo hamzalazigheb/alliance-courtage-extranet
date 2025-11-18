@@ -103,8 +103,20 @@ router.get('/usage', auth, async (req, res) => {
     res.json(usageWithParsedParams);
   } catch (error) {
     console.error('Erreur récupération statistiques simulateurs:', error);
+    console.error('Stack trace:', error.stack);
+    
+    // Vérifier si c'est une erreur de table manquante
+    if (error.code === 'ER_NO_SUCH_TABLE' || (error.message && (error.message.includes("doesn't exist") || (error.message.includes("Table") && error.message.includes("doesn't exist"))))) {
+      return res.status(500).json({ 
+        error: 'Table simulator_usage non trouvée. Veuillez exécuter le script de migration.',
+        details: 'La table simulator_usage doit être créée en production.',
+        solution: 'Exécutez: docker exec alliance-courtage-mysql mysql -u root -palliance2024Secure alliance_courtage -e "CREATE TABLE IF NOT EXISTS simulator_usage (...)"'
+      });
+    }
+    
     res.status(500).json({ 
-      error: 'Erreur serveur lors de la récupération des statistiques' 
+      error: 'Erreur serveur lors de la récupération des statistiques',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
@@ -185,8 +197,20 @@ router.get('/usage/stats', auth, async (req, res) => {
     });
   } catch (error) {
     console.error('Erreur récupération statistiques agrégées:', error);
+    console.error('Stack trace:', error.stack);
+    
+    // Vérifier si c'est une erreur de table manquante
+    if (error.code === 'ER_NO_SUCH_TABLE' || (error.message && (error.message.includes("doesn't exist") || (error.message.includes("Table") && error.message.includes("doesn't exist"))))) {
+      return res.status(500).json({ 
+        error: 'Table simulator_usage non trouvée. Veuillez exécuter le script de migration.',
+        details: 'La table simulator_usage doit être créée en production.',
+        solution: 'Exécutez: docker exec alliance-courtage-mysql mysql -u root -palliance2024Secure alliance_courtage -e "CREATE TABLE IF NOT EXISTS simulator_usage (...)"'
+      });
+    }
+    
     res.status(500).json({ 
-      error: 'Erreur serveur lors de la récupération des statistiques' 
+      error: 'Erreur serveur lors de la récupération des statistiques',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
