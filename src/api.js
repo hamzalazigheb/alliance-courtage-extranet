@@ -23,11 +23,20 @@ if (typeof window !== 'undefined') {
 
 // Fonction utilitaire pour les requêtes
 async function apiRequest(endpoint, options = {}) {
-  const url = `${API_BASE_URL}${endpoint}`;
+  // S'assurer que l'endpoint commence par /
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const url = `${API_BASE_URL}${cleanEndpoint}`;
+  
   const defaultOptions = {
     headers: {
       'Content-Type': 'application/json',
+      // Headers pour éviter le cache
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
     },
+    // Désactiver le cache pour les requêtes
+    cache: 'no-store',
   };
 
   // Ajouter le token si disponible
@@ -43,10 +52,37 @@ async function apiRequest(endpoint, options = {}) {
       ...defaultOptions.headers,
       ...options.headers,
     },
+    // Surcharger le cache si spécifié dans options
+    cache: options.cache || defaultOptions.cache,
   };
 
   try {
     const response = await fetch(url, config);
+    
+    // Gérer les réponses 304 (Not Modified) - les traiter comme des succès
+    if (response.status === 304) {
+      // Pour une réponse 304, essayer de récupérer les données depuis le cache
+      // ou faire une nouvelle requête sans cache
+      const noCacheConfig = {
+        ...config,
+        headers: {
+          ...config.headers,
+          'Cache-Control': 'no-cache',
+          'If-None-Match': '',
+          'If-Modified-Since': '',
+        },
+        cache: 'no-store',
+      };
+      const retryResponse = await fetch(url, noCacheConfig);
+      const retryData = await retryResponse.json();
+      
+      if (!retryResponse.ok) {
+        throw new Error(retryData.error || 'Erreur de serveur');
+      }
+      
+      return retryData;
+    }
+    
     const data = await response.json();
 
     if (!response.ok) {
@@ -56,6 +92,34 @@ async function apiRequest(endpoint, options = {}) {
     return data;
   } catch (error) {
     console.error('API Error:', error);
+    console.error('URL:', url);
+    console.error('Config:', config);
+    
+    // Si c'est une erreur de réseau, essayer une fois de plus
+    if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+      console.warn('Retry after network error...');
+      try {
+        const retryResponse = await fetch(url, {
+          ...config,
+          cache: 'no-store',
+          headers: {
+            ...config.headers,
+            'Cache-Control': 'no-cache',
+          },
+        });
+        const retryData = await retryResponse.json();
+        
+        if (!retryResponse.ok) {
+          throw new Error(retryData.error || 'Erreur de serveur');
+        }
+        
+        return retryData;
+      } catch (retryError) {
+        console.error('Retry failed:', retryError);
+        throw new Error('Erreur de connexion au serveur. Veuillez réessayer.');
+      }
+    }
+    
     throw error;
   }
 }
