@@ -1,0 +1,1154 @@
+openapi: 3.0.3
+info:
+  title: Alliance Courtage API
+  description: |
+    API REST pour l'extranet Alliance Courtage.
+    
+    Cette API permet de gérer :
+    - L'authentification et la gestion des utilisateurs
+    - Les produits financiers et structurés
+    - Les documents et archives
+    - Les formations et notifications
+    - Les simulateurs fiscaux
+    - Le contenu CMS
+    - Les réservations de produits
+    
+    **Authentification** : La plupart des endpoints nécessitent un token JWT dans le header `x-auth-token`.
+  version: 1.0.0
+  contact:
+    name: Alliance Courtage
+    email: support@alliance-courtage.fr
+
+servers:
+  - url: http://localhost:3001/api
+    description: Serveur de développement local
+  - url: https://api.alliance-courtage.fr/api
+    description: Serveur de production
+
+tags:
+  - name: Authentication
+    description: Authentification et gestion de session
+  - name: Users
+    description: Gestion des utilisateurs
+  - name: Products
+    description: Produits financiers
+  - name: Structured Products
+    description: Produits structurés et réservations
+  - name: Archives
+    description: Gestion des archives et documents
+  - name: Partners
+    description: Gestion des partenaires
+  - name: Financial Documents
+    description: Documents financiers
+  - name: CMS
+    description: Gestion de contenu CMS
+  - name: Formations
+    description: Formations et documents réglementaires
+  - name: Notifications
+    description: Système de notifications
+  - name: Assurances
+    description: Gestion des assurances
+  - name: Bordereaux
+    description: Gestion des bordereaux
+  - name: Reglementaire
+    description: Documents réglementaires
+  - name: Favoris
+    description: Gestion des favoris
+  - name: Simulators
+    description: Simulateurs fiscaux et statistiques
+  - name: Health
+    description: Vérification de l'état de l'API
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token JWT dans le header x-auth-token
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: ID de l'utilisateur
+        email:
+          type: string
+          format: email
+          description: Email de l'utilisateur
+        nom:
+          type: string
+          description: Nom de l'utilisateur
+        prenom:
+          type: string
+          description: Prénom de l'utilisateur
+        denomination_sociale:
+          type: string
+          nullable: true
+          description: Dénomination sociale
+        telephone:
+          type: string
+          nullable: true
+          description: Téléphone
+        code_postal:
+          type: string
+          nullable: true
+          description: Code postal
+        role:
+          type: string
+          enum: [admin, user, broker, client]
+          description: Rôle de l'utilisateur
+        is_active:
+          type: boolean
+          description: Statut actif/inactif
+        created_at:
+          type: string
+          format: date-time
+          description: Date de création
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: Token JWT
+        user:
+          $ref: '#/components/schemas/User'
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Message d'erreur
+        details:
+          type: string
+          description: Détails de l'erreur (en développement uniquement)
+
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+        isin:
+          type: string
+        nom:
+          type: string
+        gestionnaire:
+          type: string
+        classe:
+          type: string
+        pea:
+          type: boolean
+        frais:
+          type: string
+        isr:
+          type: boolean
+        esg:
+          type: integer
+
+    StructuredProduct:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        assurance:
+          type: string
+        category:
+          type: string
+        file_path:
+          type: string
+        is_active:
+          type: boolean
+
+    Notification:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [info, warning, error, success, reservation, reservation_public]
+        title:
+          type: string
+        message:
+          type: string
+        user_id:
+          type: integer
+          nullable: true
+        is_read:
+          type: boolean
+        link:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    SimulatorUsage:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        simulator_type:
+          type: string
+          enum: [ir, ifi, succession, placement]
+        parameters:
+          type: object
+          nullable: true
+        result_summary:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Vérifier l'état de l'API
+      description: Endpoint de santé pour vérifier que l'API est opérationnelle
+      responses:
+        '200':
+          description: API opérationnelle
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: OK
+                  message:
+                    type: string
+                    example: Alliance Courtage API is running
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Connexion
+      description: Authentifier un utilisateur et obtenir un token JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Connexion réussie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: Données invalides
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Identifiants invalides
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: Déconnexion
+      description: Déconnecter un utilisateur et invalider son token
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Déconnexion réussie
+        '401':
+          description: Non authentifié
+
+  /auth/me:
+    get:
+      tags:
+        - Authentication
+      summary: Profil utilisateur
+      description: Obtenir les informations de l'utilisateur connecté
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Informations utilisateur
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Non authentifié
+
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Créer un utilisateur (Admin)
+      description: Créer un nouvel utilisateur (réservé aux administrateurs)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+                - nom
+                - prenom
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+                nom:
+                  type: string
+                prenom:
+                  type: string
+                denomination_sociale:
+                  type: string
+                  nullable: true
+                telephone:
+                  type: string
+                  nullable: true
+                code_postal:
+                  type: string
+                  nullable: true
+                role:
+                  type: string
+                  enum: [admin, user, broker, client]
+                  default: user
+      responses:
+        '201':
+          description: Utilisateur créé avec succès
+        '400':
+          description: Données invalides
+        '401':
+          description: Non authentifié
+        '403':
+          description: Accès refusé (admin uniquement)
+
+  /users:
+    get:
+      tags:
+        - Users
+      summary: Liste des utilisateurs
+      description: Obtenir la liste de tous les utilisateurs (Admin uniquement)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [admin, user, broker, client]
+        - name: active
+          in: query
+          schema:
+            type: boolean
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Liste des utilisateurs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '401':
+          description: Non authentifié
+        '403':
+          description: Accès refusé (admin uniquement)
+
+  /users/{id}:
+    get:
+      tags:
+        - Users
+      summary: Détails d'un utilisateur
+      description: Obtenir les détails d'un utilisateur spécifique
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Détails de l'utilisateur
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: Utilisateur non trouvé
+
+    put:
+      tags:
+        - Users
+      summary: Modifier un utilisateur
+      description: Modifier les informations d'un utilisateur (Admin uniquement)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                nom:
+                  type: string
+                prenom:
+                  type: string
+                denomination_sociale:
+                  type: string
+                  nullable: true
+                telephone:
+                  type: string
+                  nullable: true
+                code_postal:
+                  type: string
+                  nullable: true
+                role:
+                  type: string
+                  enum: [admin, user, broker, client]
+                is_active:
+                  type: boolean
+      responses:
+        '200':
+          description: Utilisateur modifié avec succès
+        '403':
+          description: Accès refusé (admin uniquement)
+
+    delete:
+      tags:
+        - Users
+      summary: Supprimer un utilisateur
+      description: Supprimer un utilisateur (Admin uniquement)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Utilisateur supprimé avec succès
+        '403':
+          description: Accès refusé (admin uniquement)
+
+  /users/{id}/change-password:
+    put:
+      tags:
+        - Users
+      summary: Changer le mot de passe
+      description: Permettre à un utilisateur de changer son propre mot de passe
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - currentPassword
+                - newPassword
+              properties:
+                currentPassword:
+                  type: string
+                  format: password
+                newPassword:
+                  type: string
+                  format: password
+      responses:
+        '200':
+          description: Mot de passe changé avec succès
+        '400':
+          description: Mot de passe actuel incorrect
+
+  /simulators/usage:
+    post:
+      tags:
+        - Simulators
+      summary: Enregistrer l'accès à un simulateur
+      description: Enregistrer qu'un utilisateur a accédé à un simulateur
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - simulator_type
+              properties:
+                simulator_type:
+                  type: string
+                  enum: [ir, ifi, succession, placement]
+                  description: Type de simulateur
+                parameters:
+                  type: object
+                  nullable: true
+                  description: Paramètres utilisés (optionnel)
+                result_summary:
+                  type: string
+                  nullable: true
+                  description: Résumé du résultat (optionnel)
+      responses:
+        '200':
+          description: Accès enregistré avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Utilisation du simulateur enregistrée avec succès
+        '400':
+          description: Données invalides
+        '401':
+          description: Non authentifié
+
+    get:
+      tags:
+        - Simulators
+      summary: Liste des utilisations de simulateurs
+      description: Obtenir la liste détaillée des utilisations de simulateurs (Admin uniquement)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: simulator_type
+          in: query
+          schema:
+            type: string
+            enum: [ir, ifi, succession, placement]
+        - name: user_id
+          in: query
+          schema:
+            type: integer
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          description: Liste des utilisations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SimulatorUsage'
+        '401':
+          description: Non authentifié
+        '403':
+          description: Accès refusé (admin uniquement)
+
+  /simulators/usage/stats:
+    get:
+      tags:
+        - Simulators
+      summary: Statistiques agrégées des simulateurs
+      description: Obtenir les statistiques agrégées d'utilisation des simulateurs (Admin uniquement)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Statistiques agrégées
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  by_type:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        simulator_type:
+                          type: string
+                        total_uses:
+                          type: integer
+                        unique_users:
+                          type: integer
+                        first_use:
+                          type: string
+                          format: date-time
+                        last_use:
+                          type: string
+                          format: date-time
+                  by_user:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        nom:
+                          type: string
+                        prenom:
+                          type: string
+                        email:
+                          type: string
+                        total_uses:
+                          type: integer
+                        simulators_used:
+                          type: integer
+                        last_use:
+                          type: string
+                          format: date-time
+                  global:
+                    type: object
+                    properties:
+                      total_uses:
+                        type: integer
+                      total_users:
+                        type: integer
+                      total_simulators:
+                        type: integer
+                      first_use_ever:
+                        type: string
+                        format: date-time
+                      last_use_ever:
+                        type: string
+                        format: date-time
+                  daily:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        date:
+                          type: string
+                          format: date
+                        uses:
+                          type: integer
+                        users:
+                          type: integer
+        '401':
+          description: Non authentifié
+        '403':
+          description: Accès refusé (admin uniquement)
+
+  /notifications:
+    get:
+      tags:
+        - Notifications
+      summary: Liste des notifications
+      description: Obtenir les notifications de l'utilisateur connecté
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: unread_only
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Liste des notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notification'
+        '401':
+          description: Non authentifié
+
+    post:
+      tags:
+        - Notifications
+      summary: Envoyer une notification individuelle
+      description: Envoyer une notification à un utilisateur spécifique (Admin uniquement)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userId
+                - title
+                - message
+              properties:
+                userId:
+                  type: integer
+                type:
+                  type: string
+                  enum: [info, warning, error, success]
+                  default: info
+                title:
+                  type: string
+                message:
+                  type: string
+                link:
+                  type: string
+                  nullable: true
+      responses:
+        '201':
+          description: Notification envoyée avec succès
+        '400':
+          description: Données invalides
+        '403':
+          description: Accès refusé (admin uniquement)
+
+  /notifications/unread-count:
+    get:
+      tags:
+        - Notifications
+      summary: Nombre de notifications non lues
+      description: Obtenir le nombre de notifications non lues pour l'utilisateur connecté
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Nombre de notifications non lues
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+        '401':
+          description: Non authentifié
+
+  /notifications/{id}/read:
+    put:
+      tags:
+        - Notifications
+      summary: Marquer une notification comme lue
+      description: Marquer une notification spécifique comme lue
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Notification marquée comme lue
+        '401':
+          description: Non authentifié
+        '404':
+          description: Notification non trouvée
+
+  /notifications/read-all:
+    put:
+      tags:
+        - Notifications
+      summary: Marquer toutes les notifications comme lues
+      description: Marquer toutes les notifications de l'utilisateur comme lues
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Toutes les notifications marquées comme lues
+        '401':
+          description: Non authentifié
+
+  /structured-products:
+    get:
+      tags:
+        - Structured Products
+      summary: Liste des produits structurés
+      description: Obtenir la liste des produits structurés avec filtres optionnels
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: assurance
+          in: query
+          schema:
+            type: string
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Liste des produits structurés
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StructuredProduct'
+        '401':
+          description: Non authentifié
+
+  /structured-products/{id}/reserve:
+    post:
+      tags:
+        - Structured Products
+      summary: Réserver un produit structuré
+      description: Créer une réservation pour un produit structuré
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - montant
+              properties:
+                montant:
+                  type: number
+                  format: float
+                notes:
+                  type: string
+                  nullable: true
+      responses:
+        '201':
+          description: Réservation créée avec succès
+        '400':
+          description: Données invalides
+        '401':
+          description: Non authentifié
+
+  /structured-products/reservations:
+    get:
+      tags:
+        - Structured Products
+      summary: Liste des réservations
+      description: Obtenir la liste des réservations de produits (Admin uniquement)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, approved, rejected]
+        - name: user_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Liste des réservations
+        '401':
+          description: Non authentifié
+        '403':
+          description: Accès refusé (admin uniquement)
+
+  /structured-products/reservations/{id}/approve:
+    put:
+      tags:
+        - Structured Products
+      summary: Approuver une réservation
+      description: Approuver une réservation de produit (Admin uniquement)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Réservation approuvée avec succès
+        '401':
+          description: Non authentifié
+        '403':
+          description: Accès refusé (admin uniquement)
+
+  /structured-products/assurances/montants:
+    get:
+      tags:
+        - Structured Products
+      summary: Montants des enveloppes d'assurance
+      description: Obtenir les montants d'enveloppe, réservés et restants pour chaque assurance
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Liste des montants par assurance
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    assurance:
+                      type: string
+                    montant_enveloppe:
+                      type: number
+                      format: float
+                    montant_reserve:
+                      type: number
+                      format: float
+                    montant_restant:
+                      type: number
+                      format: float
+        '401':
+          description: Non authentifié
+
+  /cms/{page}:
+    get:
+      tags:
+        - CMS
+      summary: Obtenir le contenu CMS d'une page
+      description: Récupérer le contenu CMS pour une page spécifique
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [accueil, gamme-produits, gamme-financiere, rencontres]
+      responses:
+        '200':
+          description: Contenu CMS
+        '401':
+          description: Non authentifié
+
+    put:
+      tags:
+        - CMS
+      summary: Mettre à jour le contenu CMS d'une page
+      description: Mettre à jour le contenu CMS pour une page spécifique (Admin uniquement)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [accueil, gamme-produits, gamme-financiere, rencontres]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - content
+              properties:
+                content:
+                  type: string
+                  description: Contenu JSON stringifié
+      responses:
+        '200':
+          description: Contenu mis à jour avec succès
+        '400':
+          description: Données invalides
+        '401':
+          description: Non authentifié
+        '403':
+          description: Accès refusé (admin uniquement)
+
+  /cms/upload-image:
+    post:
+      tags:
+        - CMS
+      summary: Uploader une image pour le CMS
+      description: Uploader une image et obtenir son URL base64 (Admin uniquement)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - image
+              properties:
+                image:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Image uploadée avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  imageUrl:
+                    type: string
+                    description: URL base64 de l'image
+                  mimeType:
+                    type: string
+                  size:
+                    type: integer
+        '400':
+          description: Aucune image fournie
+        '401':
+          description: Non authentifié
+        '403':
+          description: Accès refusé (admin uniquement)
+
+  /favoris:
+    get:
+      tags:
+        - Favoris
+      summary: Liste des favoris
+      description: Obtenir la liste des favoris de l'utilisateur connecté
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Liste des favoris
+        '401':
+          description: Non authentifié
+
+    post:
+      tags:
+        - Favoris
+      summary: Ajouter un favori
+      description: Ajouter un élément aux favoris
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - item_type
+                - item_id
+                - title
+              properties:
+                item_type:
+                  type: string
+                  enum: [archive, product, partner, formation]
+                item_id:
+                  type: integer
+                title:
+                  type: string
+                description:
+                  type: string
+                url:
+                  type: string
+                metadata:
+                  type: object
+      responses:
+        '201':
+          description: Favori ajouté avec succès
+        '400':
+          description: Données invalides
+        '401':
+          description: Non authentifié
+
+  /favoris/{id}:
+    delete:
+      tags:
+        - Favoris
+      summary: Supprimer un favori
+      description: Supprimer un favori par son ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Favori supprimé avec succès
+        '401':
+          description: Non authentifié
+        '404':
+          description: Favori non trouvé
+

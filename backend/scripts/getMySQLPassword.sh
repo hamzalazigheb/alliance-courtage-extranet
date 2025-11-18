@@ -59,3 +59,4 @@ echo "💡 Utilisez ce mot de passe dans vos commandes:"
 echo "   docker exec -it $CONTAINER_NAME mysql -u root -p$MYSQL_ROOT_PASSWORD alliance_courtage -e \"SHOW TABLES;\""
 echo ""
 
+

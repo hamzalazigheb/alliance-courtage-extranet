@@ -1,0 +1,170 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Alliance Courtage API",
+    "description": "API REST pour l'extranet Alliance Courtage.\n\nCette API permet de gérer :\n- L'authentification et la gestion des utilisateurs\n- Les produits financiers et structurés\n- Les documents et archives\n- Les formations et notifications\n- Les simulateurs fiscaux\n- Le contenu CMS\n- Les réservations de produits\n\n**Authentification** : La plupart des endpoints nécessitent un token JWT dans le header `x-auth-token`.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Alliance Courtage",
+      "email": "support@alliance-courtage.fr"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3001/api",
+      "description": "Serveur de développement local"
+    },
+    {
+      "url": "https://api.alliance-courtage.fr/api",
+      "description": "Serveur de production"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Authentication",
+      "description": "Authentification et gestion de session"
+    },
+    {
+      "name": "Users",
+      "description": "Gestion des utilisateurs"
+    },
+    {
+      "name": "Simulators",
+      "description": "Simulateurs fiscaux et statistiques"
+    },
+    {
+      "name": "Notifications",
+      "description": "Système de notifications"
+    },
+    {
+      "name": "Structured Products",
+      "description": "Produits structurés et réservations"
+    },
+    {
+      "name": "CMS",
+      "description": "Gestion de contenu CMS"
+    },
+    {
+      "name": "Favoris",
+      "description": "Gestion des favoris"
+    },
+    {
+      "name": "Health",
+      "description": "Vérification de l'état de l'API"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Token JWT dans le header x-auth-token"
+      }
+    },
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "ID de l'utilisateur"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Email de l'utilisateur"
+          },
+          "nom": {
+            "type": "string",
+            "description": "Nom de l'utilisateur"
+          },
+          "prenom": {
+            "type": "string",
+            "description": "Prénom de l'utilisateur"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["admin", "user", "broker", "client"],
+            "description": "Rôle de l'utilisateur"
+          },
+          "is_active": {
+            "type": "boolean",
+            "description": "Statut actif/inactif"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Message d'erreur"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Vérifier l'état de l'API",
+        "responses": {
+          "200": {
+            "description": "API opérationnelle",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "OK"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Connexion",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Connexion réussie"
+          },
+          "401": {
+            "description": "Identifiants invalides"
+          }
+        }
+      }
+    }
+  }
+}
+

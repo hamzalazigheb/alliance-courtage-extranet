@@ -259,3 +259,4 @@ async function compareDatabases() {
 // Exécuter la comparaison
 compareDatabases().catch(console.error);
 
+

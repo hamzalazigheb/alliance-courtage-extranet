@@ -48,3 +48,4 @@ docker exec "$MYSQL_CONTAINER" mysql -u root -palliance2024Secure alliance_court
 echo ""
 echo "✅ Terminé!"
 
+

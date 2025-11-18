@@ -164,23 +164,38 @@ router.put('/:id', auth, authorize('admin'), async (req, res) => {
       }
     }
     
-    // Construire dynamiquement la requête de mise à jour
+    // Vérifier quelles colonnes existent dans la table
+    let availableColumns = [];
+    try {
+      const columnInfo = await query(
+        `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+         WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'users'`,
+        [process.env.DB_NAME || 'alliance_courtage']
+      );
+      availableColumns = columnInfo.map(col => col.COLUMN_NAME);
+    } catch (colError) {
+      console.warn('⚠️  Impossible de vérifier les colonnes, utilisation de toutes les colonnes par défaut');
+      // Colonnes de base toujours présentes
+      availableColumns = ['id', 'email', 'nom', 'prenom', 'role', 'is_active', 'password', 'created_at'];
+    }
+    
+    // Construire dynamiquement la requête de mise à jour (seulement pour les colonnes qui existent)
     const updates = [];
     const values = [];
     
-    if (email !== undefined) {
+    if (email !== undefined && availableColumns.includes('email')) {
       updates.push('email = ?');
       values.push(email);
     }
-    if (nom !== undefined) {
+    if (nom !== undefined && availableColumns.includes('nom')) {
       updates.push('nom = ?');
       values.push(nom);
     }
-    if (prenom !== undefined) {
+    if (prenom !== undefined && availableColumns.includes('prenom')) {
       updates.push('prenom = ?');
       values.push(prenom);
     }
-    if (role !== undefined) {
+    if (role !== undefined && availableColumns.includes('role')) {
       // Validation role - must be one of the ENUM values
       const validRoles = ['admin', 'user', 'broker'];
       if (!validRoles.includes(role)) {
@@ -191,21 +206,27 @@ router.put('/:id', auth, authorize('admin'), async (req, res) => {
       updates.push('role = ?');
       values.push(role);
     }
-    if (is_active !== undefined) {
+    if (is_active !== undefined && availableColumns.includes('is_active')) {
       updates.push('is_active = ?');
       values.push(is_active);
     }
-    if (denomination_sociale !== undefined) {
+    if (denomination_sociale !== undefined && availableColumns.includes('denomination_sociale')) {
       updates.push('denomination_sociale = ?');
       values.push(denomination_sociale || null);
+    } else if (denomination_sociale !== undefined) {
+      console.warn('⚠️  Colonne denomination_sociale n\'existe pas, ignorée');
     }
-    if (telephone !== undefined) {
+    if (telephone !== undefined && availableColumns.includes('telephone')) {
       updates.push('telephone = ?');
       values.push(telephone || null);
+    } else if (telephone !== undefined) {
+      console.warn('⚠️  Colonne telephone n\'existe pas, ignorée');
     }
-    if (code_postal !== undefined) {
+    if (code_postal !== undefined && availableColumns.includes('code_postal')) {
       updates.push('code_postal = ?');
       values.push(code_postal || null);
+    } else if (code_postal !== undefined) {
+      console.warn('⚠️  Colonne code_postal n\'existe pas, ignorée');
     }
     
     if (updates.length === 0) {
@@ -225,6 +246,9 @@ router.put('/:id', auth, authorize('admin'), async (req, res) => {
       res.json({ message: 'Utilisateur mis à jour avec succès' });
     } catch (dbError) {
       console.error('❌ Database error during user update:', dbError);
+      console.error('SQL Error code:', dbError.code);
+      console.error('SQL Error message:', dbError.sqlMessage);
+      console.error('SQL State:', dbError.sqlState);
       
       // Gérer spécifiquement l'erreur de role ENUM
       if (dbError.code === 'WARN_DATA_TRUNCATED' && dbError.sqlMessage && dbError.sqlMessage.includes('role')) {
@@ -233,14 +257,45 @@ router.put('/:id', auth, authorize('admin'), async (req, res) => {
         });
       }
       
+      // Gérer les erreurs de colonnes manquantes
+      if (dbError.code === 'ER_BAD_FIELD_ERROR') {
+        const missingColumn = dbError.sqlMessage.match(/Unknown column '([^']+)'/);
+        if (missingColumn) {
+          return res.status(400).json({ 
+            error: `Colonne non trouvée: ${missingColumn[1]}. Cette colonne n'existe pas dans la base de données.`,
+            details: 'Certaines colonnes optionnelles (denomination_sociale, telephone, code_postal) peuvent ne pas exister en production.'
+          });
+        }
+      }
+      
+      // Gérer les erreurs de contrainte
+      if (dbError.code === 'ER_DUP_ENTRY') {
+        return res.status(400).json({ 
+          error: 'Cette valeur existe déjà dans la base de données (contrainte unique violée)' 
+        });
+      }
+      
       throw dbError;
     }
   } catch (error) {
     console.error('❌ Erreur update user:', error);
     console.error('Error stack:', error.stack);
+    console.error('Error code:', error.code);
+    console.error('Error message:', error.message);
+    
+    // Si l'erreur a déjà été gérée dans le try/catch interne, ne pas la re-gérer
+    if (error.handled) {
+      return;
+    }
+    
     res.status(500).json({ 
       error: 'Erreur serveur lors de la mise à jour de l\'utilisateur',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      sqlError: process.env.NODE_ENV === 'development' ? {
+        code: error.code,
+        sqlMessage: error.sqlMessage,
+        sqlState: error.sqlState
+      } : undefined
     });
   }
 });

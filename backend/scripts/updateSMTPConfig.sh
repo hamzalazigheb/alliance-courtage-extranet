@@ -103,3 +103,4 @@ echo "✅ Terminé! Vérifiez les logs avec:"
 echo "   docker logs alliance-courtage-backend --tail 30"
 echo ""
 
+

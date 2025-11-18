@@ -171,3 +171,4 @@ Vous devriez voir dans les logs :
 - ⚠️ Le plan gratuit Mailtrap a une limite de 500 emails/mois
 - ⚠️ Gmail a une limite de 2000 emails/jour
 
+

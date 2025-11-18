@@ -120,3 +120,4 @@ ssh-keygen -t ed25519 -C "votre-email@example.com"
 git remote set-url origin git@github.com:hamzalazigheb/alliance-courtage-extranet.git
 ```
 
+

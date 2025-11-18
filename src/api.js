@@ -194,6 +194,20 @@ export const archivesAPI = {
       method: 'DELETE',
     });
   },
+
+  updateCategory: async (id, category) => {
+    return apiRequest(`/archives/${id}/category`, {
+      method: 'PUT',
+      body: JSON.stringify({ category }),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  },
+
+  getCategories: async () => {
+    return apiRequest('/archives/categories/list');
+  },
 };
 
 // API des produits structurés

@@ -94,11 +94,28 @@ router.get('/usage', auth, async (req, res) => {
 
     const usage = await query(sql, params);
 
-    // Parser les paramètres JSON
-    const usageWithParsedParams = usage.map(record => ({
-      ...record,
-      parameters: record.parameters ? JSON.parse(record.parameters) : null
-    }));
+    // Parser les paramètres JSON (gérer les cas où c'est déjà un objet ou une chaîne)
+    const usageWithParsedParams = usage.map(record => {
+      let parsedParams = null;
+      if (record.parameters) {
+        try {
+          // Si c'est déjà un objet, le retourner tel quel
+          if (typeof record.parameters === 'object') {
+            parsedParams = record.parameters;
+          } else if (typeof record.parameters === 'string') {
+            // Si c'est une chaîne, essayer de la parser
+            parsedParams = JSON.parse(record.parameters);
+          }
+        } catch (parseError) {
+          console.warn('Erreur parsing parameters pour record', record.id, ':', parseError.message);
+          parsedParams = null;
+        }
+      }
+      return {
+        ...record,
+        parameters: parsedParams
+      };
+    });
 
     res.json(usageWithParsedParams);
   } catch (error) {

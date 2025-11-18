@@ -61,3 +61,4 @@ echo "💡 Pour voir les logs en temps réel:"
 echo "   docker logs -f alliance-courtage-backend"
 echo ""
 
+

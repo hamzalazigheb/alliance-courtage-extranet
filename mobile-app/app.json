@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Alliance Courtage",
+    "slug": "alliance-courtage",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#1D4ED8"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.alliancecourtage"
+    },
+    "android": {
+      "package": "com.alliancecourtage"
+    },
+    "scheme": "alliance-courtage"
+  },
+  "name": "AllianceCourtageMobile",
+  "displayName": "Alliance Courtage"
+}

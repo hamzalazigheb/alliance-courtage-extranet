@@ -102,3 +102,4 @@ docker exec alliance-courtage-mysql mysql -u root -palliance2024Secure alliance_
 - Elle est nécessaire pour la page "Statistiques des Simulateurs"
 - Si la table n'existe pas, toutes les requêtes vers `/api/simulators/usage` retourneront une erreur 500
 
+

@@ -158,3 +158,4 @@ Si des tables existent en local mais pas en production :
 - `compareDatabases.js` : Comparaison complète
 - `compareDatabases.ps1` : Wrapper PowerShell pour Windows
 
+

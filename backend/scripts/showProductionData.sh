@@ -61,3 +61,4 @@ echo "💡 Pour voir la structure d'une table:"
 echo "   docker exec -it $MYSQL_CONTAINER mysql -u root -p alliance_courtage -e \"DESCRIBE nom_table;\""
 echo ""
 
+

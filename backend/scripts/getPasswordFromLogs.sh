@@ -30,3 +30,4 @@ echo "💡 Si le mot de passe n'apparaît pas ci-dessus, essayez:"
 echo "   docker logs $CONTAINER_NAME --tail 1000 | grep -A 20 'RÉINITIALISATION'"
 echo ""
 
+

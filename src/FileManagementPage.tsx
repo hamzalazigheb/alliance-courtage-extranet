@@ -13,6 +13,8 @@ interface ArchiveFile {
   created_at: string;
   uploaded_by_nom: string;
   uploaded_by_prenom: string;
+  fileUrl?: string;
+  hasFileContent?: boolean;
 }
 
 function FileManagementPage() {
@@ -23,6 +25,9 @@ function FileManagementPage() {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedYear, setSelectedYear] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
+  const [editingCategory, setEditingCategory] = useState<{id: number, category: string} | null>(null);
+  const [updatingCategory, setUpdatingCategory] = useState<number | null>(null);
 
   // État du formulaire d'upload
   const [uploadForm, setUploadForm] = useState({
@@ -33,10 +38,25 @@ function FileManagementPage() {
     file: null as File | null
   });
 
-  // Charger les fichiers au montage du composant
+  // Charger les fichiers et catégories au montage du composant
   useEffect(() => {
     loadFiles();
+    loadCategories();
   }, []);
+
+  const loadCategories = async () => {
+    try {
+      const categories = await archivesAPI.getCategories();
+      // Ajouter des catégories par défaut si elles n'existent pas
+      const defaultCategories = ['Bordereaux 2024', 'Protocoles', 'Conventions', 'Général', 'Non classé'];
+      const allCategories = [...new Set([...defaultCategories, ...categories])];
+      setAvailableCategories(allCategories);
+    } catch (error) {
+      console.error('Erreur lors du chargement des catégories:', error);
+      // Catégories par défaut en cas d'erreur
+      setAvailableCategories(['Bordereaux 2024', 'Protocoles', 'Conventions', 'Général', 'Non classé']);
+    }
+  };
 
   const loadFiles = async () => {
     try {
@@ -125,6 +145,38 @@ function FileManagementPage() {
     }
   };
 
+  const handleUpdateCategory = async (id: number, category: string) => {
+    try {
+      setUpdatingCategory(id);
+      await archivesAPI.updateCategory(id, category);
+      // Mettre à jour localement
+      setFiles(files.map(f => f.id === id ? { ...f, category } : f));
+      setEditingCategory(null);
+      alert('Catégorie mise à jour avec succès !');
+    } catch (error) {
+      console.error('Erreur mise à jour catégorie:', error);
+      alert('Erreur lors de la mise à jour de la catégorie');
+    } finally {
+      setUpdatingCategory(null);
+    }
+  };
+
+  const handleDownload = (file: ArchiveFile) => {
+    if (file.fileUrl) {
+      window.open(file.fileUrl, '_blank');
+    } else if (file.file_path) {
+      // Fallback pour les anciens fichiers
+      const url = file.file_path.startsWith('http') 
+        ? file.file_path 
+        : buildAPIURL(file.file_path);
+      window.open(url, '_blank');
+    } else {
+      // Utiliser l'endpoint de téléchargement
+      const downloadUrl = buildAPIURL(`/archives/${file.id}/download`);
+      window.open(downloadUrl, '_blank');
+    }
+  };
+
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -150,7 +202,6 @@ function FileManagementPage() {
     return matchesSearch && matchesCategory && matchesYear;
   });
 
-  const categories = [...new Set(files.map(f => f.category).filter(Boolean))];
   const years = [...new Set(files.map(f => f.year).filter(Boolean))].sort((a, b) => b - a);
 
   return (
@@ -201,11 +252,9 @@ function FileManagementPage() {
                   required
                 >
                   <option value="">Sélectionner une catégorie</option>
-                  <option value="Actualités">Actualités</option>
-                  <option value="Produits">Produits</option>
-                  <option value="Rapports">Rapports</option>
-                  <option value="Formation">Formation</option>
-                  <option value="Réglementaire">Réglementaire</option>
+                  {availableCategories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -285,7 +334,7 @@ function FileManagementPage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="">Toutes les catégories</option>
-              {categories.map(cat => (
+              {availableCategories.map(cat => (
                 <option key={cat} value={cat}>{cat}</option>
               ))}
             </select>
@@ -333,14 +382,57 @@ function FileManagementPage() {
           <div className="space-y-3">
             {filteredFiles.map((file) => (
               <div key={file.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-4 flex-1">
                   <div className="text-2xl">{getFileIcon(file.file_type)}</div>
-                  <div>
+                  <div className="flex-1">
                     <h3 className="font-medium text-gray-800">{file.title}</h3>
                     <p className="text-sm text-gray-600">{file.description}</p>
-                    <div className="flex items-center space-x-4 text-xs text-gray-500 mt-1">
-                      <span>📁 {file.category}</span>
-                      <span>📅 {file.year}</span>
+                    <div className="flex items-center space-x-4 text-xs text-gray-500 mt-1 flex-wrap">
+                      <div className="flex items-center space-x-1">
+                        <span>📁</span>
+                        {editingCategory?.id === file.id ? (
+                          <div className="flex items-center space-x-1">
+                            <select
+                              value={editingCategory.category}
+                              onChange={(e) => setEditingCategory({...editingCategory, category: e.target.value})}
+                              className="border rounded px-2 py-1 text-xs"
+                              disabled={updatingCategory === file.id}
+                            >
+                              {availableCategories.map(cat => (
+                                <option key={cat} value={cat}>{cat}</option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={() => handleUpdateCategory(file.id, editingCategory.category)}
+                              disabled={updatingCategory === file.id}
+                              className="bg-green-500 text-white px-2 py-1 rounded text-xs hover:bg-green-600 disabled:opacity-50"
+                              title="Valider"
+                            >
+                              ✓
+                            </button>
+                            <button
+                              onClick={() => setEditingCategory(null)}
+                              disabled={updatingCategory === file.id}
+                              className="bg-gray-500 text-white px-2 py-1 rounded text-xs hover:bg-gray-600 disabled:opacity-50"
+                              title="Annuler"
+                            >
+                              ✗
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center space-x-1">
+                            <span>{file.category || 'Non classé'}</span>
+                            <button
+                              onClick={() => setEditingCategory({id: file.id, category: file.category || 'Non classé'})}
+                              className="text-blue-500 hover:text-blue-700 text-xs"
+                              title="Modifier la catégorie"
+                            >
+                              ✏️
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      {file.year && <span>📅 {file.year}</span>}
                       <span>💾 {formatFileSize(file.file_size)}</span>
                       <span>👤 {file.uploaded_by_prenom} {file.uploaded_by_nom}</span>
                     </div>
@@ -348,7 +440,7 @@ function FileManagementPage() {
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
-                    onClick={() => window.open(`http://localhost:3001/${file.file_path}`, '_blank')}
+                    onClick={() => handleDownload(file)}
                     className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
                   >
                     Télécharger

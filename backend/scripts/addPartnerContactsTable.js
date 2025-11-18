@@ -71,3 +71,4 @@ addPartnerContactsTable()
     process.exit(1);
   });
 
+
