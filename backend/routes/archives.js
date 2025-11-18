@@ -338,6 +338,51 @@ router.post('/', auth, authorize('admin'), upload.single('file'), handleMulterEr
   }
 });
 
+// @route   PUT /api/archives/:id/category
+// @desc    Mettre à jour uniquement la catégorie d'une archive
+// @access  Private (Admin seulement)
+// NOTE: Cette route doit être définie AVANT /:id pour éviter les conflits de routing
+router.put('/:id/category', auth, authorize('admin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { category } = req.body;
+    
+    if (!category) {
+      return res.status(400).json({ 
+        error: 'Catégorie requise' 
+      });
+    }
+    
+    // Vérifier que l'archive existe
+    const existingArchives = await query(
+      'SELECT id FROM archives WHERE id = ?',
+      [id]
+    );
+    
+    if (existingArchives.length === 0) {
+      return res.status(404).json({ 
+        error: 'Archive non trouvée' 
+      });
+    }
+    
+    // Mettre à jour uniquement la catégorie
+    await query(
+      'UPDATE archives SET category = ? WHERE id = ?',
+      [category, id]
+    );
+    
+    res.json({ 
+      message: 'Catégorie mise à jour avec succès',
+      category: category
+    });
+  } catch (error) {
+    console.error('Erreur update category:', error);
+    res.status(500).json({ 
+      error: 'Erreur serveur lors de la mise à jour de la catégorie' 
+    });
+  }
+});
+
 // @route   PUT /api/archives/:id
 // @desc    Mettre à jour une archive
 // @access  Private (Admin seulement)
@@ -376,50 +421,6 @@ router.put('/:id', auth, authorize('admin'), async (req, res) => {
     console.error('Erreur update archive:', error);
     res.status(500).json({ 
       error: 'Erreur serveur lors de la mise à jour de l\'archive' 
-    });
-  }
-});
-
-// @route   PUT /api/archives/:id/category
-// @desc    Mettre à jour uniquement la catégorie d'une archive
-// @access  Private (Admin seulement)
-router.put('/:id/category', auth, authorize('admin'), async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { category } = req.body;
-    
-    if (!category) {
-      return res.status(400).json({ 
-        error: 'Catégorie requise' 
-      });
-    }
-    
-    // Vérifier que l'archive existe
-    const existingArchives = await query(
-      'SELECT id FROM archives WHERE id = ?',
-      [id]
-    );
-    
-    if (existingArchives.length === 0) {
-      return res.status(404).json({ 
-        error: 'Archive non trouvée' 
-      });
-    }
-    
-    // Mettre à jour uniquement la catégorie
-    await query(
-      'UPDATE archives SET category = ? WHERE id = ?',
-      [category, id]
-    );
-    
-    res.json({ 
-      message: 'Catégorie mise à jour avec succès',
-      category: category
-    });
-  } catch (error) {
-    console.error('Erreur update category:', error);
-    res.status(500).json({ 
-      error: 'Erreur serveur lors de la mise à jour de la catégorie' 
     });
   }
 });
