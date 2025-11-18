@@ -1,140 +1,173 @@
-# 🔧 Résolution du Problème Frontend qui Redémarre en Boucle
+# 🔧 Fix : Conteneur Frontend en Redémarrage Continu
 
-## 🔍 Diagnostic
+## Problème
 
-Le conteneur `alliance-courtage-extranet` est en état `Restarting (1)`, ce qui indique qu'il crash au démarrage.
+Le conteneur `alliance-courtage-extranet` est en état `Restarting (1)`, ce qui signifie qu'il redémarre en boucle à cause d'une erreur.
 
-## 📋 Commandes de Diagnostic
+## Diagnostic
 
-### 1. Vérifier les logs du frontend
+### Étape 1 : Vérifier les logs
 
 ```bash
+# Voir les logs du conteneur
 docker logs alliance-courtage-extranet --tail 50
-```
 
-### 2. Vérifier les logs en temps réel
-
-```bash
+# Voir les logs en temps réel
 docker logs -f alliance-courtage-extranet
 ```
 
-### 3. Vérifier la configuration du conteneur
+### Étape 2 : Vérifier la configuration nginx
 
 ```bash
-docker inspect alliance-courtage-extranet
+# Tester la configuration nginx dans le conteneur
+docker exec alliance-courtage-extranet nginx -t
 ```
 
-## 🔧 Solutions Communes
+### Étape 3 : Vérifier les fichiers dans le conteneur
 
-### Solution 1 : Problème de build
+```bash
+# Vérifier que les fichiers sont présents
+docker exec alliance-courtage-extranet ls -la /usr/share/nginx/html/
 
-Si l'image n'a pas été correctement construite :
+# Vérifier la configuration nginx
+docker exec alliance-courtage-extranet cat /etc/nginx/conf.d/default.conf
+```
+
+## Solutions
+
+### Solution 1 : Restaurer la configuration nginx originale
+
+Si la configuration nginx est corrompue :
 
 ```bash
 # Arrêter le conteneur
 docker stop alliance-courtage-extranet
-docker rm alliance-courtage-extranet
 
-# Reconstruire l'image frontend
-cd ~/alliance/alliance
-docker build -t alliance-courtage-frontend:latest --no-cache .
+# Vérifier l'image originale
+docker inspect alliance-courtage-frontend:latest
 
-# Redémarrer
-docker run -d \
-  --name alliance-courtage-extranet \
-  --restart unless-stopped \
-  -p 80:80 \
-  alliance-courtage-frontend:latest
+# Redémarrer avec la configuration par défaut
+docker start alliance-courtage-extranet
 ```
 
-### Solution 2 : Problème de port déjà utilisé
-
-Si le port 80 est déjà utilisé :
+### Solution 2 : Vérifier et corriger la configuration
 
 ```bash
-# Vérifier ce qui utilise le port 80
-sudo lsof -i :80
-# ou
-sudo netstat -tulpn | grep :80
+# Entrer dans le conteneur (si possible)
+docker exec -it alliance-courtage-extranet sh
 
-# Si nécessaire, arrêter le service qui utilise le port
-# Puis redémarrer le conteneur
+# Vérifier la configuration
+nginx -t
+
+# Si erreur, corriger
+exit
 ```
 
-### Solution 3 : Problème de Dockerfile
-
-Vérifier que le Dockerfile frontend existe et est correct :
+### Solution 3 : Recréer le conteneur
 
 ```bash
-cd ~/alliance/alliance
-cat Dockerfile
-```
-
-### Solution 4 : Vérifier les variables d'environnement
-
-Si le frontend nécessite des variables d'environnement :
-
-```bash
-# Vérifier le Dockerfile pour voir quelles variables sont nécessaires
-# Puis créer le conteneur avec les variables appropriées
-docker run -d \
-  --name alliance-courtage-extranet \
-  --restart unless-stopped \
-  -p 80:80 \
-  -e API_URL=http://localhost:3001 \
-  alliance-courtage-frontend:latest
-```
-
-## 🚀 Solution Rapide
-
-```bash
-# 1. Arrêter et supprimer le conteneur
+# Arrêter et supprimer le conteneur
 docker stop alliance-courtage-extranet
 docker rm alliance-courtage-extranet
 
-# 2. Vérifier les logs pour identifier l'erreur
-# (avant de recréer, regardez les logs précédents)
-
-# 3. Reconstruire et redémarrer
-cd ~/alliance/alliance
-docker build -t alliance-courtage-frontend:latest .
+# Recréer le conteneur (selon votre docker-compose ou commande originale)
+# Exemple :
 docker run -d \
   --name alliance-courtage-extranet \
-  --restart unless-stopped \
   -p 80:80 \
+  -v $(pwd)/dist:/usr/share/nginx/html:ro \
   alliance-courtage-frontend:latest
-
-# 4. Vérifier les logs immédiatement
-docker logs -f alliance-courtage-extranet
 ```
 
-## 📝 Erreurs Communes
-
-### Erreur : "Cannot find module"
-- **Cause** : Dépendances npm non installées
-- **Solution** : Vérifier que `npm install` est exécuté dans le Dockerfile
-
-### Erreur : "Port already in use"
-- **Cause** : Un autre service utilise le port 80
-- **Solution** : Arrêter le service ou changer le port
-
-### Erreur : "ENOENT: no such file or directory"
-- **Cause** : Fichiers manquants dans l'image
-- **Solution** : Vérifier que tous les fichiers sont copiés dans le Dockerfile
-
-### Erreur : "Failed to start server"
-- **Cause** : Erreur de configuration
-- **Solution** : Vérifier les variables d'environnement et la configuration
-
-## ✅ Vérification
-
-Après avoir appliqué une solution :
+### Solution 4 : Vérifier les volumes
 
 ```bash
-# Vérifier l'état
-docker ps | grep alliance-courtage-extranet
+# Voir les volumes montés
+docker inspect alliance-courtage-extranet | grep -A 10 Mounts
 
-# Devrait afficher "Up" au lieu de "Restarting"
+# Vérifier que le volume dist/ existe et contient des fichiers
+ls -la ~/alliance/alliance/dist/
 ```
 
+## Solution Rapide
 
+```bash
+# 1. Arrêter le conteneur
+docker stop alliance-courtage-extranet
+
+# 2. Vérifier les logs pour identifier l'erreur
+docker logs alliance-courtage-extranet --tail 100
+
+# 3. Si c'est un problème de configuration nginx, restaurer
+docker cp nginx-production.conf alliance-courtage-extranet:/etc/nginx/conf.d/default.conf
+
+# 4. Tester la configuration
+docker exec alliance-courtage-extranet nginx -t
+
+# 5. Redémarrer
+docker start alliance-courtage-extranet
+
+# 6. Vérifier
+docker ps | grep alliance-courtage-extranet
+```
+
+## Erreurs Communes
+
+### Erreur : "nginx: [emerg] open() /etc/nginx/conf.d/default.conf failed"
+
+**Solution** : Le fichier de configuration n'existe pas ou est corrompu.
+
+```bash
+# Vérifier que le fichier existe
+docker exec alliance-courtage-extranet ls -la /etc/nginx/conf.d/
+
+# Copier la configuration
+docker cp nginx-production.conf alliance-courtage-extranet:/etc/nginx/conf.d/default.conf
+```
+
+### Erreur : "nginx: [emerg] bind() to 0.0.0.0:80 failed"
+
+**Solution** : Le port 80 est déjà utilisé.
+
+```bash
+# Vérifier ce qui utilise le port 80
+sudo netstat -tulpn | grep :80
+
+# Arrêter le processus ou changer le port
+```
+
+### Erreur : "index.html not found"
+
+**Solution** : Les fichiers du frontend ne sont pas dans le conteneur.
+
+```bash
+# Vérifier
+docker exec alliance-courtage-extranet ls -la /usr/share/nginx/html/
+
+# Si vide, copier les fichiers
+docker cp dist/. alliance-courtage-extranet:/usr/share/nginx/html/
+```
+
+## Commandes de Diagnostic Complètes
+
+```bash
+# 1. Voir l'état du conteneur
+docker ps -a | grep alliance-courtage-extranet
+
+# 2. Voir les logs
+docker logs alliance-courtage-extranet --tail 100
+
+# 3. Voir la configuration
+docker inspect alliance-courtage-extranet
+
+# 4. Vérifier les fichiers
+docker exec alliance-courtage-extranet ls -la /usr/share/nginx/html/
+docker exec alliance-courtage-extranet ls -la /etc/nginx/conf.d/
+
+# 5. Tester nginx
+docker exec alliance-courtage-extranet nginx -t
+```
+
+---
+
+**Note** : Après avoir corrigé le problème, vérifiez que le conteneur fonctionne avec `docker ps` et que le site est accessible.
