@@ -386,16 +386,18 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
 
   // Fonction pour ouvrir/télécharger un bordereau
   const handleOpenBordereau = async (fileUrl: string | null, title: string, bordereauId: number) => {
-    if (!fileUrl) {
-      alert('URL du fichier non disponible');
-      return;
-    }
-
     try {
       const token = localStorage.getItem('token');
       if (!token) {
         alert('Non authentifié');
         return;
+      }
+
+      // Si fileUrl est null, construire l'URL depuis l'ID
+      if (!fileUrl) {
+        // Construire l'URL de téléchargement depuis l'ID
+        const apiPath = `/bordereaux/${bordereauId}/download`;
+        fileUrl = buildAPIURL(apiPath);
       }
 
       // Si l'URL contient /download, utiliser fetch avec authentification
