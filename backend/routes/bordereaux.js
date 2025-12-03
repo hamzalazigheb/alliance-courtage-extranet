@@ -291,6 +291,7 @@ router.get('/recent', auth, authorize('admin'), async (req, res) => {
     // Utiliser l'interpolation directe pour LIMIT car MySQL ne supporte pas bien LIMIT avec paramètres préparés
     const rows = await query(
       `SELECT b.id as bordereauId, b.title, b.file_path as filePath, b.created_at,
+              CASE WHEN b.file_content IS NOT NULL THEN 1 ELSE 0 END as has_file_content,
               u.id as userId, CONCAT(u.prenom, ' ', u.nom) as userLabel
        FROM bordereaux b
        LEFT JOIN users u ON b.user_id = u.id
@@ -302,15 +303,27 @@ router.get('/recent', auth, authorize('admin'), async (req, res) => {
     // Filtrer les lignes avec des données invalides et mapper les données valides
     const result = rows
       .filter(r => r && r.bordereauId && r.title) // Filtrer les valeurs null/undefined
-      .map(r => ({
-        archiveId: r.bordereauId,
-        title: r.title || 'Sans titre',
-        filePath: r.filePath,
-        fileUrl: r.filePath ? `${host}${r.filePath}` : null,
-        userId: r.userId || null,
-        userLabel: r.userLabel || 'Inconnu',
-        createdAt: r.created_at || new Date().toISOString()
-      }));
+      .map(r => {
+        let fileUrl = null;
+        if (r.has_file_content) {
+          // Fichier en base64 - utiliser la route /download
+          fileUrl = `${host}/api/bordereaux/${r.bordereauId}/download`;
+        } else if (r.filePath && r.filePath.trim() !== '') {
+          // Ancien fichier avec file_path
+          fileUrl = `${host}${r.filePath}`;
+        }
+        
+        return {
+          archiveId: r.bordereauId,
+          title: r.title || 'Sans titre',
+          filePath: r.filePath,
+          fileUrl: fileUrl,
+          hasFileContent: !!r.has_file_content,
+          userId: r.userId || null,
+          userLabel: r.userLabel || 'Inconnu',
+          createdAt: r.created_at || new Date().toISOString()
+        };
+      });
 
     res.json(result);
   } catch (error) {

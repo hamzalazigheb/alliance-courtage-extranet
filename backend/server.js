@@ -11,6 +11,7 @@ try {
 }
 
 const db = require('./config/database');
+const { register, metricsMiddleware } = require('./middleware/metrics');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const productRoutes = require('./routes/products');
@@ -57,6 +58,9 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
+// Metrics middleware (must be before routes to track all requests)
+app.use(metricsMiddleware);
+
 // Middleware pour parser JSON
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -101,6 +105,12 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Metrics endpoint for Prometheus
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', register.contentType);
+  res.end(await register.metrics());
+});
+
 // Gestion des erreurs 404
 app.use('*', (req, res) => {
   res.status(404).json({ 
@@ -131,6 +141,7 @@ db.connect((err) => {
     console.log(`🚀 Serveur Alliance Courtage démarré sur le port ${PORT}`);
     console.log(`📊 Environnement: ${process.env.NODE_ENV}`);
     console.log(`🌐 API disponible sur: http://localhost:${PORT}/api`);
+    console.log(`📈 Metrics disponible sur: http://localhost:${PORT}/metrics`);
   });
 });
 

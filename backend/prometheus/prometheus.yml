@@ -1,0 +1,27 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+# Alert rules
+rule_files:
+  - "alerts.yml"
+
+scrape_configs:
+  # Backend API running in Docker container (production)
+  - job_name: 'nodejs-backend'
+    static_configs:
+      - targets: ['alliance-courtage-backend:3001']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  # Backend API from host (for local development)
+  - job_name: 'nodejs-backend-host'
+    static_configs:
+      - targets: ['host.docker.internal:3001']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

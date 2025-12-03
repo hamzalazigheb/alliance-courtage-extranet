@@ -21,9 +21,10 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
   const [fileUserMapping, setFileUserMapping] = useState<{fileIndex: number, userId: number, score: number}[]>([]);
   const [uploading, setUploading] = useState(false);
   const [selectedUserIdForBulk, setSelectedUserIdForBulk] = useState<number | ''>('');
-  const [recentUploads, setRecentUploads] = useState<Array<{ archiveId: number; fileUrl: string; title: string; userId: number; userLabel: string; createdAt: string }>>([]);
+  const [recentUploads, setRecentUploads] = useState<Array<{ archiveId: number; fileUrl: string | null; title: string; userId: number | null; userLabel: string; createdAt: string; hasFileContent?: boolean }>>([]);
   const [uploadMode, setUploadMode] = useState<'auto' | 'manual'>('auto'); // 'auto' = direct upload, 'manual' = preview first
   const [bulkUploadDate, setBulkUploadDate] = useState<string>(new Date().toISOString().split('T')[0]); // Date configurable pour l'affichage
+  const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set()); // Track which files are being deleted
 
   useEffect(() => {
     if (currentUser?.role === 'admin') {
@@ -383,6 +384,116 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
     }
   };
 
+  // Fonction pour ouvrir/télécharger un bordereau
+  const handleOpenBordereau = async (fileUrl: string | null, title: string, bordereauId: number) => {
+    if (!fileUrl) {
+      alert('URL du fichier non disponible');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        alert('Non authentifié');
+        return;
+      }
+
+      // Si l'URL contient /download, utiliser fetch avec authentification
+      if (fileUrl.includes('/bordereaux/') && fileUrl.includes('/download')) {
+        let apiPath: string;
+        
+        // Extraire le chemin de l'URL complète
+        if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
+          const urlObj = new URL(fileUrl);
+          apiPath = urlObj.pathname; // Ex: /api/bordereaux/29/download
+          // Retirer /api si présent pour que buildAPIURL puisse l'ajouter
+          if (apiPath.startsWith('/api/')) {
+            apiPath = apiPath.replace('/api', ''); // Ex: /bordereaux/29/download
+          }
+        } else {
+          apiPath = fileUrl.startsWith('/') ? fileUrl : `/${fileUrl}`;
+          if (apiPath.startsWith('/api/')) {
+            apiPath = apiPath.replace('/api', '');
+          }
+        }
+        
+        const apiUrl = buildAPIURL(apiPath);
+        
+        const response = await fetch(apiUrl, {
+          headers: {
+            'x-auth-token': token
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+        }
+
+        // Obtenir le blob
+        const blob = await response.blob();
+        
+        // Créer un lien de téléchargement
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = title || 'bordereau';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      } else {
+        // Pour les anciens fichiers avec file_path, ouvrir dans un nouvel onglet
+        window.open(fileUrl, '_blank', 'noopener,noreferrer');
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'ouverture du fichier:', error);
+      alert('Erreur lors de l\'ouverture du fichier: ' + (error instanceof Error ? error.message : 'Erreur inconnue'));
+    }
+  };
+
+  // Fonction pour supprimer un bordereau
+  const handleDeleteBordereau = async (bordereauId: number) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce fichier ? Cette action est irréversible.')) {
+      return;
+    }
+
+    try {
+      setDeletingIds(prev => new Set(prev).add(bordereauId));
+      
+      const token = localStorage.getItem('token');
+      if (!token) {
+        alert('Non authentifié');
+        return;
+      }
+
+      const response = await fetch(buildAPIURL(`/bordereaux/${bordereauId}`), {
+        method: 'DELETE',
+        headers: {
+          'x-auth-token': token
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Erreur lors de la suppression');
+      }
+
+      // Retirer le fichier de la liste
+      setRecentUploads(prev => prev.filter(upload => upload.archiveId !== bordereauId));
+      
+      alert('Fichier supprimé avec succès!');
+    } catch (error) {
+      console.error('Erreur lors de la suppression:', error);
+      alert(error instanceof Error ? error.message : 'Erreur lors de la suppression');
+    } finally {
+      setDeletingIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(bordereauId);
+        return newSet;
+      });
+    }
+  };
+
   // Handle bulk file selection (original method - for preview mode)
   const handleBulkFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -527,14 +638,40 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
               {recentUploads
                 .filter((r) => r && r.title) // Filtrer les valeurs null/undefined
                 .map((r) => (
-                <div key={r.archiveId} className="p-4 flex items-center justify-between">
-                  <div>
+                <div key={r.archiveId} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                  <div className="flex-1">
                     <div className="font-medium text-gray-900">{r.title}</div>
                     <div className="text-sm text-gray-600">→ {r.userLabel || 'Inconnu'}</div>
+                    <div className="text-xs text-gray-400 mt-1">
+                      {r.createdAt ? new Date(r.createdAt).toLocaleString('fr-FR') : 'Date inconnue'}
+                    </div>
                   </div>
                   <div className="flex items-center space-x-3">
-                    <a href={r.fileUrl || '#'} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700">Ouvrir</a>
-                    <span className="text-xs text-gray-500">{r.createdAt ? new Date(r.createdAt).toLocaleString('fr-FR') : 'Date inconnue'}</span>
+                    <button
+                      onClick={() => handleOpenBordereau(r.fileUrl, r.title, r.archiveId)}
+                      className="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                      title="Ouvrir le fichier"
+                    >
+                      👁️ Ouvrir
+                    </button>
+                    <button
+                      onClick={() => handleDeleteBordereau(r.archiveId)}
+                      disabled={deletingIds.has(r.archiveId)}
+                      className="px-3 py-1.5 text-sm rounded-md bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
+                      title="Supprimer ce fichier"
+                    >
+                      {deletingIds.has(r.archiveId) ? (
+                        <>
+                          <span className="animate-spin">⏳</span>
+                          <span>Suppression...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>🗑️</span>
+                          <span>Supprimer</span>
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
               ))}
