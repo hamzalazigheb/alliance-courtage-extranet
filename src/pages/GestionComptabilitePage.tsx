@@ -434,15 +434,41 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
         // Obtenir le blob
         const blob = await response.blob();
         
-        // Créer un lien de téléchargement
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = title || 'bordereau';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
+        // Nettoyer le nom du fichier (enlever les caractères spéciaux)
+        const cleanTitle = (title || 'bordereau')
+          .replace(/[<>:"/\\|?*]/g, '_') // Remplacer les caractères invalides
+          .replace(/\s+/g, '_') // Remplacer les espaces
+          .substring(0, 200); // Limiter la longueur
+        
+        // Créer une URL blob pour ouvrir dans un nouvel onglet
+        const blobUrl = window.URL.createObjectURL(blob);
+        
+        // Essayer d'ouvrir dans un nouvel onglet (pour les PDF)
+        const fileType = blob.type || 'application/pdf';
+        if (fileType.includes('pdf') || fileType.includes('image')) {
+          // Ouvrir dans un nouvel onglet
+          const newWindow = window.open(blobUrl, '_blank');
+          if (!newWindow) {
+            // Si popup bloquée, télécharger
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = cleanTitle;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          }
+          // Nettoyer l'URL après un délai
+          setTimeout(() => window.URL.revokeObjectURL(blobUrl), 100);
+        } else {
+          // Pour les autres types, télécharger directement
+          const a = document.createElement('a');
+          a.href = blobUrl;
+          a.download = cleanTitle;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(blobUrl);
+        }
       } else {
         // Pour les anciens fichiers avec file_path, ouvrir dans un nouvel onglet
         window.open(fileUrl, '_blank', 'noopener,noreferrer');
