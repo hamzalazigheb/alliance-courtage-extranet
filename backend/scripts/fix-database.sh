@@ -5,6 +5,9 @@ echo "🔧 Correction de la base de données..."
 
 # Se connecter à MySQL et exécuter les commandes
 sudo docker exec -i alliance-courtage-mysql mysql -u root -palliance2024Secure alliance_courtage << 'SQL'
+-- 0. Corriger l'ENUM du rôle pour accepter 'user' (force la modification)
+-- Cette commande fonctionne même si 'user' est déjà dans l'ENUM
+ALTER TABLE users MODIFY COLUMN role ENUM('admin', 'broker', 'client', 'user') DEFAULT 'user';
 -- 1. Ajouter validite_date si elle n'existe pas
 SET @col_exists = 0;
 SELECT COUNT(*) INTO @col_exists 
