@@ -19,6 +19,10 @@ export default defineConfig({
         drop_debugger: true,
       },
     },
+    // Fallback si terser n'est pas disponible
+    commonjsOptions: {
+      include: [/node_modules/],
+    },
     // Code splitting optimisé
     rollupOptions: {
       output: {
