@@ -35,6 +35,51 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+-- 2.1. Ajouter denomination_sociale à users si elle n'existe pas
+SET @col_exists = 0;
+SELECT COUNT(*) INTO @col_exists 
+FROM INFORMATION_SCHEMA.COLUMNS 
+WHERE TABLE_SCHEMA = 'alliance_courtage' 
+AND TABLE_NAME = 'users' 
+AND COLUMN_NAME = 'denomination_sociale';
+
+SET @sql = IF(@col_exists = 0, 
+  'ALTER TABLE users ADD COLUMN denomination_sociale VARCHAR(255) NULL AFTER prenom', 
+  'SELECT "Colonne denomination_sociale existe déjà" as message');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- 2.2. Ajouter telephone à users si elle n'existe pas
+SET @col_exists = 0;
+SELECT COUNT(*) INTO @col_exists 
+FROM INFORMATION_SCHEMA.COLUMNS 
+WHERE TABLE_SCHEMA = 'alliance_courtage' 
+AND TABLE_NAME = 'users' 
+AND COLUMN_NAME = 'telephone';
+
+SET @sql = IF(@col_exists = 0, 
+  'ALTER TABLE users ADD COLUMN telephone VARCHAR(20) NULL AFTER denomination_sociale', 
+  'SELECT "Colonne telephone existe déjà" as message');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- 2.3. Ajouter code_postal à users si elle n'existe pas
+SET @col_exists = 0;
+SELECT COUNT(*) INTO @col_exists 
+FROM INFORMATION_SCHEMA.COLUMNS 
+WHERE TABLE_SCHEMA = 'alliance_courtage' 
+AND TABLE_NAME = 'users' 
+AND COLUMN_NAME = 'code_postal';
+
+SET @sql = IF(@col_exists = 0, 
+  'ALTER TABLE users ADD COLUMN code_postal VARCHAR(10) NULL AFTER telephone', 
+  'SELECT "Colonne code_postal existe déjà" as message');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 -- 3. Créer user_sessions si elle n'existe pas
 CREATE TABLE IF NOT EXISTS user_sessions (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -203,6 +248,29 @@ CREATE TABLE IF NOT EXISTS formations (
   INDEX idx_year (year),
   INDEX idx_statut (statut),
   INDEX idx_date (date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 13. Créer la table financial_documents
+CREATE TABLE IF NOT EXISTS financial_documents (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  file_path VARCHAR(500) DEFAULT '',
+  file_content LONGTEXT,
+  file_size BIGINT,
+  file_type VARCHAR(100),
+  category VARCHAR(100) NOT NULL,
+  subcategory VARCHAR(100),
+  year INT,
+  uploaded_by INT,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL,
+  INDEX idx_category (category),
+  INDEX idx_subcategory (subcategory),
+  INDEX idx_year (year),
+  INDEX idx_is_active (is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SELECT '✅ Migration terminée!' as status;
