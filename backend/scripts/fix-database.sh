@@ -303,6 +303,21 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+-- 15.1. Ajouter colonne file_content à archives si elle n'existe pas
+SET @col_exists = 0;
+SELECT COUNT(*) INTO @col_exists 
+FROM INFORMATION_SCHEMA.COLUMNS 
+WHERE TABLE_SCHEMA = 'alliance_courtage' 
+AND TABLE_NAME = 'archives' 
+AND COLUMN_NAME = 'file_content';
+
+SET @sql = IF(@col_exists = 0, 
+  'ALTER TABLE archives ADD COLUMN file_content LONGTEXT NULL AFTER file_path', 
+  'SELECT "Colonne file_content existe déjà" as message');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 -- 16. Ajouter colonnes uploaded_by_prenom et uploaded_by_nom à archives si elles n'existent pas
 SET @col_exists = 0;
 SELECT COUNT(*) INTO @col_exists 
@@ -365,12 +380,29 @@ CREATE TABLE IF NOT EXISTS reglementaire_folders (
   description TEXT,
   parent_id INT,
   display_order INT DEFAULT 0,
+  is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (parent_id) REFERENCES reglementaire_folders(id) ON DELETE CASCADE,
   INDEX idx_parent_id (parent_id),
-  INDEX idx_display_order (display_order)
+  INDEX idx_display_order (display_order),
+  INDEX idx_is_active (is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 19.1. Ajouter colonne is_active à reglementaire_folders si elle n'existe pas
+SET @col_exists = 0;
+SELECT COUNT(*) INTO @col_exists 
+FROM INFORMATION_SCHEMA.COLUMNS 
+WHERE TABLE_SCHEMA = 'alliance_courtage' 
+AND TABLE_NAME = 'reglementaire_folders' 
+AND COLUMN_NAME = 'is_active';
+
+SET @sql = IF(@col_exists = 0, 
+  'ALTER TABLE reglementaire_folders ADD COLUMN is_active BOOLEAN DEFAULT TRUE AFTER display_order', 
+  'SELECT "Colonne is_active existe déjà" as message');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- 20. Créer la table reglementaire_documents
 CREATE TABLE IF NOT EXISTS reglementaire_documents (
