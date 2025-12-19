@@ -17,9 +17,19 @@ const upload = multer({
     fileSize: 50 * 1024 * 1024 // 50MB
   },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = /pdf|doc|docx|xls|xlsx|ppt|pptx|jpg|jpeg|png/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
+    const allowedExtensions = /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|jpg|jpeg|png)$/i;
+    const extname = allowedExtensions.test(path.extname(file.originalname).toLowerCase());
+    
+    // MIME types autorisés (incluant les types Excel spécifiques)
+    const excelMimeTypes = [
+      'application/vnd.ms-excel', // .xls
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' // .xlsx
+    ];
+    
+    // Pattern pour les autres types de fichiers
+    const allowedMimePatterns = /pdf|doc|docx|xls|xlsx|ppt|pptx|jpg|jpeg|png/i;
+    const mimetype = allowedMimePatterns.test(file.mimetype) || 
+                     excelMimeTypes.includes(file.mimetype);
     
     if (mimetype && extname) {
       return cb(null, true);

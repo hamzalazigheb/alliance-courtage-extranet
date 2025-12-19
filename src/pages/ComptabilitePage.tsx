@@ -6,6 +6,8 @@ import { buildAPIURL, buildFileURL } from '../api';
 function ComptabilitePage({ currentUser, bordereaux }: { currentUser: User | null, bordereaux: BordereauFile[] }) {
   const [selectedYear, setSelectedYear] = useState("2025");
   const [userFiles, setUserFiles] = useState<any[]>([]);
+  const [availableYears, setAvailableYears] = useState<string[]>([]);
+  const [allUserBordereaux, setAllUserBordereaux] = useState<any[]>([]);
   
   // Load bordereaux from database for current user
   useEffect(() => {
@@ -21,15 +23,44 @@ function ComptabilitePage({ currentUser, bordereaux }: { currentUser: User | nul
         });
         if (response.ok) {
           const data = await response.json();
-          // Filter by selected year AND ensure only current user's files (even for admins)
-          const filteredData = data.filter((b: any) => {
-            // Always filter by current user ID (even for admins in this page)
-            // Convert both to numbers for comparison
+          
+          // Filtrer seulement par user_id (sans filtrer par année pour obtenir toutes les années)
+          const allData = data.filter((b: any) => {
             const fileUserId = typeof b.userId === 'string' ? parseInt(b.userId) : b.userId;
             const currentUserId = typeof currentUser.id === 'string' ? parseInt(currentUser.id) : currentUser.id;
-            
-            if (fileUserId !== currentUserId) return false;
-            // Filter by selected year
+            return fileUserId === currentUserId;
+          });
+          
+          setAllUserBordereaux(allData);
+          
+          // Extraire toutes les années disponibles depuis les bordereaux
+          const years = new Set<string>();
+          allData.forEach((b: any) => {
+            if (b.periodYear) {
+              years.add(b.periodYear.toString());
+            } else if (b.createdAt) {
+              const year = new Date(b.createdAt).getFullYear().toString();
+              years.add(year);
+            }
+          });
+          
+          // Trier les années par ordre décroissant et convertir en tableau
+          const sortedYears = Array.from(years).sort((a, b) => parseInt(b) - parseInt(a));
+          
+          // Si aucune année trouvée, utiliser les années par défaut
+          if (sortedYears.length === 0) {
+            sortedYears.push('2025', '2024');
+          }
+          
+          setAvailableYears(sortedYears);
+          
+          // Si l'année sélectionnée n'est pas dans la liste, sélectionner la première année disponible
+          if (!sortedYears.includes(selectedYear) && sortedYears.length > 0) {
+            setSelectedYear(sortedYears[0]);
+          }
+          
+          // Filter by selected year
+          const filteredData = allData.filter((b: any) => {
             if (selectedYear && b.periodYear?.toString() !== selectedYear && 
                 !(b.periodYear === null && new Date(b.createdAt).getFullYear().toString() === selectedYear)) {
               return false;
@@ -206,20 +237,46 @@ function ComptabilitePage({ currentUser, bordereaux }: { currentUser: User | nul
       {/* Year Selection */}
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
         <h2 className="text-xl font-semibold text-gray-800 mb-4">Sélectionner l'année</h2>
-        <div className="flex space-x-4">
-          {Object.keys(yearlyFolders).map((year) => (
-            <button
-              key={year}
-              onClick={() => setSelectedYear(year)}
-              className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-                selectedYear === year
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
-            >
-              {year}
-            </button>
-          ))}
+        <div className="flex flex-wrap gap-3">
+          {availableYears.length > 0 ? (
+            availableYears.map((year) => (
+              <button
+                key={year}
+                onClick={() => setSelectedYear(year)}
+                className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+                  selectedYear === year
+                    ? "bg-blue-600 text-white shadow-lg"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                {year}
+              </button>
+            ))
+          ) : (
+            // Fallback si aucune année n'est disponible
+            <>
+              <button
+                onClick={() => setSelectedYear("2025")}
+                className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+                  selectedYear === "2025"
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                2025
+              </button>
+              <button
+                onClick={() => setSelectedYear("2024")}
+                className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+                  selectedYear === "2024"
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                2024
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -246,13 +303,13 @@ function ComptabilitePage({ currentUser, bordereaux }: { currentUser: User | nul
                 
                 <div className="space-y-3">
                   {files.map((file) => (
-                    <div key={file.id} className="bg-gray-50 rounded-lg p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center space-x-2">
-                          <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                          <span className="truncate font-medium text-sm">{file.fileName}</span>
+                    <div key={file.id} className="bg-gray-50 rounded-lg p-3 overflow-hidden">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
+                        <div className="flex items-center space-x-2 min-w-0 flex-1">
+                          <span className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></span>
+                          <span className="truncate font-medium text-sm" title={file.fileName}>{file.fileName}</span>
                         </div>
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-gray-500 flex-shrink-0">
                           Uploadé le: {new Date(file.uploadDate).toLocaleDateString('fr-FR')} par {file.uploadedBy}
                         </div>
                       </div>

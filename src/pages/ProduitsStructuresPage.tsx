@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { structuredProductsAPI, buildFileURL, assurancesAPI } from "../api";
+import { structuredProductsAPI, buildFileURL, assurancesAPI, buildAPIURL } from "../api";
 import FavoriteButton from "../components/FavoriteButton";
 
 interface StructuredProduct {
@@ -15,6 +15,12 @@ interface StructuredProduct {
   uploaded_by_prenom?: string;
 }
 
+interface PageContent {
+  title: string;
+  subtitle: string;
+  description: string;
+}
+
 export default function ProduitsStructuresPage() {
   const [products, setProducts] = useState<StructuredProduct[]>([]);
   const [assurances, setAssurances] = useState<any[]>([]);
@@ -28,12 +34,52 @@ export default function ProduitsStructuresPage() {
   const [reservationAmount, setReservationAmount] = useState('');
   const [reservationNotes, setReservationNotes] = useState('');
   const [reservationDate, setReservationDate] = useState('');
+  
+  // Contenu CMS
+  const [pageContent, setPageContent] = useState<PageContent>({
+    title: 'Produits Structurés',
+    subtitle: '',
+    description: 'Découvrez notre gamme de produits structurés adaptés à vos besoins d\'investissement'
+  });
 
   useEffect(() => {
     loadProducts();
     loadAssurances();
     loadAssurancesMontants();
+    loadCMSContent();
   }, [selectedAssurance, selectedCategory, searchTerm]);
+
+  // Charger le contenu CMS
+  const loadCMSContent = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(buildAPIURL('/cms/produits-structures'), {
+        headers: { 'x-auth-token': token || '' }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.content) {
+          try {
+            let parsedContent = JSON.parse(data.content);
+            // Si c'est un double JSON stringifié (legacy), on parse une seconde fois
+            if (typeof parsedContent === 'string') {
+              parsedContent = JSON.parse(parsedContent);
+            }
+            setPageContent({
+              title: parsedContent.title || 'Produits Structurés',
+              subtitle: parsedContent.subtitle || '',
+              description: parsedContent.description || 'Découvrez notre gamme de produits structurés adaptés à vos besoins d\'investissement'
+            });
+          } catch (e) {
+            console.error('Erreur parsing CMS content:', e);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Erreur chargement contenu CMS:', error);
+    }
+  };
 
   const loadProducts = async () => {
     try {
@@ -87,17 +133,11 @@ export default function ProduitsStructuresPage() {
       setReservationNotes('');
       setReservationDate('');
       setSelectedProduct(null);
-      // Recharger les montants pour mettre à jour l'affichage
       await loadAssurancesMontants();
     } catch (error: any) {
       console.error('Erreur lors de la réservation:', error);
       alert(error.message || 'Erreur lors de la création de la réservation');
     }
-  };
-
-  const getAssuranceColor = (assuranceName: string) => {
-    // Utiliser le dégradé bleu de la charte graphique pour toutes les assurances
-    return 'bg-gradient-to-r from-[#0B1220] to-[#1D4ED8]';
   };
 
   const getAssuranceMontant = (assuranceName: string) => {
@@ -114,15 +154,6 @@ export default function ProduitsStructuresPage() {
       style: 'currency',
       currency: 'EUR'
     }).format(amount);
-  };
-
-  const getFileIcon = (fileType?: string) => {
-    if (!fileType) return '📄';
-    if (fileType.includes('pdf')) return '📕';
-    if (fileType.includes('word') || fileType.includes('doc')) return '📘';
-    if (fileType.includes('excel') || fileType.includes('xls')) return '📗';
-    if (fileType.includes('powerpoint') || fileType.includes('ppt')) return '📙';
-    return '📄';
   };
 
   // Grouper les produits par assurance
@@ -146,17 +177,20 @@ export default function ProduitsStructuresPage() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-8">
-      {/* Page Header */}
+      {/* Page Header - Contenu géré depuis le CMS */}
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-white/20">
-        <h1 className="text-3xl font-bold text-gray-800 mb-4">PRODUITS STRUCTURÉS</h1>
+        <h1 className="text-3xl font-bold text-gray-800 mb-4">{pageContent.title}</h1>
+        {pageContent.subtitle && (
+          <h2 className="text-xl text-gray-700 mb-2">{pageContent.subtitle}</h2>
+        )}
         <p className="text-gray-600 text-lg">
-          Découvrez notre gamme de produits structurés adaptés à vos besoins d'investissement
+          {pageContent.description}
         </p>
       </div>
 
-      {/* Filtres */}
-      <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">🔍 Filtres et Recherche</h3>
+      {/* Filters Section */}
+      <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+        <h3 className="text-lg font-bold text-gray-800 mb-4">🔍 Filtres</h3>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Rechercher</label>
@@ -164,8 +198,8 @@ export default function ProduitsStructuresPage() {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Rechercher un produit..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Rechercher..."
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
           <div>
@@ -173,12 +207,12 @@ export default function ProduitsStructuresPage() {
             <select
               value={selectedAssurance}
               onChange={(e) => setSelectedAssurance(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">Toutes les assurances</option>
               {assurances.filter(a => a.is_active).map(assurance => (
                 <option key={assurance.id} value={assurance.name}>
-                  {assurance.icon} {assurance.name}
+                  {assurance.name}
                 </option>
               ))}
             </select>
@@ -188,7 +222,7 @@ export default function ProduitsStructuresPage() {
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">Toutes les catégories</option>
               {availableCategories.map(category => (
@@ -199,159 +233,196 @@ export default function ProduitsStructuresPage() {
           <div className="flex items-end">
             <button
               onClick={loadProducts}
-              className="w-full bg-gradient-to-r from-indigo-500 to-purple-500 text-white px-4 py-2 rounded-lg hover:from-indigo-600 hover:to-purple-600 transition-all flex items-center justify-center space-x-2"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg transition-colors font-medium"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              <span>Actualiser</span>
+              🔄 Actualiser
             </button>
           </div>
         </div>
       </div>
 
-      {/* Produits par Assurance */}
-      <div className="space-y-6">
+      {/* Products by Assurance */}
+      <div className="space-y-8">
         {loading ? (
           <div className="text-center py-12">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
             <p className="mt-4 text-gray-600">Chargement des produits...</p>
           </div>
         ) : Object.keys(productsByAssurance).length === 0 ? (
-          <div className="text-center py-12 bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-white/20">
-            <div className="text-8xl mb-4">📊</div>
-            <p className="text-gray-600 text-xl">Aucun produit structuré trouvé</p>
-            <p className="text-gray-500 mt-2">Essayez de modifier vos filtres de recherche</p>
+          <div className="bg-white rounded-xl shadow-lg p-8 text-center">
+            <p className="text-gray-600 text-lg">Aucun produit structuré trouvé</p>
           </div>
         ) : (
-          Object.entries(productsByAssurance).map(([assurance, assuranceProducts]) => (
-            <div key={assurance} className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden border border-white/20">
-              {/* En-tête Assurance */}
-              <div className={`${getAssuranceColor(assurance)} text-white p-6`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
-                      <span className="text-2xl font-bold">{assurance.charAt(0)}</span>
+          Object.entries(productsByAssurance).map(([assurance, assuranceProducts]) => {
+            const montant = getAssuranceMontant(assurance);
+            const progressPercent = montant.montant_enveloppe > 0 
+              ? (montant.montant_reserve / montant.montant_enveloppe) * 100 
+              : 0;
+            
+            return (
+              <div key={assurance} className="bg-white rounded-xl shadow-lg overflow-hidden">
+                {/* Assurance Header */}
+                <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-6">
+                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                    {/* Assurance Info */}
+                    <div className="flex items-center space-x-4">
+                      <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center">
+                        <span className="text-2xl font-bold">{assurance.charAt(0)}</span>
+                      </div>
+                      <div>
+                        <h2 className="text-2xl font-bold">{assurance}</h2>
+                        <p className="text-blue-200">{assuranceProducts.length} produit{assuranceProducts.length > 1 ? 's' : ''}</p>
+                      </div>
                     </div>
-                    <div>
-                      <h2 className="text-2xl font-bold">{assurance}</h2>
-                      <p className="text-white/80">{assuranceProducts.length} produit{assuranceProducts.length > 1 ? 's' : ''}</p>
+                    
+                    {/* Financial Stats */}
+                    <div className="flex flex-wrap items-center gap-4">
+                      <div className="bg-white/10 rounded-lg px-4 py-2">
+                        <p className="text-xs text-blue-200">Enveloppe</p>
+                        <p className="text-lg font-bold">{formatCurrency(montant.montant_enveloppe)}</p>
+                      </div>
+                      <div className="bg-yellow-500/20 rounded-lg px-4 py-2">
+                        <p className="text-xs text-yellow-200">Réservé</p>
+                        <p className="text-lg font-bold text-yellow-300">{formatCurrency(montant.montant_reserve)}</p>
+                      </div>
+                      <div className="bg-green-500/20 rounded-lg px-4 py-2">
+                        <p className="text-xs text-green-200">Disponible</p>
+                        <p className="text-lg font-bold text-green-300">{formatCurrency(montant.montant_restant)}</p>
+                      </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    {(() => {
-                      const montant = getAssuranceMontant(assurance);
-                      return (
-                        <div className="space-y-1">
-                          <div className="text-sm text-white/90">
-                            <span className="font-semibold">Enveloppe:</span> {formatCurrency(montant.montant_enveloppe)}
-                          </div>
-                          <div className="text-sm text-white/80">
-                            <span className="font-semibold">Réservé:</span> {formatCurrency(montant.montant_reserve)}
-                          </div>
-                          <div className="text-sm text-white font-bold bg-white/20 px-3 py-1 rounded-lg">
-                            <span>Restant:</span> {formatCurrency(montant.montant_restant)}
-                          </div>
-                        </div>
-                      );
-                    })()}
+                  
+                  {/* Progress Bar */}
+                  <div className="mt-4">
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-blue-200">Progression des réservations</span>
+                      <span>{progressPercent.toFixed(1)}%</span>
+                    </div>
+                    <div className="h-2 bg-white/20 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-yellow-400 to-green-400 rounded-full transition-all duration-500"
+                        style={{ width: `${Math.min(progressPercent, 100)}%` }}
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Liste des Produits */}
-              <div className="p-6">
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                  {assuranceProducts.map((product) => (
-                    <div key={product.id} className="border border-gray-200 rounded-xl p-6 hover:shadow-lg transition-all duration-200 bg-gradient-to-br from-gray-50 to-white">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex items-center space-x-3 flex-1 min-w-0">
-                          <div className="text-2xl flex-shrink-0">{getFileIcon(product.file_path)}</div>
-                          <div className="min-w-0 flex-1">
-                            <h3 className="font-semibold text-gray-800 text-lg mb-1 line-clamp-2">{product.title}</h3>
-                            <span className="inline-block bg-indigo-100 text-indigo-700 text-xs px-2 py-1 rounded-full mt-1">
-                              {product.category}
-                            </span>
+                {/* Products Grid */}
+                <div className="p-6 bg-gray-50">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {assuranceProducts.map((product) => (
+                      <div 
+                        key={product.id} 
+                        className="bg-white rounded-xl shadow-md border border-gray-200 hover:shadow-lg transition-all duration-300"
+                      >
+                        {/* Product Header */}
+                        <div className="p-5 border-b border-gray-100">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-bold text-gray-800 text-lg mb-2">
+                                {product.title}
+                              </h3>
+                              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                {product.category}
+                              </span>
+                            </div>
+                            <FavoriteButton 
+                              itemType="structured-product" 
+                              itemId={product.id} 
+                              title={product.title}
+                              description={product.description}
+                            />
                           </div>
                         </div>
-                        <FavoriteButton productId={product.id} type="structured-product" />
-                      </div>
-                      
-                      {product.description && (
-                        <p className="text-gray-600 text-sm mb-4 line-clamp-3">{product.description}</p>
-                      )}
-                      
-                      <div className="space-y-2 text-xs text-gray-500 mb-4">
-                        {product.uploaded_by_prenom && product.uploaded_by_nom && (
-                          <div className="flex justify-between">
-                            <span>👤 Uploadé par:</span>
-                            <span>{product.uploaded_by_prenom} {product.uploaded_by_nom}</span>
+                        
+                        {/* Product Body */}
+                        <div className="p-5">
+                          {product.description && (
+                            <p className="text-sm text-gray-600 mb-4 line-clamp-2">{product.description}</p>
+                          )}
+                          
+                          {/* Metadata */}
+                          <div className="flex items-center justify-between text-xs text-gray-500 mb-4 pb-4 border-b border-gray-100">
+                            <div className="flex items-center gap-1">
+                              <span>👤</span>
+                              <span>{product.uploaded_by_prenom || 'Admin'} {product.uploaded_by_nom || ''}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span>📅</span>
+                              <span>{new Date(product.created_at).toLocaleDateString('fr-FR')}</span>
+                            </div>
                           </div>
-                        )}
-                        <div className="flex justify-between">
-                          <span>🕒 Date:</span>
-                          <span>{new Date(product.created_at).toLocaleDateString('fr-FR')}</span>
+                          
+                          {/* Action Buttons */}
+                          <div className="flex gap-3">
+                            {product.fileUrl && (
+                              <a
+                                href={product.fileUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 px-4 rounded-lg transition-colors font-medium text-sm text-center"
+                              >
+                                📥 Télécharger
+                              </a>
+                            )}
+                            <button
+                              onClick={() => {
+                                setSelectedProduct(product);
+                                setShowReservationModal(true);
+                              }}
+                              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg transition-colors font-medium text-sm"
+                            >
+                              ✅ Réserver
+                            </button>
+                          </div>
                         </div>
                       </div>
-                      
-                      <div className="flex space-x-2">
-                        {product.fileUrl && (
-                          <a
-                            href={product.fileUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex-1 bg-blue-600 text-white text-sm py-2 px-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-1"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                            <span>Télécharger</span>
-                          </a>
-                        )}
-                        <button
-                          onClick={() => {
-                            setSelectedProduct(product);
-                            setShowReservationModal(true);
-                          }}
-                          className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white text-sm py-2 px-3 rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all flex items-center justify-center space-x-1"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          <span>Réserver</span>
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 
-      {/* Modal de Réservation */}
+      {/* Reservation Modal */}
       {showReservationModal && selectedProduct && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6">
-            <div className="flex items-center space-x-4 mb-6">
-              <div className="text-3xl">📄</div>
-              <div>
-                <h2 className="text-xl font-bold text-gray-800">{selectedProduct.assurance || 'Produit'}</h2>
-                <p className="text-sm text-gray-600">{selectedProduct.title}</p>
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white px-6 py-4 rounded-t-xl">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-bold">{selectedProduct.assurance || 'Produit'}</h2>
+                  <p className="text-sm text-blue-200">{selectedProduct.title}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowReservationModal(false);
+                    setSelectedProduct(null);
+                    setReservationAmount('');
+                    setReservationNotes('');
+                    setReservationDate('');
+                  }}
+                  className="text-white hover:text-gray-200 text-2xl"
+                >
+                  ×
+                </button>
               </div>
             </div>
             
-            <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-              <h3 className="text-lg font-semibold text-green-800 mb-4">Formulaire de Réservation</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Modal Body */}
+            <div className="p-6">
+              <h3 className="text-lg font-bold text-gray-800 mb-4">📝 Formulaire de réservation</h3>
+              <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Montant à investir *</label>
                   <input 
                     type="number" 
                     value={reservationAmount}
                     onChange={(e) => setReservationAmount(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" 
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
                     placeholder="Montant en €" 
                     required
                   />
@@ -362,40 +433,42 @@ export default function ProduitsStructuresPage() {
                     type="date" 
                     value={reservationDate}
                     onChange={(e) => setReservationDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" 
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
                   />
                 </div>
-                <div className="md:col-span-2">
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Commentaires</label>
                   <textarea 
                     rows={3} 
                     value={reservationNotes}
                     onChange={(e) => setReservationNotes(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500" 
-                    placeholder="Commentaires additionnels..."
-                  ></textarea>
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                    placeholder="Informations complémentaires..."
+                  />
                 </div>
               </div>
-              <div className="mt-6 flex space-x-4">
-                <button 
-                  onClick={handleReservation}
-                  className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white px-6 py-2 rounded-lg transition-all font-medium"
-                >
-                  Confirmer la réservation
-                </button>
-                <button 
-                  onClick={() => {
-                    setShowReservationModal(false);
-                    setSelectedProduct(null);
-                    setReservationAmount('');
-                    setReservationNotes('');
-                    setReservationDate('');
-                  }}
-                  className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg transition-colors font-medium"
-                >
-                  Annuler
-                </button>
-              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex gap-3 rounded-b-xl">
+              <button 
+                onClick={() => {
+                  setShowReservationModal(false);
+                  setSelectedProduct(null);
+                  setReservationAmount('');
+                  setReservationNotes('');
+                  setReservationDate('');
+                }}
+                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 px-4 rounded-lg transition-colors font-medium"
+              >
+                Annuler
+              </button>
+              <button 
+                onClick={handleReservation}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg transition-colors font-medium"
+              >
+                Confirmer la réservation
+              </button>
             </div>
           </div>
         </div>

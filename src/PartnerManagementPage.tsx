@@ -2,6 +2,33 @@ import React, { useState, useEffect } from 'react';
 import { partnersAPI, buildAPIURL } from './api';
 import { clearCachedData, CACHE_KEYS } from './utils/cache';
 import { Partner, PartnerContact, PartnerDocument } from './types';
+import { PartnerIcon, UploadIcon, EditIcon } from './components/NavIcons';
+import { useAlert } from './contexts/AlertContext';
+
+// Additional icons
+const SearchIcon: React.FC<{ className?: string }> = ({ className = 'w-5 h-5' }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+  </svg>
+);
+
+const RefreshIcon: React.FC<{ className?: string }> = ({ className = 'w-5 h-5' }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+  </svg>
+);
+
+const BuildingIcon: React.FC<{ className?: string }> = ({ className = 'w-6 h-6' }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+  </svg>
+);
+
+const BriefcaseIcon: React.FC<{ className?: string }> = ({ className = 'w-6 h-6' }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+  </svg>
+);
 
 interface PartnerFormData {
   id?: number;
@@ -17,7 +44,9 @@ interface PartnerFormData {
 }
 
 const PartnerManagementPage: React.FC = () => {
+  const { showSuccess, showError, showWarning } = useAlert();
   const [partners, setPartners] = useState<Partner[]>([]);
+  const [allPartners, setAllPartners] = useState<Partner[]>([]); // Pour les stats globales
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [showUploadForm, setShowUploadForm] = useState(false);
@@ -42,8 +71,24 @@ const PartnerManagementPage: React.FC = () => {
   });
 
   useEffect(() => {
+    loadAllPartners(); // Charger tous les partenaires pour les stats
     loadPartners();
   }, []);
+
+  // Recharger les partenaires quand les filtres changent
+  useEffect(() => {
+    loadPartners();
+  }, [selectedCategory, searchTerm]);
+
+  // Charger tous les partenaires (pour les stats globales)
+  const loadAllPartners = async () => {
+    try {
+      const response = await partnersAPI.getAll({});
+      setAllPartners(response);
+    } catch (error) {
+      console.error('Erreur lors du chargement des stats:', error);
+    }
+  };
 
   const loadPartners = async () => {
     try {
@@ -54,9 +99,14 @@ const PartnerManagementPage: React.FC = () => {
 
       const response = await partnersAPI.getAll(params);
       setPartners(response);
+      
+      // Si pas de filtre, mettre à jour aussi allPartners
+      if (!selectedCategory && !searchTerm) {
+        setAllPartners(response);
+      }
     } catch (error) {
       console.error('Erreur lors du chargement des partenaires:', error);
-      alert('Erreur lors du chargement des partenaires');
+      showError('Erreur lors du chargement des partenaires');
     } finally {
       setLoading(false);
     }
@@ -66,7 +116,7 @@ const PartnerManagementPage: React.FC = () => {
     e.preventDefault();
     
     if (!partnerForm.nom) {
-      alert('Le nom est obligatoire');
+      showWarning('Le nom est obligatoire');
       return;
     }
 
@@ -104,7 +154,7 @@ const PartnerManagementPage: React.FC = () => {
       clearCachedData(CACHE_KEYS.PARTNERS_COA);
       clearCachedData(CACHE_KEYS.PARTNERS_CIF);
 
-      alert('Partenaire créé avec succès !');
+      showSuccess('Partenaire créé avec succès !');
       setPartnerForm({
         nom: '',
         logo_url: '',
@@ -120,7 +170,7 @@ const PartnerManagementPage: React.FC = () => {
       loadPartners();
     } catch (error) {
       console.error('Erreur création partenaire:', error);
-      alert('Erreur lors de la création du partenaire');
+      showError('Erreur lors de la création du partenaire');
     } finally {
       setUploading(false);
     }
@@ -147,12 +197,12 @@ const PartnerManagementPage: React.FC = () => {
     e.preventDefault();
     
     if (!editingPartner || !partnerForm.id) {
-      alert('Erreur: partenaire non sélectionné');
+      showError('Erreur: partenaire non sélectionné');
       return;
     }
 
     if (!partnerForm.nom) {
-      alert('Le nom est obligatoire');
+      showWarning('Le nom est obligatoire');
       return;
     }
 
@@ -190,12 +240,12 @@ const PartnerManagementPage: React.FC = () => {
       clearCachedData(CACHE_KEYS.PARTNERS_COA);
       clearCachedData(CACHE_KEYS.PARTNERS_CIF);
 
-      alert('Partenaire mis à jour avec succès !');
+      showSuccess('Partenaire mis à jour avec succès !');
       resetForm();
       loadPartners();
     } catch (error) {
       console.error('Erreur mise à jour partenaire:', error);
-      alert('Erreur lors de la mise à jour du partenaire');
+      showError('Erreur lors de la mise à jour du partenaire');
     } finally {
       setUploading(false);
     }
@@ -231,10 +281,10 @@ const PartnerManagementPage: React.FC = () => {
       clearCachedData(CACHE_KEYS.PARTNERS_CIF);
       
       loadPartners();
-      alert('Partenaire supprimé avec succès !');
+      showSuccess('Partenaire supprimé avec succès !');
     } catch (error) {
       console.error('Erreur suppression:', error);
-      alert('Erreur lors de la suppression du partenaire');
+      showError('Erreur lors de la suppression du partenaire');
     }
   };
 
@@ -258,69 +308,65 @@ const PartnerManagementPage: React.FC = () => {
 
   const categories = ['coa', 'cif'];
   const categoriesCount = {
-    coa: partners.filter(p => p.category === 'coa').length,
-    cif: partners.filter(p => p.category === 'cif').length,
+    coa: allPartners.filter(p => p.category === 'coa').length,
+    cif: allPartners.filter(p => p.category === 'cif').length,
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8">
-      {/* En-tête */}
-      <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-200">
-        <div className="flex justify-between items-center">
+    <div className="max-w-7xl mx-auto space-y-6">
+      {/* En-tête - Premium Style */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-4">Gestion des Partenaires</h1>
-            <p className="text-gray-600 text-lg">
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Gestion des Partenaires</h1>
+            <p className="text-gray-600 text-sm">
               Configurez et gérez vos partenaires COA et CIF
             </p>
           </div>
           <button
             onClick={() => setShowUploadForm(!showUploadForm)}
-            className="bg-gradient-to-r from-[#0B1220] to-[#1D4ED8] text-white px-6 py-3 rounded-lg hover:from-[#0b1428] hover:to-[#1E40AF] transition-all duration-200 flex items-center space-x-2 shadow-lg"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg transition-all duration-200 flex items-center space-x-2 shadow-sm hover:shadow-md font-medium"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
+            <UploadIcon className="w-5 h-5" />
             <span>Nouveau Partenaire</span>
           </button>
         </div>
       </div>
 
-      {/* Statistiques */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+      {/* Statistiques - Premium Style */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-600 text-sm">Total Partenaires</p>
-              <p className="text-3xl font-bold text-gray-800">{partners.length}</p>
+              <p className="text-gray-600 text-sm font-medium">Total Partenaires</p>
+              <p className="text-3xl font-bold text-gray-900 mt-1">{allPartners.length}</p>
             </div>
-            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-              <svg className="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 003 15v3h3v-3a3 3 0 01-.75-2.906z" />
-              </svg>
+            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+              <PartnerIcon className="w-6 h-6 text-blue-600" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+        <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-600 text-sm">Partenaires COA</p>
-              <p className="text-3xl font-bold text-blue-600">{categoriesCount.coa}</p>
+              <p className="text-gray-600 text-sm font-medium">Partenaires COA</p>
+              <p className="text-3xl font-bold text-blue-600 mt-1">{categoriesCount.coa}</p>
             </div>
-            <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center">
-              <span className="text-2xl">🏢</span>
+            <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center">
+              <BuildingIcon className="w-6 h-6 text-blue-600" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+        <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-600 text-sm">Partenaires CIF</p>
-              <p className="text-3xl font-bold text-purple-600">{categoriesCount.cif}</p>
+              <p className="text-gray-600 text-sm font-medium">Partenaires CIF</p>
+              <p className="text-3xl font-bold text-purple-600 mt-1">{categoriesCount.cif}</p>
             </div>
-            <div className="w-12 h-12 bg-purple-50 rounded-full flex items-center justify-center">
-              <span className="text-2xl">💼</span>
+            <div className="w-12 h-12 bg-purple-50 rounded-lg flex items-center justify-center">
+              <BriefcaseIcon className="w-6 h-6 text-purple-600" />
             </div>
           </div>
         </div>
@@ -329,9 +375,19 @@ const PartnerManagementPage: React.FC = () => {
       {/* Formulaire d'ajout/modification */}
       {showUploadForm && (
         <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">
-            {editingPartner ? '✏️ Modifier le Partenaire' : '📤 Ajouter un Nouveau Partenaire'}
-          </h2>
+          <div className="flex items-center space-x-2 mb-6">
+            {editingPartner ? (
+              <>
+                <EditIcon className="w-6 h-6 text-gray-600" />
+                <h2 className="text-xl font-semibold text-gray-900">Modifier le Partenaire</h2>
+              </>
+            ) : (
+              <>
+                <UploadIcon className="w-6 h-6 text-gray-600" />
+                <h2 className="text-xl font-semibold text-gray-900">Ajouter un Nouveau Partenaire</h2>
+              </>
+            )}
+          </div>
           <form onSubmit={editingPartner ? handleUpdate : handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -415,18 +471,18 @@ const PartnerManagementPage: React.FC = () => {
               <p className="text-xs text-gray-500 mt-1">Formats: PNG, JPG, SVG (Max: 5MB)</p>
             </div>
 
-            <div className="flex justify-end space-x-3">
+            <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
               <button
                 type="button"
                 onClick={resetForm}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                className="px-5 py-2.5 text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-all duration-200 font-medium border border-gray-300"
               >
                 Annuler
               </button>
               <button
                 type="submit"
                 disabled={uploading}
-                className="bg-gradient-to-r from-[#0B1220] to-[#1D4ED8] text-white px-6 py-2 rounded-lg hover:from-[#0b1428] hover:to-[#1E40AF] transition-all duration-200 disabled:opacity-50 flex items-center space-x-2"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg transition-all duration-200 disabled:opacity-50 font-medium shadow-sm hover:shadow-md flex items-center space-x-2"
               >
                 {uploading ? (
                   <>
@@ -447,50 +503,118 @@ const PartnerManagementPage: React.FC = () => {
         </div>
       )}
 
-      {/* Filtres */}
-      <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Rechercher</label>
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Rechercher un partenaire..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Catégorie</label>
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      {/* Category Tabs - Premium Style */}
+      <div className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-40 mb-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex space-x-1.5 overflow-x-auto scrollbar-hide py-2">
+            <button
+              onClick={() => setSelectedCategory('')}
+              className={`
+                relative flex items-center space-x-2 px-4 py-2.5 
+                font-medium text-sm transition-all duration-200 ease-in-out
+                whitespace-nowrap rounded-lg
+                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+                ${!selectedCategory
+                  ? 'text-blue-700 bg-blue-50'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }
+              `}
             >
-              <option value="">Toutes les catégories</option>
-              <option value="coa">COA</option>
-              <option value="cif">CIF</option>
-            </select>
+              {/* Left indicator bar */}
+              {!selectedCategory && (
+                <span
+                  className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-blue-600 rounded-r-full"
+                  aria-hidden="true"
+                />
+              )}
+              <span className="font-medium">Tous</span>
+            </button>
+            <button
+              onClick={() => setSelectedCategory('coa')}
+              className={`
+                relative flex items-center space-x-2 px-4 py-2.5 
+                font-medium text-sm transition-all duration-200 ease-in-out
+                whitespace-nowrap rounded-lg
+                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+                ${selectedCategory === 'coa'
+                  ? 'text-blue-700 bg-blue-50'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }
+              `}
+            >
+              {/* Left indicator bar */}
+              {selectedCategory === 'coa' && (
+                <span
+                  className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-blue-600 rounded-r-full"
+                  aria-hidden="true"
+                />
+              )}
+              <BuildingIcon className="w-4 h-4" />
+              <span className="font-medium">COA</span>
+            </button>
+            <button
+              onClick={() => setSelectedCategory('cif')}
+              className={`
+                relative flex items-center space-x-2 px-4 py-2.5 
+                font-medium text-sm transition-all duration-200 ease-in-out
+                whitespace-nowrap rounded-lg
+                focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+                ${selectedCategory === 'cif'
+                  ? 'text-purple-700 bg-purple-50'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }
+              `}
+            >
+              {/* Left indicator bar */}
+              {selectedCategory === 'cif' && (
+                <span
+                  className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-purple-600 rounded-r-full"
+                  aria-hidden="true"
+                />
+              )}
+              <BriefcaseIcon className="w-4 h-4" />
+              <span className="font-medium">CIF</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Filtres et recherche - Premium Style */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="relative">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Rechercher</label>
+            <div className="relative">
+              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Rechercher un partenaire..."
+                className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+              />
+            </div>
           </div>
           <div className="flex items-end">
             <button
               onClick={loadPartners}
-              className="w-full bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors flex items-center justify-center space-x-2"
+              className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2.5 rounded-lg transition-all duration-200 flex items-center justify-center space-x-2 font-medium border border-gray-300"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
+              <RefreshIcon className="w-5 h-5" />
               <span>Actualiser</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Liste des partenaires */}
-      <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">
-          🤝 Partenaires ({filteredPartners.length})
-        </h2>
+      {/* Liste des partenaires - Premium Style */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center space-x-2 mb-6">
+          <PartnerIcon className="w-6 h-6 text-gray-600" />
+          <h2 className="text-xl font-semibold text-gray-900">
+            Partenaires ({filteredPartners.length})
+          </h2>
+        </div>
 
         {loading ? (
           <div className="text-center py-8">
@@ -498,9 +622,11 @@ const PartnerManagementPage: React.FC = () => {
             <p className="text-gray-600 mt-4">Chargement des partenaires...</p>
           </div>
         ) : filteredPartners.length === 0 ? (
-          <div className="text-center py-8">
-            <div className="text-6xl mb-4">🤝</div>
-            <p className="text-gray-600 text-lg">Aucun partenaire trouvé</p>
+          <div className="text-center py-12">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <PartnerIcon className="w-8 h-8 text-gray-400" />
+            </div>
+            <p className="text-gray-600 text-lg font-medium">Aucun partenaire trouvé</p>
             <p className="text-gray-500 text-sm mt-2">Commencez par ajouter votre premier partenaire</p>
           </div>
         ) : (
@@ -678,7 +804,8 @@ const ContactsManagementModal: React.FC<ContactsManagementModalProps> = ({ partn
     nom: '',
     prenom: '',
     email: '',
-    telephone: ''
+    telephone: '',
+    service: ''
   });
 
   const loadContacts = async () => {
@@ -706,7 +833,7 @@ const ContactsManagementModal: React.FC<ContactsManagementModalProps> = ({ partn
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!contactForm.fonction || !contactForm.nom || !contactForm.prenom || !contactForm.email) {
-      alert('Tous les champs sont requis (sauf téléphone)');
+      showWarning('Tous les champs sont requis (sauf téléphone)');
       return;
     }
 
@@ -729,12 +856,12 @@ const ContactsManagementModal: React.FC<ContactsManagementModalProps> = ({ partn
         throw new Error('Erreur lors de la sauvegarde');
       }
 
-      alert(editingContact ? 'Contact mis à jour avec succès !' : 'Contact créé avec succès !');
+      showSuccess(editingContact ? 'Contact mis à jour avec succès !' : 'Contact créé avec succès !');
       resetForm();
       loadContacts();
     } catch (error) {
       console.error('Erreur sauvegarde contact:', error);
-      alert('Erreur lors de la sauvegarde du contact');
+      showError('Erreur lors de la sauvegarde du contact');
     }
   };
 
@@ -745,7 +872,8 @@ const ContactsManagementModal: React.FC<ContactsManagementModalProps> = ({ partn
       nom: contact.nom,
       prenom: contact.prenom,
       email: contact.email,
-      telephone: contact.telephone || ''
+      telephone: contact.telephone || '',
+      service: contact.service || ''
     });
     setShowAddForm(true);
   };
@@ -766,11 +894,11 @@ const ContactsManagementModal: React.FC<ContactsManagementModalProps> = ({ partn
         throw new Error('Erreur lors de la suppression');
       }
 
-      alert('Contact supprimé avec succès !');
+      showSuccess('Contact supprimé avec succès !');
       loadContacts();
     } catch (error) {
       console.error('Erreur suppression contact:', error);
-      alert('Erreur lors de la suppression du contact');
+      showError('Erreur lors de la suppression du contact');
     }
   };
 
@@ -780,15 +908,38 @@ const ContactsManagementModal: React.FC<ContactsManagementModalProps> = ({ partn
       nom: '',
       prenom: '',
       email: '',
-      telephone: ''
+      telephone: '',
+      service: ''
     });
     setEditingContact(null);
     setShowAddForm(false);
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      style={{ scrollBehavior: 'smooth' }}
+    >
+      <div 
+        className="bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto my-auto"
+        onClick={(e) => e.stopPropagation()}
+        ref={(el) => {
+          if (el) {
+            // Scroll vers le modal au montage - amélioré pour garantir l'affichage
+            requestAnimationFrame(() => {
+              el.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'nearest' });
+              // Scroll aussi le conteneur parent si nécessaire
+              const parent = el.closest('.overflow-y-auto');
+              if (parent) {
+                parent.scrollTop = 0;
+              }
+            });
+          }
+        }}
+      >
         <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex justify-between items-center">
           <h2 className="text-2xl font-bold text-gray-800">
             📇 Contacts - {partner.nom}
@@ -874,6 +1025,16 @@ const ContactsManagementModal: React.FC<ContactsManagementModalProps> = ({ partn
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Service</label>
+                    <input
+                      type="text"
+                      value={contactForm.service}
+                      onChange={(e) => setContactForm({ ...contactForm, service: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      placeholder="Ex: Service Commercial, Service Client, etc."
+                    />
+                  </div>
                 </div>
                 <div className="flex justify-end space-x-3">
                   <button
@@ -918,6 +1079,9 @@ const ContactsManagementModal: React.FC<ContactsManagementModalProps> = ({ partn
                         <p className="text-sm text-gray-600">{contact.email}</p>
                         {contact.telephone && (
                           <p className="text-sm text-gray-500">{contact.telephone}</p>
+                        )}
+                        {contact.service && (
+                          <p className="text-sm text-gray-500">Service: {contact.service}</p>
                         )}
                       </div>
                     </div>
@@ -995,7 +1159,7 @@ const DocumentsManagementModal: React.FC<DocumentsManagementModalProps> = ({ par
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!documentForm.title || !documentForm.document_file) {
-      alert('Le titre et le fichier sont requis');
+      showWarning('Le titre et le fichier sont requis');
       return;
     }
 
@@ -1021,12 +1185,12 @@ const DocumentsManagementModal: React.FC<DocumentsManagementModalProps> = ({ par
         throw new Error('Erreur lors de l\'upload');
       }
 
-      alert('Document uploadé avec succès !');
+      showSuccess('Document uploadé avec succès !');
       resetForm();
       loadDocuments();
     } catch (error) {
       console.error('Erreur upload document:', error);
-      alert('Erreur lors de l\'upload du document');
+      showError('Erreur lors de l\'upload du document');
     } finally {
       setUploading(false);
     }
@@ -1048,11 +1212,11 @@ const DocumentsManagementModal: React.FC<DocumentsManagementModalProps> = ({ par
         throw new Error('Erreur lors de la suppression');
       }
 
-      alert('Document supprimé avec succès !');
+      showSuccess('Document supprimé avec succès !');
       loadDocuments();
     } catch (error) {
       console.error('Erreur suppression document:', error);
-      alert('Erreur lors de la suppression du document');
+      showError('Erreur lors de la suppression du document');
     }
   };
 
@@ -1074,8 +1238,30 @@ const DocumentsManagementModal: React.FC<DocumentsManagementModalProps> = ({ par
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      style={{ scrollBehavior: 'smooth' }}
+    >
+      <div 
+        className="bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto my-auto"
+        onClick={(e) => e.stopPropagation()}
+        ref={(el) => {
+          if (el) {
+            // Scroll vers le modal au montage - amélioré pour garantir l'affichage
+            requestAnimationFrame(() => {
+              el.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'nearest' });
+              // Scroll aussi le conteneur parent si nécessaire
+              const parent = el.closest('.overflow-y-auto');
+              if (parent) {
+                parent.scrollTop = 0;
+              }
+            });
+          }
+        }}
+      >
         <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex justify-between items-center">
           <h2 className="text-2xl font-bold text-gray-800">
             📄 Documents - {partner.nom}

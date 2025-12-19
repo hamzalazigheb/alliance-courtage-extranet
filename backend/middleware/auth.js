@@ -28,6 +28,24 @@ const auth = async (req, res, next) => {
       });
     }
 
+    // Vérifier que l'utilisateur est toujours actif
+    const users = await query(
+      'SELECT is_active FROM users WHERE id = ?',
+      [decoded.user.id]
+    );
+
+    if (users.length === 0) {
+      return res.status(401).json({ 
+        error: 'Utilisateur non trouvé' 
+      });
+    }
+
+    if (!users[0].is_active) {
+      return res.status(403).json({ 
+        error: 'Votre compte a été désactivé. Contactez l\'administrateur.' 
+      });
+    }
+
     // Ajouter l'utilisateur à la requête
     req.user = decoded.user;
     next();
@@ -72,6 +90,3 @@ const authorize = (...roles) => {
 };
 
 module.exports = { auth, authorize };
-
-
-

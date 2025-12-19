@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const { query } = require('../config/database');
 const { auth, authorize } = require('../middleware/auth');
 const { sendPasswordResetEmail } = require('../services/emailService');
+const { createNotification } = require('./notifications');
 
 const router = express.Router();
 
@@ -50,6 +51,20 @@ router.post('/request', async (req, res) => {
       `INSERT INTO password_reset_requests (user_id, user_email, status) VALUES (?, ?, 'pending')`,
       [user.id, user.email]
     );
+
+    // Create admin notification for password reset request
+    try {
+      await createNotification(
+        'password_reset',
+        '🔑 Demande de réinitialisation de mot de passe',
+        `L'utilisateur ${user.prenom} ${user.nom} (${user.email}) a demandé une réinitialisation de mot de passe.`,
+        null, // Send to all admins
+        user.id,
+        'password_reset'
+      );
+    } catch (notifError) {
+      console.warn('⚠️ Could not create notification:', notifError.message);
+    }
 
     console.log(`✅ Password reset requested for: ${user.email}`);
 

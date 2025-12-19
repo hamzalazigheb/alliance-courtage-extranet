@@ -5,6 +5,7 @@ import RencontresCMSPage from './RencontresCMSPage';
 import ReglementaireCMSPage from './ReglementaireCMSPage';
 import GammeFinanciereCMSPage from './GammeFinanciereCMSPage';
 import PartenairesCMSPage from './PartenairesCMSPage';
+import { useAlert } from './contexts/AlertContext';
 
 interface NewsItem {
   id?: number;
@@ -33,6 +34,8 @@ interface HomePageContent {
 }
 
 const CMSManagementPage: React.FC = () => {
+  const { showSuccess, showError, showWarning } = useAlert();
+  
   const [content, setContent] = useState<HomePageContent>({
     welcomeTitle: 'Bienvenue chez Alliance Courtage',
     news: [
@@ -225,11 +228,11 @@ const CMSManagementPage: React.FC = () => {
   const handleApproveFormation = async (id: number) => {
     try {
       await formationsAPI.approve(id);
-      alert('✅ Formation approuvée avec succès');
+      showSuccess('Formation approuvée avec succès');
       loadFormations();
     } catch (error: any) {
       console.error('Error approving formation:', error);
-      alert('Erreur: ' + (error.message || 'Erreur lors de l\'approbation de la formation'));
+      showError('Erreur: ' + (error.message || 'Erreur lors de l\'approbation de la formation'));
     }
   };
 
@@ -239,11 +242,11 @@ const CMSManagementPage: React.FC = () => {
 
     try {
       await formationsAPI.reject(id, reason || null);
-      alert('✅ Formation rejetée');
+      showSuccess('Formation rejetée');
       loadFormations();
     } catch (error: any) {
       console.error('Error rejecting formation:', error);
-      alert('Erreur: ' + (error.message || 'Erreur lors du rejet de la formation'));
+      showError('Erreur: ' + (error.message || 'Erreur lors du rejet de la formation'));
     }
   };
 
@@ -333,7 +336,7 @@ const CMSManagementPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Error saving CMS content:', error);
-      alert('Erreur lors de la sauvegarde');
+      showError('Erreur lors de la sauvegarde');
     } finally {
       setSaving(false);
     }
@@ -697,15 +700,15 @@ const CMSManagementPage: React.FC = () => {
                   onClick={() => {
                     const families = Object.keys(gpContent.products[gpClient]);
                     if (families.length <= 1) {
-                      alert('⚠️ Il doit rester au moins une famille de produit');
+                      showWarning('Il doit rester au moins une famille de produit');
                       return; // garder au moins une famille
                     }
                     if (selectedFamilies.length === 0) {
-                      alert('⚠️ Veuillez sélectionner la famille à supprimer');
+                      showWarning('Veuillez sélectionner la famille à supprimer');
                       return;
                     }
                     if (selectedFamilies.length > 1) {
-                      alert('⚠️ Veuillez sélectionner une seule famille à supprimer');
+                      showWarning('Veuillez sélectionner une seule famille à supprimer');
                       return;
                     }
                     const familyToDelete = selectedFamilies[0];
@@ -761,11 +764,11 @@ const CMSManagementPage: React.FC = () => {
                       onClick={() => {
                         const name = newProductName.trim();
                         if (!name) {
-                          alert('⚠️ Le nom du produit est obligatoire');
+                          showWarning('Le nom du produit est obligatoire');
                           return;
                         }
                         if (selectedFamilies.length === 0) {
-                          alert('⚠️ Veuillez sélectionner au moins une famille de produit');
+                          showWarning('Veuillez sélectionner au moins une famille de produit');
                           return;
                         }
                         const next = { ...gpContent };
@@ -1022,7 +1025,7 @@ const CMSManagementPage: React.FC = () => {
                                     try {
                                       const token = localStorage.getItem('token');
                                       if (!token) {
-                                        alert('❌ Vous devez être connecté pour télécharger le document');
+                                        showError('Vous devez être connecté pour télécharger le document');
                                         return;
                                       }
 
@@ -1066,7 +1069,7 @@ const CMSManagementPage: React.FC = () => {
                                       }
                                     } catch (error: any) {
                                       console.error('Erreur téléchargement:', error);
-                                      alert('❌ Erreur lors du téléchargement: ' + (error.message || 'Erreur inconnue'));
+                                      showError('Erreur lors du téléchargement: ' + (error.message || 'Erreur inconnue'));
                                     }
                                   }}
                                   className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors shadow-md hover:shadow-lg"
@@ -1145,10 +1148,16 @@ const CMSManagementPage: React.FC = () => {
               
               <NotificationIndividualForm />
             </div>
+
+            <div className="bg-slate-800 rounded-xl p-6 shadow-lg">
+              <h3 className="text-xl font-bold text-white mb-4">📧 Envoyer un email personnalisé</h3>
+              
+              <PersonalizedEmailForm />
+            </div>
           </div>
         )}
 
-        {activeSection === 'welcome' && (
+        {activePage === 'home' && activeSection === 'welcome' && (
           <div className="space-y-4">
             <h3 className="text-xl font-bold text-white mb-4">Titre de Bienvenue</h3>
             <div>
@@ -1164,7 +1173,7 @@ const CMSManagementPage: React.FC = () => {
           </div>
         )}
 
-        {activeSection === 'news' && (
+        {activePage === 'home' && activeSection === 'news' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold text-white">Actualités</h3>
@@ -1253,7 +1262,7 @@ const CMSManagementPage: React.FC = () => {
           </div>
         )}
 
-        {activeSection === 'services' && (
+        {activePage === 'home' && activeSection === 'services' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold text-white">Services</h3>
@@ -1289,30 +1298,32 @@ const CMSManagementPage: React.FC = () => {
         )}
       </div>
 
-      {/* Live Preview */}
-      <div className="bg-slate-800 rounded-xl p-6 shadow-lg">
-        <h3 className="text-xl font-bold text-white mb-4">👁️ Aperçu en temps réel</h3>
-        <div className="bg-white rounded-lg p-6 max-h-96 overflow-y-auto">
-          <p className="text-gray-600 text-sm mb-2">Aperçu de la page d'accueil...</p>
-          {activeSection === 'welcome' && (
-            <h2 className="text-2xl font-bold text-gray-800">{content.welcomeTitle}</h2>
-          )}
-          {activeSection === 'news' && content.news.map((item, index) => (
-            <div key={index} className="mb-4 p-4 bg-gray-100 rounded">
-              <h4 className="font-semibold text-gray-800">{item.title}</h4>
-              <p className="text-sm text-gray-600">{item.content}</p>
-              <span className="text-xs text-gray-500">{item.date}</span>
-            </div>
-          ))}
-          {activeSection === 'services' && (
-            <ul className="space-y-1">
-              {content.services.map((service, index) => (
-                <li key={index} className="text-gray-700">• {service.name}</li>
-              ))}
-            </ul>
-          )}
+      {/* Live Preview - Only for Home page */}
+      {activePage === 'home' && (
+        <div className="bg-slate-800 rounded-xl p-6 shadow-lg">
+          <h3 className="text-xl font-bold text-white mb-4">👁️ Aperçu en temps réel</h3>
+          <div className="bg-white rounded-lg p-6 max-h-96 overflow-y-auto">
+            <p className="text-gray-600 text-sm mb-2">Aperçu de la page d'accueil...</p>
+            {activeSection === 'welcome' && (
+              <h2 className="text-2xl font-bold text-gray-800">{content.welcomeTitle}</h2>
+            )}
+            {activeSection === 'news' && content.news.map((item, index) => (
+              <div key={index} className="mb-4 p-4 bg-gray-100 rounded">
+                <h4 className="font-semibold text-gray-800">{item.title}</h4>
+                <p className="text-sm text-gray-600">{item.content}</p>
+                <span className="text-xs text-gray-500">{item.date}</span>
+              </div>
+            ))}
+            {activeSection === 'services' && (
+              <ul className="space-y-1">
+                {content.services.map((service, index) => (
+                  <li key={index} className="text-gray-700">• {service.name}</li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
@@ -1661,6 +1672,248 @@ const NotificationIndividualForm: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
               </svg>
               <span>Envoyer la notification</span>
+            </>
+          )}
+        </button>
+      </div>
+    </form>
+  );
+};
+
+// Composant pour le formulaire d'envoi d'email personnalisé
+const PersonalizedEmailForm: React.FC = () => {
+  const [userIds, setUserIds] = useState<string[]>([]);
+  const [subject, setSubject] = useState<string>('');
+  const [message, setMessage] = useState<string>('');
+  const [template, setTemplate] = useState<string>('default');
+  const [users, setUsers] = useState<any[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState<boolean>(false);
+  const [sending, setSending] = useState<boolean>(false);
+  const [successMessage, setSuccessMessage] = useState<string>('');
+  const [errorMessage, setErrorMessage] = useState<string>('');
+
+  // Charger la liste des utilisateurs
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        setLoadingUsers(true);
+        const response = await fetch(buildAPIURL('/users'), {
+          headers: {
+            'x-auth-token': localStorage.getItem('token') || ''
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          // Filtrer pour ne garder que les utilisateurs non-admin avec email
+          const validUsers = data.filter((user: any) => 
+            user.role !== 'admin' && user.email
+          );
+          setUsers(validUsers);
+        } else {
+          console.error('Erreur lors du chargement des utilisateurs');
+        }
+      } catch (error) {
+        console.error('Erreur chargement utilisateurs:', error);
+      } finally {
+        setLoadingUsers(false);
+      }
+    };
+
+    loadUsers();
+  }, []);
+
+  const handleUserToggle = (userId: string) => {
+    setUserIds(prev => {
+      if (prev.includes(userId)) {
+        return prev.filter(id => id !== userId);
+      } else {
+        return [...prev, userId];
+      }
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (userIds.length === users.length) {
+      setUserIds([]);
+    } else {
+      setUserIds(users.map(u => u.id.toString()));
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!subject.trim() || !message.trim() || userIds.length === 0) {
+      setErrorMessage('Veuillez remplir tous les champs obligatoires et sélectionner au moins un utilisateur');
+      return;
+    }
+
+    setSending(true);
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(buildAPIURL('/emails/send'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token || ''
+        },
+        body: JSON.stringify({
+          userIds: userIds.map(id => parseInt(id)),
+          subject: subject.trim(),
+          message: message.trim(),
+          template: template
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSuccessMessage(
+          `✅ ${data.sent} email(s) envoyé(s) avec succès${data.failed > 0 ? `, ${data.failed} erreur(s)` : ''} !`
+        );
+        setSubject('');
+        setMessage('');
+        setUserIds([]);
+        setTemplate('default');
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        setErrorMessage(errorData.error || 'Erreur lors de l\'envoi de l\'email');
+      }
+    } catch (error: any) {
+      console.error('Erreur envoi email:', error);
+      setErrorMessage(error.message || 'Erreur lors de l\'envoi de l\'email');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Sélection utilisateurs (multiple) */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <label className="block text-sm font-semibold text-slate-300">Destinataires *</label>
+          <button
+            type="button"
+            onClick={handleSelectAll}
+            className="text-xs text-purple-400 hover:text-purple-300"
+          >
+            {userIds.length === users.length ? 'Tout désélectionner' : 'Tout sélectionner'}
+          </button>
+        </div>
+        {loadingUsers ? (
+          <div className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 flex items-center space-x-2">
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+            <span>Chargement des utilisateurs...</span>
+          </div>
+        ) : (
+          <div className="max-h-48 overflow-y-auto border border-slate-600 rounded-lg bg-slate-700 p-3">
+            {users.length === 0 ? (
+              <p className="text-slate-400 text-sm">Aucun utilisateur disponible</p>
+            ) : (
+              users.map((user) => (
+                <label
+                  key={user.id}
+                  className="flex items-center space-x-2 p-2 hover:bg-slate-600 rounded cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={userIds.includes(user.id.toString())}
+                    onChange={() => handleUserToggle(user.id.toString())}
+                    className="w-4 h-4 text-purple-600 bg-slate-700 border-slate-600 rounded focus:ring-purple-500"
+                  />
+                  <span className="text-sm text-slate-200">
+                    {user.prenom} {user.nom} ({user.email})
+                  </span>
+                </label>
+              ))
+            )}
+          </div>
+        )}
+        <p className="mt-2 text-xs text-slate-400">
+          {userIds.length > 0 ? `${userIds.length} utilisateur(s) sélectionné(s)` : 'Sélectionnez un ou plusieurs utilisateurs'}
+        </p>
+      </div>
+
+      {/* Sujet */}
+      <div>
+        <label className="block text-sm font-semibold text-slate-300 mb-2">Sujet *</label>
+        <input
+          type="text"
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+          className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+          placeholder="Ex: Information importante concernant votre compte"
+          required
+        />
+      </div>
+
+      {/* Template */}
+      <div>
+        <label className="block text-sm font-semibold text-slate-300 mb-2">Template</label>
+        <select
+          value={template}
+          onChange={(e) => setTemplate(e.target.value)}
+          className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+        >
+          <option value="default">Par défaut</option>
+          <option value="announcement">Annonce</option>
+          <option value="info">Information</option>
+          <option value="success">Succès</option>
+          <option value="warning">Avertissement</option>
+        </select>
+      </div>
+
+      {/* Message */}
+      <div>
+        <label className="block text-sm font-semibold text-slate-300 mb-2">Message *</label>
+        <textarea
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          rows={8}
+          className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+          placeholder="Écrivez votre message personnalisé ici...&#10;&#10;Vous pouvez utiliser plusieurs lignes. Le message sera formaté automatiquement dans l'email."
+          required
+        />
+        <p className="mt-2 text-xs text-slate-400">
+          Le message sera envoyé par email avec un template professionnel. Les retours à la ligne seront préservés.
+        </p>
+      </div>
+
+      {/* Messages d'erreur/succès */}
+      {errorMessage && (
+        <div className="bg-red-500/20 border border-red-500 rounded-lg p-4">
+          <p className="text-red-300">{errorMessage}</p>
+        </div>
+      )}
+
+      {successMessage && (
+        <div className="bg-green-500/20 border border-green-500 rounded-lg p-4">
+          <p className="text-green-300">{successMessage}</p>
+        </div>
+      )}
+
+      {/* Bouton d'envoi */}
+      <div className="flex justify-end">
+        <button
+          type="submit"
+          disabled={sending || !subject.trim() || !message.trim() || userIds.length === 0}
+          className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-gray-500 disabled:to-gray-600 text-white rounded-lg font-medium transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+        >
+          {sending ? (
+            <>
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+              <span>Envoi en cours...</span>
+            </>
+          ) : (
+            <>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              <span>Envoyer l'email{userIds.length > 0 ? ` (${userIds.length})` : ''}</span>
             </>
           )}
         </button>

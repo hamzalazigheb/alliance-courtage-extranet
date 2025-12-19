@@ -17,14 +17,24 @@ const uploadDocument = multer({
     fileSize: 50 * 1024 * 1024 // 50MB
   },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = /pdf|doc|docx|xls|xlsx|ppt|pptx|txt/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
+    const allowedExtensions = /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt)$/i;
+    const extname = allowedExtensions.test(path.extname(file.originalname).toLowerCase());
+    
+    // MIME types autorisés (incluant les types Excel spécifiques)
+    const excelMimeTypes = [
+      'application/vnd.ms-excel', // .xls
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' // .xlsx
+    ];
+    
+    // Pattern pour les autres types de fichiers
+    const allowedMimePatterns = /pdf|doc|docx|xls|xlsx|ppt|pptx|txt/i;
+    const mimetype = allowedMimePatterns.test(file.mimetype) || 
+                     excelMimeTypes.includes(file.mimetype);
     
     if (mimetype && extname) {
       return cb(null, true);
     } else {
-      cb(new Error('Seuls les fichiers documentaires sont autorisés'));
+      cb(new Error('Seuls les fichiers documentaires sont autorisés (PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT)'));
     }
   }
 });
@@ -244,12 +254,32 @@ router.get('/:id/download', async (req, res) => {
       const base64Data = document.file_content.replace(/^data:.*,/, '');
       const fileBuffer = Buffer.from(base64Data, 'base64');
       
-      // Déterminer le nom du fichier et le type MIME
+      // Déterminer le type MIME
       const mimeType = document.file_type || 'application/octet-stream';
-      const fileName = document.title || 'document';
+      
+      // Mapper les types MIME vers les extensions correctes
+      const mimeToExt = {
+        'application/pdf': 'pdf',
+        'application/msword': 'doc',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+        'application/vnd.ms-excel': 'xls',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+        'application/vnd.ms-powerpoint': 'ppt',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+        'image/jpeg': 'jpg',
+        'image/png': 'png',
+        'text/plain': 'txt'
+      };
+      
+      // Déterminer l'extension depuis le MIME type
+      const extension = mimeToExt[mimeType] || 'pdf';
+      const safeTitle = (document.title || 'document').replace(/[^a-zA-Z0-9À-ÿ\s\-_]/g, '');
+      const fileName = `${safeTitle}.${extension}`;
+      
+      console.log('📥 Download financial document:', { id, title: document.title, mimeType, extension, fileName });
       
       res.setHeader('Content-Type', mimeType);
-      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`);
       res.setHeader('Content-Length', fileBuffer.length);
       
       return res.send(fileBuffer);

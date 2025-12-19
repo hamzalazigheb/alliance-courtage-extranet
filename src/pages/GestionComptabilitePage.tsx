@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { User } from '../types';
 import { buildAPIURL } from '../api';
+import { useAlert } from '../contexts/AlertContext';
 
 // Gestion Comptabilité Page Component - Display all users for admin
 function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) {
+  const { showSuccess, showError, showWarning } = useAlert();
   const [users, setUsers] = useState<Array<{
     id: number;
     email: string;
     nom: string;
     prenom: string;
+    denomination_sociale?: string | null;
     role: string;
     is_active: boolean;
     created_at: string;
@@ -21,10 +24,23 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
   const [fileUserMapping, setFileUserMapping] = useState<{fileIndex: number, userId: number, score: number}[]>([]);
   const [uploading, setUploading] = useState(false);
   const [selectedUserIdForBulk, setSelectedUserIdForBulk] = useState<number | ''>('');
-  const [recentUploads, setRecentUploads] = useState<Array<{ archiveId: number; fileUrl: string | null; title: string; userId: number | null; userLabel: string; createdAt: string; hasFileContent?: boolean }>>([]);
+  const [recentUploads, setRecentUploads] = useState<Array<{ archiveId: number; fileUrl: string | null; title: string; userId: number | null; userLabel: string; createdAt: string; hasFileContent?: boolean; periodYear?: number | null; periodMonth?: number | null }>>([]);
   const [uploadMode, setUploadMode] = useState<'auto' | 'manual'>('auto'); // 'auto' = direct upload, 'manual' = preview first
   const [bulkUploadDate, setBulkUploadDate] = useState<string>(new Date().toISOString().split('T')[0]); // Date configurable pour l'affichage
+  const [bulkUploadYear, setBulkUploadYear] = useState<number>(new Date().getFullYear()); // Année du dossier destination
   const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set()); // Track which files are being deleted
+  const [editingBordereau, setEditingBordereau] = useState<number | null>(null);
+  const [editPeriodYear, setEditPeriodYear] = useState<string>('');
+  const [editPeriodMonth, setEditPeriodMonth] = useState<string>('');
+  const [editPeriodDay, setEditPeriodDay] = useState<string>('');
+  
+  // Upload results modal
+  const [uploadResultsModal, setUploadResultsModal] = useState<{
+    show: boolean;
+    success: Array<{fileName: string; userName: string}>;
+    notMatched: Array<{fileName: string}>;
+    failed: Array<{fileName: string; userName: string; error: string}>;
+  }>({ show: false, success: [], notMatched: [], failed: [] });
 
   useEffect(() => {
     if (currentUser?.role === 'admin') {
@@ -80,19 +96,34 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
       .replace(/[-_.()\s]+/g, ' ') // unify separators
       .trim();
 
+  // Helper function to get user label (prioritizes denomination_sociale)
+  const getUserLabel = (user: { nom: string; prenom: string; denomination_sociale?: string | null }): string => {
+    if (user.denomination_sociale && user.denomination_sociale.trim()) {
+      return user.denomination_sociale.trim();
+    }
+    return `${user.prenom} ${user.nom}`.trim();
+  };
+
   // Return best userId and a confidence score [0..100]
-  // NEW LOGIC: Prioritizes prefixes at the beginning of filename
+  // NEW LOGIC: Prioritizes denomination_sociale, then prefixes at the beginning of filename
   const matchFileToUser = (fileName: string): { userId: number | null, score: number } => {
     // Extract prefix BEFORE normalization to preserve delimiters
     const fileNameLower = fileName.toLowerCase();
     
-    // Extract prefix from beginning: either before delimiter (_ - space) or first 2-3 characters
-    const prefixWithDelimiter = fileNameLower.match(/^([a-zà-ÿ]{2,15})[_-\s\.]/);
+    // Extract prefix from beginning: either before delimiter (_ - space) or first 2-15 characters
+    const prefixWithDelimiter = fileNameLower.match(/^([a-zà-ÿ0-9]{2,30})[_-\s\.]/);
     const prefixDelimited = prefixWithDelimiter ? prefixWithDelimiter[1] : null;
     const prefix2 = fileNameLower.substring(0, 2);
     const prefix3 = fileNameLower.substring(0, 3);
+    const prefix5 = fileNameLower.substring(0, 5);
+    const prefix10 = fileNameLower.substring(0, 10);
     
     const fileNorm = normalize(fileName);
+    
+    // Liste des mots communs à ignorer (mots qui ne sont pas des noms d'utilisateurs)
+    const commonWords = ['bordereau', 'document', 'fichier', 'file', 'upload', 'facture', 'invoice', 'releve', 'relevé'];
+    const prefixLower = prefixDelimited ? prefixDelimited.toLowerCase() : '';
+    const isCommonWord = commonWords.includes(prefixLower) || commonWords.some(word => fileNameLower.startsWith(word + ' ') || fileNameLower.startsWith(word + '_') || fileNameLower.startsWith(word + '-'));
     
     // Helper function to check if prefix is a subsequence of name (e.g., "ai" in "amir")
     const isSubsequence = (prefix: string, name: string): boolean => {
@@ -109,8 +140,9 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
     let best: { userId: number | null, score: number } = { userId: null, score: 0 };
 
     users.forEach((u) => {
-      const nom = normalize(u.nom);
-      const prenom = normalize(u.prenom);
+      const nom = normalize(u.nom || '');
+      const prenom = normalize(u.prenom || '');
+      const denominationSociale = u.denomination_sociale ? normalize(u.denomination_sociale) : null;
       const full1 = `${prenom} ${nom}`.trim();
       const full2 = `${nom} ${prenom}`.trim();
       const initials = `${prenom.charAt(0)}${nom.charAt(0)}`.toLowerCase();
@@ -118,103 +150,163 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
 
       let score = 0;
       
-      // PRIORITY 0: Check if prefix matches initials (first letter of firstname + first letter of lastname)
-      // This handles cases like "ai" for "Amir IT" (a from Amir, i from IT)
-      if (prefixDelimited && prefixDelimited.length === 2) {
-        if (prefixDelimited.toLowerCase() === initials) {
-          score = Math.max(score, 100);
-        }
-      }
-      if (prefix2.length === 2 && !prefixDelimited) {
-        if (prefix2.toLowerCase() === initials) {
-          score = Math.max(score, 98);
-        }
-      }
-      
-      // LEVEL 1: Prefix with delimiter (ex: "ai_", "mi-", "jean ")
-      // Highest priority: exact match at the beginning with separator
-      if (prefixDelimited) {
-        const prefixLower = prefixDelimited.toLowerCase();
-        const prenomLower = prenom.toLowerCase();
-        const nomLower = nom.toLowerCase();
-        const prenomLen = prenomLower.length;
-        const nomLen = nomLower.length;
+      // ============================================
+      // PRIORITÉ MAXIMALE : DÉNOMINATION SOCIALE
+      // ============================================
+      if (denominationSociale && denominationSociale.length > 0) {
+        const denomLower = denominationSociale.toLowerCase();
+        const denomLen = denomLower.length;
         
-        // Exact match with beginning of firstname or lastname
-        if (prefixLower === prenomLower.substring(0, Math.min(prefixDelimited.length, prenomLen)) ||
-            prefixLower === nomLower.substring(0, Math.min(prefixDelimited.length, nomLen)) ||
-            prefixLower === `${prenomLower}${nomLower}`.substring(0, Math.min(prefixDelimited.length, prenomLen + nomLen)) ||
-            prefixLower === `${nomLower}${prenomLower}`.substring(0, Math.min(prefixDelimited.length, prenomLen + nomLen))) {
-          score = Math.max(score, 100);
-        } else {
-          // Flexible match: check if prefix is a subsequence in first 5-6 characters
-          // This handles cases like "ai" for "Amir" (a-m-i-r contains "ai" as subsequence)
-          const checkLength = Math.min(prefixLower.length + 4, 6);
-          const prenomStart = prenomLower.substring(0, checkLength);
-          const nomStart = nomLower.substring(0, checkLength);
+        // PRIORITY 0: Si le préfixe est un mot commun, chercher directement la dénomination sociale dans tout le fichier
+        if (isCommonWord) {
+          // La dénomination sociale trouvée dans le fichier (même si pas au début) = score très élevé
+          if (fileNorm.includes(denomLower)) {
+            score = Math.max(score, 98); // Score très élevé pour dénomination sociale trouvée après un mot commun
+          } else {
+            // Chercher des parties de la dénomination sociale
+            const denomWords = denomLower.split(/\s+/).filter(w => w.length >= 3);
+            let foundWords = 0;
+            denomWords.forEach(word => {
+              if (fileNorm.includes(word)) foundWords++;
+            });
+            if (foundWords === denomWords.length && denomWords.length > 0) {
+              score = Math.max(score, 96); // Tous les mots de la dénomination trouvés
+            } else if (foundWords > 0) {
+              score = Math.max(score, 92); // Au moins un mot trouvé
+            }
+          }
+        }
+        
+        // PRIORITY 1: Exact match with denomination sociale at the beginning (with delimiter)
+        if (prefixDelimited && !isCommonWord) {
+          const prefixLower = prefixDelimited.toLowerCase();
           
-          // Check if prefix is a subsequence (all letters appear in order)
-          if (isSubsequence(prefixLower, prenomStart) || isSubsequence(prefixLower, nomStart)) {
+          // Exact match with beginning of denomination sociale
+          if (prefixLower === denomLower.substring(0, Math.min(prefixDelimited.length, denomLen))) {
+            score = Math.max(score, 100); // Score maximum pour dénomination sociale exacte
+          } else if (denomLower.startsWith(prefixLower) || prefixLower.startsWith(denomLower.substring(0, Math.min(prefixLower.length, denomLen)))) {
+            score = Math.max(score, 98);
+          } else {
+            // Check if prefix is a subsequence in denomination sociale
+            const checkLength = Math.min(prefixLower.length + 5, denomLen);
+            const denomStart = denomLower.substring(0, checkLength);
+            if (isSubsequence(prefixLower, denomStart)) {
+              score = Math.max(score, 95);
+            } else if (denomLower.includes(prefixLower.substring(0, Math.min(3, prefixLower.length)))) {
+              score = Math.max(score, 90);
+            }
+          }
+        }
+        
+        // PRIORITY 2: Match with first characters of filename (without delimiter)
+        if (prefix5.length >= 3) {
+          const prefix5Lower = prefix5.toLowerCase();
+          if (denomLower.startsWith(prefix5Lower) || prefix5Lower.startsWith(denomLower.substring(0, Math.min(prefix5Lower.length, denomLen)))) {
+            score = Math.max(score, 97);
+          } else if (denomLower.includes(prefix5Lower)) {
             score = Math.max(score, 92);
-          } else if (prenomLower.includes(prefixLower.substring(0, Math.min(2, prefixLower.length))) || 
-                     nomLower.includes(prefixLower.substring(0, Math.min(2, prefixLower.length)))) {
-            // Fallback: at least the first 2 letters match somewhere
-            score = Math.max(score, 75);
+          }
+        }
+        
+        if (prefix10.length >= 5) {
+          const prefix10Lower = prefix10.toLowerCase();
+          if (denomLower.startsWith(prefix10Lower) || prefix10Lower.startsWith(denomLower.substring(0, Math.min(prefix10Lower.length, denomLen)))) {
+            score = Math.max(score, 99);
+          } else if (denomLower.includes(prefix10Lower)) {
+            score = Math.max(score, 94);
+          }
+        }
+        
+        // PRIORITY 3: Full denomination sociale in filename (augmenté pour prioriser sur nom/prénom)
+        if (fileNorm.includes(denomLower)) {
+          score = Math.max(score, 95); // Score élevé pour dénomination sociale trouvée dans le fichier
+        }
+        
+        // PRIORITY 4: Partial match (at least 3 characters)
+        if (denomLower.length >= 3) {
+          const denomStart3 = denomLower.substring(0, 3);
+          if (fileNorm.includes(denomStart3)) {
+            score = Math.max(score, 80);
           }
         }
       }
       
-      // LEVEL 2: Simple prefix at beginning (2-3 first letters)
-      // High priority: first letters match beginning of firstname/lastname/initials
-      const prenomPrefix2 = prenom.substring(0, 2).toLowerCase();
-      const prenomPrefix3 = prenom.substring(0, 3).toLowerCase();
-      const nomPrefix2 = nom.substring(0, 2).toLowerCase();
-      const nomPrefix3 = nom.substring(0, 3).toLowerCase();
-      
-      // Exact match
-      if (prefix2.toLowerCase() === prenomPrefix2 || prefix2.toLowerCase() === nomPrefix2 || prefix2.toLowerCase() === initials) {
-        score = Math.max(score, 95);
-      }
-      if (prefix3.toLowerCase() === prenomPrefix3 || prefix3.toLowerCase() === nomPrefix3) {
-        score = Math.max(score, 95);
-      }
-      
-      // Flexible match for prefixes without delimiter (for "ai" in "amir")
-      if (prefix2.length >= 2 && !prefixDelimited) {
-        const prefix2Lower = prefix2.toLowerCase();
-        const prenomStart5 = prenom.substring(0, 5).toLowerCase();
-        const nomStart5 = nom.substring(0, 5).toLowerCase();
-        
-        // Check if prefix is a subsequence (all letters appear in order)
-        if (isSubsequence(prefix2Lower, prenomStart5) || isSubsequence(prefix2Lower, nomStart5)) {
-          score = Math.max(score, 88);
+      // ============================================
+      // FALLBACK : NOM/PRÉNOM (si pas de dénomination sociale ou score faible)
+      // ============================================
+      // Only use nom/prenom matching if denomination sociale didn't give a good match
+      // Augmenté le seuil à 90 pour que la dénomination sociale soit toujours prioritaire
+      if (score < 90) {
+        // PRIORITY 0: Check if prefix matches initials (first letter of firstname + first letter of lastname)
+        if (prefixDelimited && prefixDelimited.length === 2) {
+          if (prefixDelimited.toLowerCase() === initials) {
+            score = Math.max(score, 85);
+          }
         }
+        if (prefix2.length === 2 && !prefixDelimited) {
+          if (prefix2.toLowerCase() === initials) {
+            score = Math.max(score, 83);
+          }
+        }
+        
+        // LEVEL 1: Prefix with delimiter (ex: "ai_", "mi-", "jean ")
+        if (prefixDelimited) {
+          const prefixLower = prefixDelimited.toLowerCase();
+          const prenomLower = prenom.toLowerCase();
+          const nomLower = nom.toLowerCase();
+          const prenomLen = prenomLower.length;
+          const nomLen = nomLower.length;
+          
+          // Exact match with beginning of firstname or lastname
+          if (prefixLower === prenomLower.substring(0, Math.min(prefixDelimited.length, prenomLen)) ||
+              prefixLower === nomLower.substring(0, Math.min(prefixDelimited.length, nomLen)) ||
+              prefixLower === `${prenomLower}${nomLower}`.substring(0, Math.min(prefixDelimited.length, prenomLen + nomLen)) ||
+              prefixLower === `${nomLower}${prenomLower}`.substring(0, Math.min(prefixDelimited.length, prenomLen + nomLen))) {
+            score = Math.max(score, 85);
+          } else {
+            // Flexible match: check if prefix is a subsequence in first 5-6 characters
+            const checkLength = Math.min(prefixLower.length + 4, 6);
+            const prenomStart = prenomLower.substring(0, checkLength);
+            const nomStart = nomLower.substring(0, checkLength);
+            
+            if (isSubsequence(prefixLower, prenomStart) || isSubsequence(prefixLower, nomStart)) {
+              score = Math.max(score, 75);
+            } else if (prenomLower.includes(prefixLower.substring(0, Math.min(2, prefixLower.length))) || 
+                       nomLower.includes(prefixLower.substring(0, Math.min(2, prefixLower.length)))) {
+              score = Math.max(score, 70);
+            }
+          }
+        }
+        
+        // LEVEL 2: Simple prefix at beginning (2-3 first letters)
+        const prenomPrefix2 = prenom.substring(0, 2).toLowerCase();
+        const prenomPrefix3 = prenom.substring(0, 3).toLowerCase();
+        const nomPrefix2 = nom.substring(0, 2).toLowerCase();
+        const nomPrefix3 = nom.substring(0, 3).toLowerCase();
+        
+        if (prefix2.toLowerCase() === prenomPrefix2 || prefix2.toLowerCase() === nomPrefix2 || prefix2.toLowerCase() === initials) {
+          score = Math.max(score, 80);
+        }
+        if (prefix3.toLowerCase() === prenomPrefix3 || prefix3.toLowerCase() === nomPrefix3) {
+          score = Math.max(score, 80);
+        }
+        
+        // LEVEL 3: Full name at the beginning
+        if (fileNorm.startsWith(full1) || fileNorm.startsWith(full2)) {
+          score = Math.max(score, 75);
+        }
+        
+        // LEVEL 4: Search in entire filename (fallback)
+        if (fileNorm === full1 || fileNorm === full2) score = Math.max(score, 70);
+        if (fileNorm.includes(full1) || fileNorm.includes(full2)) score = Math.max(score, 65);
+        if (fileNorm.includes(prenom) && fileNorm.includes(nom)) score = Math.max(score, 60);
       }
-      
-      // LEVEL 3: Initials at the beginning
-      if (fileNorm.substring(0, 2).toLowerCase() === initials) {
-        score = Math.max(score, 90);
-      }
-      
-      // LEVEL 4: Full name at the beginning
-      if (fileNorm.startsWith(full1) || fileNorm.startsWith(full2)) {
-        score = Math.max(score, 85);
-      }
-      
-      // LEVEL 5: Search in entire filename (fallback - original logic)
-      if (fileNorm === full1 || fileNorm === full2) score = Math.max(score, 80);
-      if (fileNorm.includes(full1) || fileNorm.includes(full2)) score = Math.max(score, 75);
-      if (fileNorm.includes(prenom) && fileNorm.includes(nom)) score = Math.max(score, 70);
-      if (emailLocal && (emailLocal.includes(nom) || emailLocal.includes(prenom)) && fileNorm.includes(emailLocal)) score = Math.max(score, 70);
-      if (fileNorm.includes(initials)) score = Math.max(score, 65);
-      if (nom.length >= 3 && fileNorm.includes(nom.substring(0, 3))) score = Math.max(score, 60);
-      if (prenom.length >= 3 && fileNorm.includes(prenom.substring(0, 3))) score = Math.max(score, 60);
 
       if (score > best.score) best = { userId: u.id, score };
     });
 
-    // Threshold: accept matches with score >= 70 (lowered to include prefix matches)
-    if (best.score < 70) return { userId: null, score: best.score };
+    // Threshold: accept matches with score >= 60 (lowered to include denomination sociale matches)
+    if (best.score < 60) return { userId: null, score: best.score };
     return best;
   };
 
@@ -228,7 +320,7 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
     const invalid = files.filter(f => !/^[A-Za-zÀ-ÿ]/.test(f.name)).map(f => f.name);
     
     if (valid.length === 0) {
-      alert('Aucun fichier valide sélectionné. Les fichiers doivent commencer par une lettre.');
+      showWarning('Aucun fichier valide sélectionné. Les fichiers doivent commencer par une lettre.');
       return;
     }
 
@@ -262,14 +354,14 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
         if (selectedUserIdForBulk) {
           targetUserId = Number(selectedUserIdForBulk);
           const user = users.find(u => u.id === targetUserId);
-          targetUserName = user ? `${user.nom} ${user.prenom}` : `#${targetUserId}`;
+          targetUserName = user ? getUserLabel(user) : `#${targetUserId}`;
         } else {
           // Auto-match with user based on filename
           const matchResult = matchFileToUser(file.name);
           if (matchResult.userId) {
             targetUserId = matchResult.userId;
             const user = users.find(u => u.id === targetUserId);
-            targetUserName = user ? `${user.nom} ${user.prenom}` : `#${targetUserId}`;
+            targetUserName = user ? getUserLabel(user) : `#${targetUserId}`;
           } else {
             // No match found
             uploadResults.push({
@@ -295,6 +387,8 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
           if (bulkUploadDate) {
             formData.append('display_date', bulkUploadDate);
           }
+          // Ajouter l'année du dossier destination
+          formData.append('period_year', bulkUploadYear.toString());
 
           const response = await fetch(buildAPIURL('/bordereaux'), {
             method: 'POST',
@@ -317,7 +411,9 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
                 title: data.title || file.name,
                 userId: targetUserId!,
                 userLabel: targetUserName,
-                createdAt: bulkUploadDate ? new Date(bulkUploadDate).toISOString() : new Date().toISOString()
+                createdAt: bulkUploadDate ? new Date(bulkUploadDate).toISOString() : new Date().toISOString(),
+                periodYear: data.periodYear || null,
+                periodMonth: data.periodMonth || null
               },
               ...prev
             ].slice(0, 20));
@@ -342,27 +438,22 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
         });
       }
 
-      // Show summary
-      let message = `✅ ${successCount} fichier(s) uploadé(s) avec succès!\n`;
-      if (noMatchCount > 0) {
-        message += `⚠️ ${noMatchCount} fichier(s) non associé(s) (aucun utilisateur trouvé)\n`;
-      }
-      if (failCount > 0) {
-        message += `❌ ${failCount} fichier(s) n'ont pas pu être uploadé(s)\n`;
-      }
+      // Prepare detailed results for modal
+      const successFiles = uploadResults.filter(r => r.success).map(r => ({ fileName: r.fileName, userName: r.userName }));
+      const notMatchedFiles = uploadResults.filter(r => !r.success && r.userId === null).map(r => ({ fileName: r.fileName }));
+      const failedFiles = uploadResults.filter(r => !r.success && r.userId !== null).map(r => ({ fileName: r.fileName, userName: r.userName, error: r.error || 'Erreur inconnue' }));
 
-      // Show detailed results
-      const detailedResults = uploadResults.map(r => {
-        if (r.success) {
-          return `✅ ${r.fileName} → ${r.userName}`;
-        } else if (r.userId === null) {
-          return `⚠️ ${r.fileName} → Non associé`;
-        } else {
-          return `❌ ${r.fileName} → ${r.userName} (${r.error})`;
-        }
-      }).join('\n');
+      // Show modal with detailed results
+      setUploadResultsModal({
+        show: true,
+        success: successFiles,
+        notMatched: notMatchedFiles,
+        failed: failedFiles
+      });
 
-      alert(`${message}\n\nDétails:\n${detailedResults}`);
+      if (successCount > 0) {
+        showSuccess(`${successCount} fichier(s) uploadé(s) avec succès!`);
+      }
 
       // Reset form
       setSelectedFiles([]);
@@ -378,7 +469,7 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
       await loadUsers();
     } catch (error) {
       console.error('Error during bulk upload:', error);
-      alert('Erreur lors de l\'upload en masse: ' + (error instanceof Error ? error.message : 'Erreur inconnue'));
+      showError('Erreur lors de l\'upload en masse: ' + (error instanceof Error ? error.message : 'Erreur inconnue'));
     } finally {
       setUploading(false);
     }
@@ -389,7 +480,7 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
     try {
       const token = localStorage.getItem('token');
       if (!token) {
-        alert('Non authentifié');
+        showError('Non authentifié');
         return;
       }
 
@@ -475,13 +566,60 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
       }
     } catch (error) {
       console.error('Erreur lors de l\'ouverture du fichier:', error);
-      alert('Erreur lors de l\'ouverture du fichier: ' + (error instanceof Error ? error.message : 'Erreur inconnue'));
+      showError('Erreur lors de l\'ouverture du fichier: ' + (error instanceof Error ? error.message : 'Erreur inconnue'));
     }
   };
 
   // Fonction pour supprimer un bordereau
+  // Fonction pour modifier la période d'un bordereau
+  const handleUpdateBordereauPeriod = async (bordereauId: number) => {
+    if (!editPeriodYear || !editPeriodMonth || !editPeriodDay) {
+      showWarning('Veuillez sélectionner une année, un mois et un jour');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        showError('Non authentifié');
+        return;
+      }
+
+      const response = await fetch(buildAPIURL(`/bordereaux/${bordereauId}`), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token
+        },
+        body: JSON.stringify({
+          period_year: parseInt(editPeriodYear),
+          period_month: parseInt(editPeriodMonth),
+          display_date: `${editPeriodYear}-${editPeriodMonth.padStart(2, '0')}-${editPeriodDay.padStart(2, '0')}`
+        })
+      });
+
+      if (response.ok) {
+        showSuccess(`Période modifiée avec succès ! Le fichier apparaîtra maintenant dans Bordereaux ${editPeriodYear}`);
+        setEditingBordereau(null);
+        setEditPeriodYear('');
+        setEditPeriodMonth('');
+        // Recharger les uploads récents en rechargeant la page ou en refetchant
+        window.location.reload();
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        showError(errorData.error || 'Erreur lors de la modification');
+      }
+    } catch (error) {
+      console.error('Erreur modification bordereau:', error);
+      showError('Erreur lors de la modification');
+    }
+  };
+
   const handleDeleteBordereau = async (bordereauId: number) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce fichier ? Cette action est irréversible.')) {
+    const bordereau = recentUploads.find(r => r.archiveId === bordereauId);
+    const fileName = bordereau?.title || 'ce fichier';
+    
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer "${fileName}" ?\n\nCette action est irréversible et le fichier sera définitivement supprimé.`)) {
       return;
     }
 
@@ -490,7 +628,7 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
       
       const token = localStorage.getItem('token');
       if (!token) {
-        alert('Non authentifié');
+        showError('Non authentifié');
         return;
       }
 
@@ -509,10 +647,10 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
       // Retirer le fichier de la liste
       setRecentUploads(prev => prev.filter(upload => upload.archiveId !== bordereauId));
       
-      alert('Fichier supprimé avec succès!');
+      showSuccess('Fichier supprimé avec succès!');
     } catch (error) {
       console.error('Erreur lors de la suppression:', error);
-      alert(error instanceof Error ? error.message : 'Erreur lors de la suppression');
+      showError(error instanceof Error ? error.message : 'Erreur lors de la suppression');
     } finally {
       setDeletingIds(prev => {
         const newSet = new Set(prev);
@@ -547,7 +685,7 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
   // Handle bulk upload
   const handleBulkUpload = async () => {
     if (selectedFiles.length === 0) {
-      alert('Veuillez sélectionner au moins un fichier');
+      showWarning('Veuillez sélectionner au moins un fichier');
       return;
     }
 
@@ -579,6 +717,8 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
         if (bulkUploadDate) {
           formData.append('display_date', bulkUploadDate);
         }
+        // Ajouter l'année du dossier destination
+        formData.append('period_year', bulkUploadYear.toString());
         
         const response = await fetch(buildAPIURL('/bordereaux'), {
           method: 'POST',
@@ -597,8 +737,10 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
               fileUrl: data.fileUrl || data.filePath,
               title: data.title || file.name,
               userId: mapping.userId,
-              userLabel: u ? `${u.nom} ${u.prenom}` : `#${mapping.userId}`,
-              createdAt: bulkUploadDate ? new Date(bulkUploadDate).toISOString() : new Date().toISOString()
+              userLabel: u ? getUserLabel(u) : `#${mapping.userId}`,
+              createdAt: bulkUploadDate ? new Date(bulkUploadDate).toISOString() : new Date().toISOString(),
+              periodYear: data.periodYear || null,
+              periodMonth: data.periodMonth || null
             },
             ...prev
           ].slice(0, 20));
@@ -614,7 +756,7 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
       if (failCount > 0) {
         message += `\n⚠️ ${failCount} fichier(s) n'ont pas pu être uploadé(s).`;
       }
-      alert(message);
+      showSuccess(message);
       
       setSelectedFiles([]);
       setFileUserMapping([]);
@@ -622,7 +764,7 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
       setShowBulkUpload(false);
     } catch (error) {
       console.error('Error during bulk upload:', error);
-      alert('Erreur lors de l\'upload en masse');
+      showError('Erreur lors de l\'upload en masse');
     } finally {
       setUploading(false);
     }
@@ -683,10 +825,23 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
                       👁️ Ouvrir
                     </button>
                     <button
+                      onClick={() => {
+                        setEditingBordereau(r.archiveId);
+                        const createdAt = r.createdAt ? new Date(r.createdAt) : new Date();
+                        setEditPeriodYear(r.periodYear?.toString() || createdAt.getFullYear().toString());
+                        setEditPeriodMonth(r.periodMonth?.toString() || (createdAt.getMonth() + 1).toString());
+                        setEditPeriodDay(createdAt.getDate().toString());
+                      }}
+                      className="px-3 py-1.5 text-sm rounded-md bg-yellow-600 text-white hover:bg-yellow-700 transition-colors"
+                      title="Modifier la période (année, mois, jour)"
+                    >
+                      📅 Modifier période
+                    </button>
+                    <button
                       onClick={() => handleDeleteBordereau(r.archiveId)}
                       disabled={deletingIds.has(r.archiveId)}
-                      className="px-3 py-1.5 text-sm rounded-md bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
-                      title="Supprimer ce fichier"
+                      className="px-3 py-1.5 text-sm rounded-md bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1 font-medium"
+                      title="Supprimer ce fichier (action irréversible)"
                     >
                       {deletingIds.has(r.archiveId) ? (
                         <>
@@ -738,7 +893,7 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
                   {users.map((user) => (
                     <tr key={user.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{user.nom} {user.prenom}</div>
+                        <div className="text-sm font-medium text-gray-900">{getUserLabel(user)}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-600">{user.email}</div>
@@ -800,6 +955,27 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
               </div>
               
               <div className="space-y-6">
+                {/* Folder Destination - Year Selection */}
+                <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-4">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    📁 Dossier de destination
+                  </label>
+                  <select
+                    value={bulkUploadYear}
+                    onChange={(e) => setBulkUploadYear(parseInt(e.target.value))}
+                    className="w-full px-4 py-3 rounded-lg border-2 border-amber-300 bg-white text-gray-700 focus:border-amber-500 focus:ring-4 focus:ring-amber-500/20 font-medium"
+                  >
+                    <option value={2027}>Bordereaux 2027</option>
+                    <option value={2026}>Bordereaux 2026</option>
+                    <option value={2025}>Bordereaux 2025</option>
+                    <option value={2024}>Bordereaux 2024</option>
+                    <option value={2023}>Bordereaux 2023</option>
+                  </select>
+                  <p className="mt-2 text-xs text-amber-700">
+                    ⚠️ Les fichiers seront importés dans le dossier "Bordereaux {bulkUploadYear}" pour chaque utilisateur.
+                  </p>
+                </div>
+
                 {/* Date Configuration */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -882,6 +1058,7 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
                     type="file"
                     multiple
                     disabled={uploading}
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.jpg,.jpeg,.png,.gif"
                     onChange={uploadMode === 'auto' ? handleBulkFileSelectAndUpload : handleBulkFileSelect}
                     className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 bg-gray-50 text-gray-700 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
@@ -922,7 +1099,7 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
                               <p className="text-gray-900 font-medium">{file.name}</p>
                               {user ? (
                                 <div className="flex items-center space-x-2 text-sm">
-                                  <p className="text-green-700">✓ → {user.nom} {user.prenom}</p>
+                                  <p className="text-green-700">✓ → {getUserLabel(user)}</p>
                                   <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-800 text-xs font-semibold">{Math.round(mapping?.score || 0)}%</span>
                                 </div>
                               ) : (
@@ -1013,7 +1190,172 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
             </div>
           </div>
         )}
+
+        {/* Modal pour modifier la période */}
+        {editingBordereau && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl p-6 max-w-md w-full">
+              <h3 className="text-xl font-bold mb-4">📅 Modifier la période</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Déplacer ce fichier vers une autre période (ex: Bordereaux 2024)
+              </p>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Année *</label>
+                  <select
+                    value={editPeriodYear}
+                    onChange={(e) => setEditPeriodYear(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Sélectionner...</option>
+                    <option value="2020">2020</option>
+                    <option value="2021">2021</option>
+                    <option value="2022">2022</option>
+                    <option value="2023">2023</option>
+                    <option value="2024">2024</option>
+                    <option value="2025">2025</option>
+                    <option value="2026">2026</option>
+                    <option value="2027">2027</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Mois *</label>
+                  <select
+                    value={editPeriodMonth}
+                    onChange={(e) => setEditPeriodMonth(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Sélectionner...</option>
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
+                      <option key={month} value={month.toString()}>
+                        {new Date(2024, month - 1).toLocaleString('fr-FR', { month: 'long' })}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Jour *</label>
+                  <select
+                    value={editPeriodDay}
+                    onChange={(e) => setEditPeriodDay(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Sélectionner...</option>
+                    {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+                      <option key={day} value={day.toString()}>
+                        {day}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  onClick={() => {
+                    setEditingBordereau(null);
+                    setEditPeriodYear('');
+                    setEditPeriodMonth('');
+                    setEditPeriodDay('');
+                  }}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={() => handleUpdateBordereauPeriod(editingBordereau)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Enregistrer
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Upload Results Modal */}
+      {uploadResultsModal.show && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-6">
+              <h2 className="text-xl font-bold">📊 Résultats de l'import</h2>
+              <p className="text-blue-100 text-sm mt-1">
+                {uploadResultsModal.success.length + uploadResultsModal.notMatched.length + uploadResultsModal.failed.length} fichier(s) traité(s)
+              </p>
+            </div>
+            
+            <div className="p-6 overflow-y-auto max-h-[60vh] space-y-6">
+              {/* Success */}
+              {uploadResultsModal.success.length > 0 && (
+                <div>
+                  <h3 className="font-semibold text-green-700 flex items-center gap-2 mb-3">
+                    <span className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center text-sm">✅</span>
+                    {uploadResultsModal.success.length} fichier(s) importé(s) avec succès
+                  </h3>
+                  <div className="bg-green-50 rounded-lg p-3 space-y-1 max-h-40 overflow-y-auto">
+                    {uploadResultsModal.success.map((f, i) => (
+                      <div key={i} className="text-sm text-green-800 flex justify-between">
+                        <span className="truncate flex-1">{f.fileName}</span>
+                        <span className="text-green-600 ml-2">→ {f.userName}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Not Matched */}
+              {uploadResultsModal.notMatched.length > 0 && (
+                <div>
+                  <h3 className="font-semibold text-orange-700 flex items-center gap-2 mb-3">
+                    <span className="w-6 h-6 bg-orange-100 rounded-full flex items-center justify-center text-sm">⚠️</span>
+                    {uploadResultsModal.notMatched.length} fichier(s) non associé(s)
+                  </h3>
+                  <p className="text-sm text-orange-600 mb-2">
+                    Ces fichiers n'ont pas pu être associés à un utilisateur. Vérifiez que le nom du fichier correspond à la dénomination sociale.
+                  </p>
+                  <div className="bg-orange-50 rounded-lg p-3 space-y-1 max-h-40 overflow-y-auto">
+                    {uploadResultsModal.notMatched.map((f, i) => (
+                      <div key={i} className="text-sm text-orange-800">
+                        📄 {f.fileName}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Failed */}
+              {uploadResultsModal.failed.length > 0 && (
+                <div>
+                  <h3 className="font-semibold text-red-700 flex items-center gap-2 mb-3">
+                    <span className="w-6 h-6 bg-red-100 rounded-full flex items-center justify-center text-sm">❌</span>
+                    {uploadResultsModal.failed.length} fichier(s) en erreur
+                  </h3>
+                  <div className="bg-red-50 rounded-lg p-3 space-y-2 max-h-40 overflow-y-auto">
+                    {uploadResultsModal.failed.map((f, i) => (
+                      <div key={i} className="text-sm">
+                        <div className="text-red-800 font-medium">{f.fileName}</div>
+                        <div className="text-red-600 text-xs">→ {f.userName}: {f.error}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="border-t p-4 bg-gray-50 flex justify-end">
+              <button
+                onClick={() => setUploadResultsModal({ show: false, success: [], notMatched: [], failed: [] })}
+                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

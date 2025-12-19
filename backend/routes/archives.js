@@ -20,9 +20,20 @@ const upload = multer({
   },
   fileFilter: (req, file, cb) => {
     // Accepter seulement certains types de fichiers
-    const allowedTypes = /pdf|doc|docx|xls|xlsx|ppt|pptx|txt|jpg|jpeg|png|gif/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
+    const allowedExtensions = /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|jpg|jpeg|png|gif)$/i;
+    const extname = allowedExtensions.test(path.extname(file.originalname).toLowerCase());
+    
+    // MIME types autorisés (incluant les types Excel spécifiques)
+    const excelMimeTypes = [
+      'application/vnd.ms-excel', // .xls
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' // .xlsx
+    ];
+    
+    // Pattern pour les autres types de fichiers
+    const allowedMimePatterns = /pdf|doc|docx|xls|xlsx|ppt|pptx|txt|jpg|jpeg|png|gif/i;
+    const mimetype = allowedMimePatterns.test(file.mimetype) || 
+                     excelMimeTypes.includes(file.mimetype);
+    
     // Le nom du fichier doit commencer par une lettre (y compris lettres accentuées)
     const beginsWithLetter = /^[A-Za-zÀ-ÿ]/.test(path.basename(file.originalname));
     
@@ -31,7 +42,9 @@ const upload = multer({
     } else {
       const reason = !beginsWithLetter
         ? 'Le nom du fichier doit commencer par une lettre'
-        : 'Type de fichier non autorisé';
+        : !extname
+        ? 'Extension de fichier non autorisée. Types acceptés: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT, JPG, JPEG, PNG, GIF'
+        : 'Type de fichier non autorisé. Vérifiez que le fichier est bien un fichier Excel (.xls ou .xlsx)';
       cb(new Error(reason));
     }
   }

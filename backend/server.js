@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const compression = require('compression');
 const path = require('path');
 // Charger les variables d'environnement (peut ne pas exister en Docker)
 try {
@@ -30,12 +31,27 @@ const bordereauxRoutes = require('./routes/bordereaux');
 const reglementaireRoutes = require('./routes/reglementaire');
 const favorisRoutes = require('./routes/favoris');
 const simulatorsRoutes = require('./routes/simulators');
+const emailsRoutes = require('./routes/emails');
+const dashboardRoutes = require('./routes/dashboard');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Behind reverse proxy (nginx) so trust X-Forwarded-* headers
 app.set('trust proxy', 1);
+
+// Compression gzip pour améliorer les performances
+app.use(compression({
+  level: 6, // Niveau de compression (1-9, 6 est un bon équilibre)
+  filter: (req, res) => {
+    // Ne pas compresser si le client ne le supporte pas
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    // Utiliser la compression pour tous les types de contenu
+    return compression.filter(req, res);
+  }
+}));
 
 // Middleware de sécurité
 app.use(helmet({
@@ -65,16 +81,26 @@ app.use(metricsMiddleware);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Middleware pour servir les fichiers statiques
+// Middleware pour servir les fichiers statiques avec cache optimisé
 app.use('/uploads', express.static(path.join(__dirname, '../uploads'), { 
-  maxAge: '1d',
+  maxAge: '7d', // Augmenter le cache à 7 jours pour les uploads
+  etag: true, // Activer ETag pour la validation de cache
+  lastModified: true,
   setHeaders: (res, filePath) => {
     // Enable CORS for all uploads
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    // Cache-Control pour les images et fichiers statiques
+    if (filePath.match(/\.(jpg|jpeg|png|gif|svg|webp|pdf)$/i)) {
+      res.setHeader('Cache-Control', 'public, max-age=604800, immutable'); // 7 jours
+    }
   }
 }));
-app.use(express.static(path.join(__dirname, '../public')));
+app.use(express.static(path.join(__dirname, '../public'), {
+  maxAge: '1d',
+  etag: true,
+  lastModified: true
+}));
 
 // Routes API
 app.use('/api/auth', authRoutes);
@@ -95,6 +121,8 @@ app.use('/api/bordereaux', bordereauxRoutes);
 app.use('/api/reglementaire', reglementaireRoutes);
 app.use('/api/favoris', favorisRoutes);
 app.use('/api/simulators', simulatorsRoutes);
+app.use('/api/emails', emailsRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // Route de test
 app.get('/api/health', (req, res) => {
@@ -103,6 +131,27 @@ app.get('/api/health', (req, res) => {
     message: 'Alliance Courtage API is running',
     timestamp: new Date().toISOString()
   });
+});
+
+// Route pour déclencher les notifications d'expiration (cron ou manuel)
+app.post('/api/jobs/check-expirations', async (req, res) => {
+  // Vérifier le secret ou l'auth admin
+  const secret = req.headers['x-cron-secret'];
+  const token = req.headers['x-auth-token'];
+  
+  if (secret !== process.env.CRON_SECRET && !token) {
+    return res.status(401).json({ error: 'Non autorisé' });
+  }
+  
+  try {
+    const { checkExpiringAccounts, notifyAdminsOfExpiredAccounts } = require('./jobs/expirationNotifier');
+    const results = await checkExpiringAccounts();
+    await notifyAdminsOfExpiredAccounts();
+    res.json({ success: true, results });
+  } catch (error) {
+    console.error('Erreur job expiration:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Metrics endpoint for Prometheus

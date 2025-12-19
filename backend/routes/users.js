@@ -22,6 +22,7 @@ router.get('/', auth, authorize('admin'), async (req, res) => {
       'denomination_sociale',
       'telephone',
       'code_postal',
+      'validite_date',
       'role', 
       'is_active', 
       'created_at'
@@ -50,7 +51,7 @@ router.get('/', auth, authorize('admin'), async (req, res) => {
       sql += ' WHERE ' + conditions.join(' AND ');
     }
     
-    sql += ' ORDER BY nom, prenom';
+    sql += ' ORDER BY COALESCE(denomination_sociale, nom), nom, prenom';
     
     console.log('📋 Requête SQL GET /api/users:', sql);
     
@@ -66,7 +67,7 @@ router.get('/', auth, authorize('admin'), async (req, res) => {
         if (conditions.length > 0) {
           sql += ' WHERE ' + conditions.join(' AND ');
         }
-        sql += ' ORDER BY nom, prenom';
+        sql += ' ORDER BY COALESCE(denomination_sociale, nom), nom, prenom';
         users = await query(sql, params);
       } else {
         throw sqlError;
@@ -102,7 +103,7 @@ router.get('/:id', auth, authorize('admin'), async (req, res) => {
     const { id } = req.params;
     
     const users = await query(
-      'SELECT id, email, nom, prenom, role, is_active, created_at FROM users WHERE id = ?',
+      'SELECT id, email, nom, prenom, denomination_sociale, telephone, code_postal, validite_date, role, is_active, created_at FROM users WHERE id = ?',
       [id]
     );
     
@@ -135,7 +136,8 @@ router.put('/:id', auth, authorize('admin'), async (req, res) => {
       is_active,
       denomination_sociale,
       telephone,
-      code_postal
+      code_postal,
+      validite_date
     } = req.body;
     
     // Vérifier que l'utilisateur existe
@@ -227,6 +229,10 @@ router.put('/:id', auth, authorize('admin'), async (req, res) => {
       values.push(code_postal || null);
     } else if (code_postal !== undefined) {
       console.warn('⚠️  Colonne code_postal n\'existe pas, ignorée');
+    }
+    if (validite_date !== undefined && availableColumns.includes('validite_date')) {
+      updates.push('validite_date = ?');
+      values.push(validite_date || null);
     }
     
     if (updates.length === 0) {
@@ -626,6 +632,59 @@ router.get('/stats/overview', auth, authorize('admin'), async (req, res) => {
   }
 });
 
+// @route   GET /api/users/export/csv
+// @desc    Exporter tous les utilisateurs en CSV
+// @access  Private (Admin seulement)
+router.get('/export/csv', auth, authorize('admin'), async (req, res) => {
+  try {
+    const users = await query(`
+      SELECT 
+        id,
+        email,
+        nom,
+        prenom,
+        denomination_sociale,
+        telephone,
+        code_postal,
+        role,
+        CASE WHEN is_active = 1 THEN 'Actif' ELSE 'Inactif' END as statut,
+        DATE_FORMAT(validite_date, '%d/%m/%Y') as date_validite,
+        DATE_FORMAT(created_at, '%d/%m/%Y %H:%i') as date_creation
+      FROM users
+      ORDER BY COALESCE(denomination_sociale, nom), nom, prenom
+    `);
+    
+    // Générer CSV
+    const headers = ['ID', 'Email', 'Nom', 'Prénom', 'Dénomination Sociale', 'Téléphone', 'Code Postal', 'Rôle', 'Statut', 'Date Validité', 'Date Création'];
+    const csvRows = [headers.join(';')];
+    
+    users.forEach(user => {
+      const row = [
+        user.id,
+        user.email || '',
+        user.nom || '',
+        user.prenom || '',
+        user.denomination_sociale || '',
+        user.telephone || '',
+        user.code_postal || '',
+        user.role || '',
+        user.statut || '',
+        user.date_validite || '',
+        user.date_creation || ''
+      ].map(val => `"${String(val).replace(/"/g, '""')}"`);
+      csvRows.push(row.join(';'));
+    });
+    
+    const csv = csvRows.join('\n');
+    
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename=utilisateurs_${new Date().toISOString().split('T')[0]}.csv`);
+    res.send('\uFEFF' + csv); // BOM pour Excel
+    
+  } catch (error) {
+    console.error('Erreur export CSV:', error);
+    res.status(500).json({ error: 'Erreur lors de l\'export' });
+  }
+});
+
 module.exports = router;
-
-

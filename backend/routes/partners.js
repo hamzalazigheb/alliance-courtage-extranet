@@ -48,7 +48,11 @@ router.get('/', async (req, res) => {
   try {
     const { category, search, active } = req.query;
     
-    let sql = 'SELECT * FROM partners';
+    let sql = `SELECT id, nom, description, category, website, 
+               logo_url, logo_content IS NOT NULL as has_logo_content, 
+               is_active, created_at, updated_at,
+               contact_email, contact_phone
+               FROM partners`;
     const conditions = [];
     const params = [];
     
@@ -194,7 +198,7 @@ router.get('/:id/contacts', async (req, res) => {
 router.post('/:id/contacts', auth, authorize('admin'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { fonction, nom, prenom, email, telephone } = req.body;
+    const { fonction, nom, prenom, email, telephone, service } = req.body;
     
     // Validation
     if (!fonction || !nom || !prenom || !email) {
@@ -213,9 +217,9 @@ router.post('/:id/contacts', auth, authorize('admin'), async (req, res) => {
     
     // Créer le contact
     const result = await query(
-      `INSERT INTO partner_contacts (partner_id, fonction, nom, prenom, email, telephone) 
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [id, fonction, nom, prenom, email, telephone || null]
+      `INSERT INTO partner_contacts (partner_id, fonction, nom, prenom, email, telephone, service) 
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [id, fonction, nom, prenom, email, telephone || null, service || null]
     );
     
     res.status(201).json({
@@ -224,8 +228,16 @@ router.post('/:id/contacts', auth, authorize('admin'), async (req, res) => {
     });
   } catch (error) {
     console.error('Erreur create contact:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      sqlMessage: error.sqlMessage,
+      sqlState: error.sqlState,
+      stack: error.stack
+    });
     res.status(500).json({ 
-      error: 'Erreur serveur lors de la création du contact' 
+      error: 'Erreur serveur lors de la création du contact',
+      details: process.env.NODE_ENV === 'development' ? error.sqlMessage || error.message : undefined
     });
   }
 });
@@ -236,7 +248,7 @@ router.post('/:id/contacts', auth, authorize('admin'), async (req, res) => {
 router.put('/:id/contacts/:contactId', auth, authorize('admin'), async (req, res) => {
   try {
     const { id, contactId } = req.params;
-    const { fonction, nom, prenom, email, telephone } = req.body;
+    const { fonction, nom, prenom, email, telephone, service } = req.body;
     
     // Validation
     if (!fonction || !nom || !prenom || !email) {
@@ -260,16 +272,24 @@ router.put('/:id/contacts/:contactId', auth, authorize('admin'), async (req, res
     // Mettre à jour le contact
     await query(
       `UPDATE partner_contacts 
-       SET fonction = ?, nom = ?, prenom = ?, email = ?, telephone = ?
+       SET fonction = ?, nom = ?, prenom = ?, email = ?, telephone = ?, service = ?
        WHERE id = ? AND partner_id = ?`,
-      [fonction, nom, prenom, email, telephone || null, contactId, id]
+      [fonction, nom, prenom, email, telephone || null, service || null, contactId, id]
     );
     
     res.json({ message: 'Contact mis à jour avec succès' });
   } catch (error) {
     console.error('Erreur update contact:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      sqlMessage: error.sqlMessage,
+      sqlState: error.sqlState,
+      stack: error.stack
+    });
     res.status(500).json({ 
-      error: 'Erreur serveur lors de la mise à jour du contact' 
+      error: 'Erreur serveur lors de la mise à jour du contact',
+      details: process.env.NODE_ENV === 'development' ? error.sqlMessage || error.message : undefined
     });
   }
 });
@@ -321,13 +341,31 @@ const uploadDocument = multer({
     fileSize: 50 * 1024 * 1024 // 50MB
   },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = /pdf|doc|docx|xls|xlsx|txt/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype) || file.mimetype === 'application/pdf' || 
-                     file.mimetype === 'application/msword' || 
-                     file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    const allowedExtensions = /\.(pdf|doc|docx|xls|xlsx|txt)$/i;
+    const extname = allowedExtensions.test(path.extname(file.originalname).toLowerCase());
     
-    if (mimetype || extname) {
+    // MIME types autorisés (incluant les types Excel spécifiques)
+    const excelMimeTypes = [
+      'application/vnd.ms-excel', // .xls
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' // .xlsx
+    ];
+    
+    const wordMimeTypes = [
+      'application/msword', // .doc
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document' // .docx
+    ];
+    
+    const allowedMimeTypes = [
+      'application/pdf',
+      'text/plain'
+    ];
+    
+    const mimetype = allowedMimeTypes.includes(file.mimetype) ||
+                     wordMimeTypes.includes(file.mimetype) ||
+                     excelMimeTypes.includes(file.mimetype) ||
+                     /pdf|doc|docx|xls|xlsx|txt/i.test(file.mimetype);
+    
+    if (mimetype && extname) {
       return cb(null, true);
     } else {
       cb(new Error('Seuls les fichiers PDF, Word, Excel et texte sont autorisés'));
@@ -520,7 +558,11 @@ router.get('/:id', async (req, res) => {
     const { id } = req.params;
     
     const partners = await query(
-      'SELECT * FROM partners WHERE id = ?',
+      `SELECT id, nom, description, category, website, 
+              logo_url, logo_content, 
+              is_active, created_at, updated_at,
+              contact_email, contact_phone
+       FROM partners WHERE id = ?`,
       [id]
     );
     

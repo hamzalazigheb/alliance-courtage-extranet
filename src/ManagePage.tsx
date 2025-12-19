@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import DashboardPage from './DashboardPage';
 import FileManagementPage from './FileManagementPage';
 import PartnerManagementPage from './PartnerManagementPage';
 import FinancialDocumentsPage from './FinancialDocumentsPage';
@@ -6,7 +7,29 @@ import UserManagementPage from './UserManagementPage';
 import CMSManagementPage from './CMSManagementPage';
 import ProductReservationsPage from './ProductReservationsPage';
 import SimulatorStatsPage from './SimulatorStatsPage';
+import GlobalSearch from './components/GlobalSearch';
+import Breadcrumb from './components/Breadcrumb';
+import GuidedTour, { manageTourSteps } from './components/GuidedTour';
 import { buildAPIURL } from './api';
+import AdminNavbar, { NavItem } from './components/AdminNavbar';
+import {
+  ArchiveIcon,
+  PartnerIcon,
+  DocumentIcon,
+  UserIcon,
+  CMSIcon,
+  CartIcon,
+  ChartIcon
+} from './components/NavIcons';
+import { useAlert } from './contexts/AlertContext';
+import { useTheme } from './contexts/ThemeContext';
+
+// Dashboard Icon
+const DashboardIcon: React.FC<{ className?: string }> = ({ className = 'w-5 h-5' }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+  </svg>
+);
 
 interface UserProfile {
   id: string;
@@ -17,7 +40,10 @@ interface UserProfile {
 }
 
 const ManagePage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'archives' | 'partenaires' | 'documents' | 'utilisateurs' | 'cms' | 'reservations' | 'simulateurs'>('archives');
+  const { showSuccess, showError, showWarning } = useAlert();
+  const { theme, toggleTheme, isDark } = useTheme();
+  
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'archives' | 'partenaires' | 'documents' | 'utilisateurs' | 'cms' | 'reservations' | 'simulateurs'>('dashboard');
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [profileData, setProfileData] = useState({
@@ -31,6 +57,15 @@ const ManagePage: React.FC = () => {
     confirmPassword: ''
   });
   const [loading, setLoading] = useState(false);
+  const [showTour, setShowTour] = useState(false);
+
+  // Check if tour should be shown (first visit)
+  useEffect(() => {
+    const tourCompleted = localStorage.getItem('manageTourCompleted');
+    if (!tourCompleted) {
+      setTimeout(() => setShowTour(true), 1000);
+    }
+  }, []);
 
   useEffect(() => {
     loadCurrentUser();
@@ -39,7 +74,7 @@ const ManagePage: React.FC = () => {
   // If user tries to access 'utilisateurs', 'reservations', or 'simulateurs' tab but is not admin, redirect to first available tab
   useEffect(() => {
     if ((activeTab === 'utilisateurs' || activeTab === 'reservations' || activeTab === 'simulateurs') && currentUser && currentUser.role !== 'admin') {
-      setActiveTab('archives');
+      setActiveTab('dashboard');
     }
   }, [activeTab, currentUser]);
 
@@ -84,17 +119,17 @@ const ManagePage: React.FC = () => {
 
   const handleChangePassword = async () => {
     if (!passwordData.currentPassword || !passwordData.newPassword) {
-      alert('Veuillez remplir tous les champs');
+      showWarning('Veuillez remplir tous les champs');
       return;
     }
 
     if (passwordData.newPassword.length < 6) {
-      alert('Le nouveau mot de passe doit contenir au moins 6 caractères');
+      showWarning('Le nouveau mot de passe doit contenir au moins 6 caractères');
       return;
     }
 
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      alert('Les nouveaux mots de passe ne correspondent pas');
+      showError('Les nouveaux mots de passe ne correspondent pas');
       return;
     }
 
@@ -115,7 +150,7 @@ const ManagePage: React.FC = () => {
       });
 
       if (response.ok) {
-        alert('Mot de passe changé avec succès !');
+        showSuccess('Mot de passe changé avec succès !');
         setPasswordData({
           currentPassword: '',
           newPassword: '',
@@ -123,53 +158,146 @@ const ManagePage: React.FC = () => {
         });
       } else {
         const error = await response.json();
-        alert(error.error || 'Erreur lors du changement de mot de passe');
+        showError(error.error || 'Erreur lors du changement de mot de passe');
       }
     } catch (error) {
       console.error('Error changing password:', error);
-      alert('Erreur lors du changement de mot de passe');
+      showError('Erreur lors du changement de mot de passe');
     } finally {
       setLoading(false);
     }
   };
 
-  // Filter tabs based on user role
-  const allTabs = [
-    { id: 'archives' as const, label: 'Archives', icon: '📁', adminOnly: false },
-    { id: 'partenaires' as const, label: 'Partenaires', icon: '🤝', adminOnly: false },
-    { id: 'documents' as const, label: 'Documents Financiers', icon: '📄', adminOnly: false },
-    { id: 'utilisateurs' as const, label: 'Utilisateurs', icon: '👥', adminOnly: true },
-    { id: 'cms' as const, label: 'CMS', icon: '✏️', adminOnly: false },
-    { id: 'reservations' as const, label: 'Produits Réservés', icon: '🛒', adminOnly: true },
-    { id: 'simulateurs' as const, label: 'Statistiques Simulateurs', icon: '📊', adminOnly: true }
-  ];
-  
-  const tabs = allTabs.filter(tab => !tab.adminOnly || currentUser?.role === 'admin');
+  // Navigation items configuration with professional icons
+  const navItems: NavItem[] = useMemo(() => [
+    {
+      id: 'dashboard',
+      label: 'Dashboard',
+      icon: <DashboardIcon />,
+      adminOnly: false
+    },
+    {
+      id: 'archives',
+      label: 'Archives',
+      icon: <ArchiveIcon />,
+      adminOnly: false
+    },
+    {
+      id: 'partenaires',
+      label: 'Partenaires',
+      icon: <PartnerIcon />,
+      adminOnly: false
+    },
+    {
+      id: 'documents',
+      label: 'Documents Financiers',
+      icon: <DocumentIcon />,
+      adminOnly: false
+    },
+    {
+      id: 'utilisateurs',
+      label: 'Utilisateurs',
+      icon: <UserIcon />,
+      adminOnly: true
+    },
+    {
+      id: 'cms',
+      label: 'CMS',
+      icon: <CMSIcon />,
+      adminOnly: false
+    },
+    {
+      id: 'reservations',
+      label: 'Produits Réservés',
+      icon: <CartIcon />,
+      adminOnly: true
+    },
+    {
+      id: 'simulateurs',
+      label: 'Statistiques Simulateurs',
+      icon: null,
+      adminOnly: true
+    }
+  ], []);
+
+  // Memoized tab change handler
+  const handleTabChange = useCallback((tabId: string) => {
+    setActiveTab(tabId as typeof activeTab);
+  }, []);
+
+  const handleSearchNavigate = useCallback((tab: string, itemId?: number) => {
+    setActiveTab(tab as typeof activeTab);
+    // TODO: Scroll to item or highlight it if needed
+  }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 transition-colors duration-200">
       {/* Header */}
-      <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 shadow-sm">
+      <header className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 shadow-sm transition-colors duration-200 relative z-[100]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
+          <div className="flex items-center justify-between gap-4">
+            {/* Logo */}
+            <div className="flex items-center space-x-3 flex-shrink-0" data-tour="logo">
               <img 
                 src="/alliance-courtage-logo.svg" 
                 alt="Alliance Courtage Logo" 
                 className="h-10 w-auto"
               />
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">Administration</h1>
-                <p className="text-sm text-gray-600">Centre de gestion Alliance Courtage</p>
+              <div className="hidden lg:block">
+                <h1 className="text-xl font-bold text-gray-900 dark:text-white">Administration</h1>
+                <p className="text-sm text-gray-600 dark:text-gray-300">Centre de gestion Alliance Courtage</p>
               </div>
             </div>
-            <div className="flex items-center space-x-2">
+            
+            {/* Global Search */}
+            <div className="flex-1 max-w-2xl hidden md:block relative z-[200]" data-tour="search">
+              <GlobalSearch onNavigate={handleSearchNavigate} />
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="flex items-center space-x-2 flex-shrink-0">
+              {/* Help Tour Button */}
+              <button
+                onClick={() => setShowTour(true)}
+                className="flex items-center justify-center w-10 h-10 bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-900 dark:hover:bg-indigo-800 rounded-lg transition-colors shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2"
+                aria-label="Aide / Tour guidé"
+                title="Lancer le tour guidé"
+              >
+                <svg className="w-5 h-5 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </button>
+
+              {/* Theme Toggle */}
+              <button
+                onClick={toggleTheme}
+                className="flex items-center justify-center w-10 h-10 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg transition-colors shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"
+                aria-label={isDark ? 'Mode clair' : 'Mode sombre'}
+                title={isDark ? 'Passer en mode clair' : 'Passer en mode sombre'}
+                data-tour="dark-mode"
+              >
+                {isDark ? (
+                  // Sun icon for light mode
+                  <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
+                  </svg>
+                ) : (
+                  // Moon icon for dark mode
+                  <svg className="w-5 h-5 text-gray-700" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+                  </svg>
+                )}
+              </button>
+              
               <button
                 onClick={() => setShowProfileModal(true)}
-                className="flex items-center space-x-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+                className="flex items-center space-x-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                aria-label="Gérer le profil"
               >
-                <span>👤</span>
-                <span>Gérer le profil</span>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                <span className="hidden sm:inline">Gérer le profil</span>
               </button>
               <button
                 onClick={() => {
@@ -178,14 +306,16 @@ const ManagePage: React.FC = () => {
                   localStorage.removeItem('isLoggedIn');
                   localStorage.removeItem('currentUser');
                   localStorage.removeItem('manageAuth');
-                  // Rediriger vers la page de login /manage
                   window.location.hash = 'manage';
                   window.location.reload();
                 }}
-                className="flex items-center space-x-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+                className="flex items-center space-x-2 px-4 py-2.5 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                aria-label="Déconnexion"
               >
-                <span>🚪</span>
-                <span>Déconnexion</span>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                <span className="hidden sm:inline">Déconnexion</span>
               </button>
             </div>
           </div>
@@ -194,30 +324,29 @@ const ManagePage: React.FC = () => {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Navigation Tabs */}
-        <div className="bg-white/80 backdrop-blur-sm rounded-xl shadow-lg mb-6">
-          <div className="border-b border-gray-200">
-            <nav className="flex space-x-1 p-2">
-              {tabs.map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center space-x-2 px-4 py-3 rounded-lg font-medium transition-all ${
-                    activeTab === tab.id
-                      ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md'
-                      : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <span>{tab.icon}</span>
-                  <span>{tab.label}</span>
-                </button>
-              ))}
-            </nav>
-          </div>
-        </div>
+        {/* Professional Navigation Bar - Sticky */}
+        <AdminNavbar
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          userRole={currentUser?.role}
+          items={navItems}
+          className="mb-6"
+        />
+
+        {/* Breadcrumb */}
+        <Breadcrumb
+          items={[
+            { label: 'Administration', onClick: () => setActiveTab('dashboard') },
+            { 
+              label: navItems.find(item => item.id === activeTab)?.label || activeTab,
+              icon: navItems.find(item => item.id === activeTab)?.icon
+            }
+          ]}
+        />
 
         {/* Tab Content */}
-        <div className="bg-white/80 backdrop-blur-sm rounded-xl shadow-lg p-6">
+        <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl shadow-lg p-6 transition-colors duration-200">
+          {activeTab === 'dashboard' && <DashboardPage onNavigate={(tab) => setActiveTab(tab as typeof activeTab)} />}
           {activeTab === 'archives' && <FileManagementPage />}
           {activeTab === 'partenaires' && <PartnerManagementPage />}
           {activeTab === 'documents' && <FinancialDocumentsPage />}
@@ -226,9 +355,9 @@ const ManagePage: React.FC = () => {
               <UserManagementPage />
             ) : (
               <div className="p-8">
-                <div className="max-w-4xl mx-auto bg-red-50 border-2 border-red-200 rounded-xl p-6">
-                  <h1 className="text-2xl font-bold text-red-800 mb-4">Accès refusé</h1>
-                  <p className="text-red-600">Vous devez être administrateur pour accéder à cette fonctionnalité.</p>
+                <div className="max-w-4xl mx-auto bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-xl p-6">
+                  <h1 className="text-2xl font-bold text-red-800 dark:text-red-400 mb-4">Accès refusé</h1>
+                  <p className="text-red-600 dark:text-red-300">Vous devez être administrateur pour accéder à cette fonctionnalité.</p>
                 </div>
               </div>
             )
@@ -239,9 +368,9 @@ const ManagePage: React.FC = () => {
               <ProductReservationsPage />
             ) : (
               <div className="p-8">
-                <div className="max-w-4xl mx-auto bg-red-50 border-2 border-red-200 rounded-xl p-6">
-                  <h1 className="text-2xl font-bold text-red-800 mb-4">Accès refusé</h1>
-                  <p className="text-red-600">Vous devez être administrateur pour accéder à cette fonctionnalité.</p>
+                <div className="max-w-4xl mx-auto bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-xl p-6">
+                  <h1 className="text-2xl font-bold text-red-800 dark:text-red-400 mb-4">Accès refusé</h1>
+                  <p className="text-red-600 dark:text-red-300">Vous devez être administrateur pour accéder à cette fonctionnalité.</p>
                 </div>
               </div>
             )
@@ -251,9 +380,9 @@ const ManagePage: React.FC = () => {
               <SimulatorStatsPage />
             ) : (
               <div className="p-8">
-                <div className="max-w-4xl mx-auto bg-red-50 border-2 border-red-200 rounded-xl p-6">
-                  <h1 className="text-2xl font-bold text-red-800 mb-4">Accès refusé</h1>
-                  <p className="text-red-600">Vous devez être administrateur pour accéder à cette fonctionnalité.</p>
+                <div className="max-w-4xl mx-auto bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-xl p-6">
+                  <h1 className="text-2xl font-bold text-red-800 dark:text-red-400 mb-4">Accès refusé</h1>
+                  <p className="text-red-600 dark:text-red-300">Vous devez être administrateur pour accéder à cette fonctionnalité.</p>
                 </div>
               </div>
             )
@@ -264,9 +393,9 @@ const ManagePage: React.FC = () => {
       {/* Profile Modal */}
       {showProfileModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto transition-colors duration-200">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-800">Gérer mon profil</h2>
+              <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Gérer mon profil</h2>
               <button
                 onClick={() => {
                   setShowProfileModal(false);
@@ -286,7 +415,7 @@ const ManagePage: React.FC = () => {
               <div className="space-y-6">
                 {/* Informations du profil */}
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Informations personnelles</h3>
+                  <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">Informations personnelles</h3>
                   <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
                     <p className="text-sm text-yellow-800">
                       <strong>ℹ️ Information :</strong> Le nom et le prénom ne peuvent être modifiés que par un administrateur. 
@@ -415,6 +544,17 @@ const ManagePage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Guided Tour */}
+      <GuidedTour
+        steps={manageTourSteps}
+        isOpen={showTour}
+        onClose={() => setShowTour(false)}
+        onComplete={() => {
+          setShowTour(false);
+          localStorage.setItem('manageTourCompleted', 'true');
+        }}
+      />
     </div>
   );
 };

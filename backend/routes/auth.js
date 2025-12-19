@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { query } = require('../config/database');
 const { auth, authorize } = require('../middleware/auth');
+const { createNotification } = require('./notifications');
 
 const router = express.Router();
 
@@ -20,9 +21,9 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Rechercher l'utilisateur (sans profile_photo)
+    // Rechercher l'utilisateur (sans filtrer par is_active pour pouvoir donner un message approprié)
     const users = await query(
-      'SELECT id, email, nom, prenom, role, password, is_active, created_at FROM users WHERE email = ? AND is_active = TRUE',
+      'SELECT id, email, nom, prenom, role, password, is_active, validite_date, created_at FROM users WHERE email = ?',
       [email]
     );
 
@@ -33,6 +34,22 @@ router.post('/login', async (req, res) => {
     }
 
     const user = users[0];
+
+    // Vérifier si l'utilisateur est actif AVANT de vérifier le mot de passe
+    if (!user.is_active) {
+      return res.status(403).json({ 
+        error: 'Votre compte est inactif. Veuillez contacter l\'administration pour réactiver votre accès.',
+        code: 'ACCOUNT_INACTIVE'
+      });
+    }
+
+    // Vérifier si le compte a expiré (date de validité dépassée)
+    if (user.validite_date && new Date(user.validite_date) < new Date()) {
+      return res.status(403).json({ 
+        error: 'Votre compte a expiré. Veuillez contacter l\'administration pour renouveler votre accès.',
+        code: 'ACCOUNT_EXPIRED'
+      });
+    }
 
     // Vérifier le mot de passe
     const isMatch = await bcrypt.compare(password, user.password);
@@ -282,6 +299,12 @@ router.post('/register', auth, async (req, res) => {
       baseFields.push('role', 'is_active');
       baseValues.push(finalRole, true);
       
+      // Ajouter date de validité si fournie
+      if (req.body.validite_date) {
+        baseFields.push('validite_date');
+        baseValues.push(req.body.validite_date);
+      }
+      
       const placeholders = baseFields.map(() => '?').join(', ');
       const sql = `INSERT INTO users (${baseFields.join(', ')}) VALUES (${placeholders})`;
       
@@ -313,6 +336,20 @@ router.post('/register', auth, async (req, res) => {
         });
       }
       throw dbError;
+    }
+
+    // Create admin notification for new user
+    try {
+      await createNotification(
+        'user_created',
+        '👤 Nouvel utilisateur créé',
+        `Un nouvel utilisateur a été créé : ${prenom} ${nom} (${email}) - Rôle: ${finalRole}`,
+        null, // Send to all admins
+        result.insertId,
+        'user'
+      );
+    } catch (notifError) {
+      console.warn('⚠️ Could not create notification:', notifError.message);
     }
 
     res.status(201).json({

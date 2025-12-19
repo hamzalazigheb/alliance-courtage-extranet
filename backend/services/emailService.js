@@ -881,11 +881,379 @@ const sendBordereauNotificationEmail = async (email, userName, bordereauTitle, p
   }
 };
 
+/**
+ * Envoie un email personnalisé à un utilisateur avec template
+ * @param {string} email - Email du destinataire
+ * @param {string} userName - Nom de l'utilisateur
+ * @param {string} subject - Sujet de l'email
+ * @param {string} message - Message personnalisé (peut contenir du HTML)
+ * @param {string} template - Type de template ('default', 'announcement', 'info', 'success', 'warning')
+ * @returns {Promise<Object>}
+ */
+const sendPersonalizedEmail = async (email, userName, subject, message, template = 'default') => {
+  try {
+    console.log(`📧 Début envoi email personnalisé:`);
+    console.log(`   - Email destinataire: ${email}`);
+    console.log(`   - Nom utilisateur: ${userName}`);
+    console.log(`   - Sujet: ${subject}`);
+    console.log(`   - Template: ${template}`);
+    
+    const transporter = createTransporter();
+    
+    // Couleurs et styles selon le template - Design professionnel
+    const templateStyles = {
+      default: { 
+        bg: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #60a5fa 100%)', 
+        accent: '#2563eb',
+        icon: '✉️'
+      },
+      announcement: { 
+        bg: 'linear-gradient(135deg, #6b21a8 0%, #9333ea 50%, #a855f7 100%)', 
+        accent: '#9333ea',
+        icon: '📢'
+      },
+      info: { 
+        bg: 'linear-gradient(135deg, #0c4a6e 0%, #0284c7 50%, #38bdf8 100%)', 
+        accent: '#0284c7',
+        icon: 'ℹ️'
+      },
+      success: { 
+        bg: 'linear-gradient(135deg, #065f46 0%, #059669 50%, #10b981 100%)', 
+        accent: '#059669',
+        icon: '✅'
+      },
+      warning: { 
+        bg: 'linear-gradient(135deg, #92400e 0%, #d97706 50%, #f59e0b 100%)', 
+        accent: '#d97706',
+        icon: '⚠️'
+      }
+    };
+    
+    const style = templateStyles[template] || templateStyles.default;
+    
+    const mailOptions = {
+      from: process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@alliance-courtage.fr',
+      to: email,
+      subject: `${style.icon} ${subject} - Alliance Courtage`,
+      html: `
+        <!DOCTYPE html>
+        <html lang="fr">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <meta http-equiv="X-UA-Compatible" content="IE=edge">
+          <title>${subject} - Alliance Courtage</title>
+          <style>
+            /* Reset styles for email clients */
+            body, table, td, p, a, li, blockquote {
+              -webkit-text-size-adjust: 100%;
+              -ms-text-size-adjust: 100%;
+            }
+            table, td {
+              mso-table-lspace: 0pt;
+              mso-table-rspace: 0pt;
+            }
+            img {
+              -ms-interpolation-mode: bicubic;
+              border: 0;
+              outline: none;
+              text-decoration: none;
+            }
+            
+            /* Main styles */
+            body {
+              margin: 0;
+              padding: 0;
+              width: 100% !important;
+              height: 100% !important;
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+              line-height: 1.6;
+              color: #2c3e50;
+              background-color: #f4f6f9;
+              -webkit-font-smoothing: antialiased;
+              -moz-osx-font-smoothing: grayscale;
+            }
+            
+            .email-wrapper {
+              width: 100%;
+              background-color: #f4f6f9;
+              padding: 40px 20px;
+            }
+            
+            .email-container {
+              max-width: 600px;
+              margin: 0 auto;
+              background-color: #ffffff;
+              border-radius: 12px;
+              overflow: hidden;
+              box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            }
+            
+            .email-header {
+              background: ${style.bg};
+              color: #ffffff;
+              padding: 50px 40px;
+              text-align: center;
+              position: relative;
+              overflow: hidden;
+            }
+            
+            .email-header::before {
+              content: '';
+              position: absolute;
+              top: -50%;
+              right: -50%;
+              width: 200%;
+              height: 200%;
+              background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+              pointer-events: none;
+            }
+            
+            .header-icon {
+              font-size: 56px;
+              margin-bottom: 16px;
+              display: block;
+              position: relative;
+              z-index: 1;
+            }
+            
+            .header-title {
+              font-size: 28px;
+              font-weight: 700;
+              margin: 0;
+              letter-spacing: -0.5px;
+              position: relative;
+              z-index: 1;
+              text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            }
+            
+            .header-subtitle {
+              font-size: 14px;
+              margin-top: 8px;
+              opacity: 0.9;
+              font-weight: 400;
+              position: relative;
+              z-index: 1;
+            }
+            
+            .email-content {
+              padding: 45px 40px;
+            }
+            
+            .greeting {
+              font-size: 20px;
+              color: #1a202c;
+              margin-bottom: 24px;
+              font-weight: 600;
+            }
+            
+            .message-container {
+              background: linear-gradient(to right, #f8f9fa 0%, #ffffff 100%);
+              border-left: 5px solid ${style.accent};
+              padding: 28px;
+              margin: 28px 0;
+              border-radius: 8px;
+              box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+              line-height: 1.8;
+            }
+            
+            .message-container p {
+              margin: 0 0 16px 0;
+              color: #374151;
+              font-size: 16px;
+            }
+            
+            .message-container p:last-child {
+              margin-bottom: 0;
+            }
+            
+            .message-container ul, .message-container ol {
+              margin: 16px 0;
+              padding-left: 24px;
+              color: #374151;
+            }
+            
+            .message-container li {
+              margin: 8px 0;
+            }
+            
+            .signature {
+              margin-top: 40px;
+              padding-top: 28px;
+              border-top: 1px solid #e5e7eb;
+            }
+            
+            .signature-text {
+              color: #4b5563;
+              font-size: 15px;
+              margin: 0 0 8px 0;
+            }
+            
+            .signature-name {
+              color: #1a202c;
+              font-size: 16px;
+              font-weight: 600;
+              margin: 0;
+            }
+            
+            .email-footer {
+              background: linear-gradient(to bottom, #f9fafb 0%, #f3f4f6 100%);
+              padding: 35px 40px;
+              text-align: center;
+              border-top: 1px solid #e5e7eb;
+            }
+            
+            .footer-logo {
+              font-weight: 700;
+              color: ${style.accent};
+              font-size: 18px;
+              margin-bottom: 12px;
+              letter-spacing: 0.5px;
+            }
+            
+            .footer-text {
+              color: #6b7280;
+              font-size: 13px;
+              margin: 8px 0;
+              line-height: 1.6;
+            }
+            
+            .footer-copyright {
+              color: #9ca3af;
+              font-size: 12px;
+              margin-top: 16px;
+              padding-top: 16px;
+              border-top: 1px solid #e5e7eb;
+            }
+            
+            .footer-note {
+              color: #9ca3af;
+              font-size: 11px;
+              margin-top: 12px;
+              font-style: italic;
+            }
+            
+            a {
+              color: ${style.accent};
+              text-decoration: none;
+              font-weight: 500;
+              transition: color 0.2s ease;
+            }
+            
+            a:hover {
+              color: ${style.accent};
+              text-decoration: underline;
+            }
+            
+            /* Responsive styles */
+            @media only screen and (max-width: 600px) {
+              .email-wrapper {
+                padding: 20px 10px;
+              }
+              
+              .email-header {
+                padding: 40px 30px;
+              }
+              
+              .header-icon {
+                font-size: 48px;
+              }
+              
+              .header-title {
+                font-size: 24px;
+              }
+              
+              .email-content {
+                padding: 35px 30px;
+              }
+              
+              .message-container {
+                padding: 24px;
+              }
+              
+              .email-footer {
+                padding: 30px 25px;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="email-wrapper">
+            <div class="email-container">
+              <div class="email-header">
+                <span class="header-icon">${style.icon}</span>
+                <div class="header-title">Alliance Courtage</div>
+                <div class="header-subtitle">Votre partenaire de confiance</div>
+              </div>
+              
+              <div class="email-content">
+                <div class="greeting">
+                  Bonjour ${userName},
+                </div>
+                
+                <div class="message-container">
+                  ${message.replace(/\n/g, '<br>')}
+                </div>
+                
+                <div class="signature">
+                  <p class="signature-text">Cordialement,</p>
+                  <p class="signature-name">L'équipe Alliance Courtage</p>
+                </div>
+              </div>
+              
+              <div class="email-footer">
+                <div class="footer-logo">Alliance Courtage</div>
+                <p class="footer-text">
+                  Votre partenaire de confiance pour tous vos besoins en assurance et courtage
+                </p>
+                <p class="footer-copyright">
+                  © ${new Date().getFullYear()} Alliance Courtage - Tous droits réservés
+                </p>
+                <p class="footer-note">
+                  Cet email a été envoyé depuis votre espace extranet Alliance Courtage.
+                </p>
+              </div>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+      text: `
+        ${subject} - Alliance Courtage
+        
+        Bonjour ${userName},
+        
+        ${message.replace(/<[^>]*>/g, '').replace(/\n/g, '\n')}
+        
+        Cordialement,
+        L'équipe Alliance Courtage
+        
+        © ${new Date().getFullYear()} Alliance Courtage
+      `
+    };
+
+    console.log(`📧 Envoi email personnalisé à ${email}...`);
+    const info = await transporter.sendMail(mailOptions);
+    
+    console.log('✅ Email personnalisé envoyé avec succès:', {
+      messageId: info.messageId,
+      to: email,
+      subject: mailOptions.subject
+    });
+    return { success: true, messageId: info.messageId };
+    
+  } catch (error) {
+    console.error('❌ Erreur envoi email personnalisé:', error);
+    throw new Error('Erreur lors de l\'envoi de l\'email: ' + error.message);
+  }
+};
+
 module.exports = {
   sendPasswordResetEmail,
   sendReservationApprovedEmail,
   sendReservationRejectedEmail,
   sendBordereauNotificationEmail,
+  sendPersonalizedEmail,
   createTransporter
 };
 

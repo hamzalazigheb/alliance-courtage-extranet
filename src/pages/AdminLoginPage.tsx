@@ -1,6 +1,98 @@
 import React, { useState } from "react";
 import { authAPI, buildAPIURL } from '../api';
 
+// Premium Alert Modal Component
+const AlertModal: React.FC<{
+  show: boolean;
+  type: 'success' | 'error' | 'warning' | 'info';
+  title: string;
+  message: string;
+  onClose: () => void;
+}> = ({ show, type, title, message, onClose }) => {
+  if (!show) return null;
+
+  const styles = {
+    success: { iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600', buttonBg: 'bg-emerald-600 hover:bg-emerald-700' },
+    error: { iconBg: 'bg-red-50', iconColor: 'text-red-600', buttonBg: 'bg-red-600 hover:bg-red-700' },
+    warning: { iconBg: 'bg-slate-100', iconColor: 'text-slate-700', buttonBg: 'bg-slate-700 hover:bg-slate-800' },
+    info: { iconBg: 'bg-indigo-50', iconColor: 'text-indigo-600', buttonBg: 'bg-indigo-600 hover:bg-indigo-700' }
+  };
+
+  const style = styles[type];
+
+  const icons = {
+    success: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />,
+    error: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />,
+    warning: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />,
+    info: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+  };
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full transform animate-in fade-in zoom-in duration-200">
+        <div className="p-6 text-center">
+          <div className={`mx-auto w-20 h-20 ${style.iconBg} rounded-full flex items-center justify-center mb-5`}>
+            <svg className={`w-12 h-12 ${style.iconColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {icons[type]}
+            </svg>
+          </div>
+          <h3 className="text-xl font-bold text-gray-900 mb-3">{title}</h3>
+          <p className="text-gray-600 whitespace-pre-line leading-relaxed mb-6">{message}</p>
+          <button
+            onClick={onClose}
+            className={`w-full py-3 px-6 rounded-xl font-semibold text-white ${style.buttonBg} transform transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]`}
+          >
+            OK
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Confirm Modal Component
+const ConfirmModal: React.FC<{
+  show: boolean;
+  title: string;
+  message: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}> = ({ show, title, message, onConfirm, onCancel }) => {
+  if (!show) return null;
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onCancel} />
+      <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full">
+        <div className="p-6 text-center">
+          <div className="mx-auto w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mb-5">
+            <svg className="w-12 h-12 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+            </svg>
+          </div>
+          <h3 className="text-xl font-bold text-gray-900 mb-3">{title}</h3>
+          <p className="text-gray-600 whitespace-pre-line leading-relaxed mb-6">{message}</p>
+          <div className="flex gap-3">
+            <button
+              onClick={onCancel}
+              className="flex-1 py-3 px-6 rounded-xl font-semibold text-gray-700 bg-gray-200 hover:bg-gray-300 transition-all"
+            >
+              Annuler
+            </button>
+            <button
+              onClick={onConfirm}
+              className="flex-1 py-3 px-6 rounded-xl font-semibold text-white bg-red-600 hover:bg-red-700 transition-all"
+            >
+              Confirmer
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 interface AuthUserRecord {
   id: number | string;
   nom: string;
@@ -28,11 +120,31 @@ interface AdminLoginPageProps {
   users: User[];
 }
 
-export default function AdminLoginPage({ onLogin, users }: AdminLoginPageProps) {
+export default function AdminLoginPage({ onLogin }: AdminLoginPageProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Alert state
+  const [alertModal, setAlertModal] = useState<{
+    show: boolean;
+    type: 'success' | 'error' | 'warning' | 'info';
+    title: string;
+    message: string;
+  }>({ show: false, type: 'info', title: '', message: '' });
+
+  // Confirm state
+  const [confirmModal, setConfirmModal] = useState<{
+    show: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({ show: false, title: '', message: '', onConfirm: () => {} });
+
+  const showAlert = (type: 'success' | 'error' | 'warning' | 'info', title: string, message: string) => {
+    setAlertModal({ show: true, type, title, message });
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,7 +156,7 @@ export default function AdminLoginPage({ onLogin, users }: AdminLoginPageProps) 
       // Vérifier que l'utilisateur est admin avant de permettre l'accès à /manage
       if (response.user.role !== 'admin') {
         setIsLoading(false);
-        alert('Accès refusé : Seuls les administrateurs peuvent accéder à cette page.');
+        showAlert('error', 'Accès refusé', 'Seuls les administrateurs peuvent accéder à cette page.');
         return;
       }
       
@@ -64,14 +176,73 @@ export default function AdminLoginPage({ onLogin, users }: AdminLoginPageProps) 
       setIsLoading(false);
       window.location.hash = 'manage';
       onLogin(user);
-    } catch (error) {
+    } catch (error: any) {
       setIsLoading(false);
-      alert(error instanceof Error ? error.message : "Erreur de connexion");
+      const errorMessage = error instanceof Error ? error.message : "Erreur de connexion";
+      
+      if (errorMessage.includes('inactif') || errorMessage.includes('inactive') || error?.code === 'ACCOUNT_INACTIVE') {
+        showAlert('warning', 'Compte désactivé', 'Votre compte est actuellement inactif.\n\nVeuillez contacter l\'administration pour réactiver votre accès.');
+      } else {
+        showAlert('error', 'Erreur de connexion', errorMessage);
+      }
     }
+  };
+
+  const handleForgotPassword = () => {
+    if (!email) {
+      showAlert('warning', 'Email requis', 'Veuillez d\'abord entrer votre email dans le champ ci-dessus.');
+      return;
+    }
+    
+    setConfirmModal({
+      show: true,
+      title: 'Réinitialisation mot de passe',
+      message: `Réinitialiser le mot de passe administrateur pour ${email} ?\n\nVous recevrez un email avec le nouveau mot de passe.`,
+      onConfirm: async () => {
+        setConfirmModal({ show: false, title: '', message: '', onConfirm: () => {} });
+        
+        try {
+          const adminResponse = await fetch(buildAPIURL('/admin-password-reset/request'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+          });
+
+          const adminData = await adminResponse.json();
+          
+          if (adminResponse.ok) {
+            showAlert('success', 'Email envoyé', adminData.message + '\n\nVérifiez votre boîte de réception (et les spams).\n\nImportant : Changez votre mot de passe après la première connexion !');
+          } else {
+            showAlert('error', 'Erreur', adminData.error || 'Erreur lors de la réinitialisation');
+          }
+        } catch (error) {
+          console.error('Error:', error);
+          showAlert('error', 'Erreur de connexion', 'Impossible de contacter le serveur. Veuillez réessayer plus tard.');
+        }
+      }
+    });
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 via-orange-50 to-red-100 flex items-center justify-center p-4">
+      {/* Alert Modal */}
+      <AlertModal
+        show={alertModal.show}
+        type={alertModal.type}
+        title={alertModal.title}
+        message={alertModal.message}
+        onClose={() => setAlertModal({ ...alertModal, show: false })}
+      />
+
+      {/* Confirm Modal */}
+      <ConfirmModal
+        show={confirmModal.show}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal({ show: false, title: '', message: '', onConfirm: () => {} })}
+      />
+
       <div className="max-w-md w-full">
         {/* Header avec Logo */}
         <div className="text-center mb-10">
@@ -140,42 +311,7 @@ export default function AdminLoginPage({ onLogin, users }: AdminLoginPageProps) 
             <div className="text-right">
               <button
                 type="button"
-                onClick={async () => {
-                  if (!email) {
-                    alert('Veuillez d\'abord entrer votre email');
-                    return;
-                  }
-                  
-                  const isAdminReset = window.confirm(
-                    'Réinitialiser le mot de passe administrateur pour ' + email + '?\n\n' +
-                    '📧 Vous recevrez un email avec le nouveau mot de passe.\n\n' +
-                    'Cliquez sur OK pour continuer.'
-                  );
-                  
-                  if (!isAdminReset) return;
-                  
-                  try {
-                    const adminResponse = await fetch(buildAPIURL('/admin-password-reset/request'), {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ email })
-                    });
-
-                    const adminData = await adminResponse.json();
-                    
-                    if (adminResponse.ok) {
-                      alert('✅ ' + adminData.message + '\n\n' +
-                        '📧 Vérifiez votre boîte de réception (et les spams).\n' +
-                        '🔐 Le nouveau mot de passe vous a été envoyé par email.\n\n' +
-                        '⚠️ Important : Changez votre mot de passe après la première connexion !');
-                    } else {
-                      alert(adminData.error || 'Erreur lors de la réinitialisation');
-                    }
-                  } catch (error) {
-                    console.error('Error:', error);
-                    alert('❌ Erreur de connexion au serveur.');
-                  }
-                }}
+                onClick={handleForgotPassword}
                 className="text-sm text-red-600 hover:text-red-800 hover:underline font-medium"
               >
                 Mot de passe oublié ?
@@ -217,4 +353,3 @@ export default function AdminLoginPage({ onLogin, users }: AdminLoginPageProps) 
     </div>
   );
 }
-

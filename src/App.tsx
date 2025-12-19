@@ -1,22 +1,29 @@
-import { useState, useEffect } from "react";
-import GammeFinancierePage from './GammeFinancierePage';
-import NosArchivesPage from './NosArchivesPage';
-import ManagePage from './ManagePage';
-import NotificationsPage from './NotificationsPage';
-import FavorisPage from './FavorisPage';
+import { useState, useEffect, lazy, Suspense } from "react";
 import { notificationsAPI, buildAPIURL } from './api';
+import { User, BordereauFile, Partner } from './types';
+import { AlertProvider, useAlert } from './contexts/AlertContext';
+import { ThemeProvider } from './contexts/ThemeContext';
+
+// Pages de login chargées immédiatement (nécessaires avant authentification)
 import ExtranetLoginPage from './pages/ExtranetLoginPage';
 import AdminLoginPage from './pages/AdminLoginPage';
-import HomePage from './pages/HomePage';
-import GammeProduitsPage from './pages/GammeProduitsPage';
-import PartenairesPage from './pages/PartenairesPage';
-import RencontresPage from './pages/RencontresPage';
-import ReglementairePage from './pages/ReglementairePage';
-import ProduitsStructuresPage from './pages/ProduitsStructuresPage';
-import SimulateursPage from './pages/SimulateursPage';
-import ComptabilitePage from './pages/ComptabilitePage';
-import GestionComptabilitePage from './pages/GestionComptabilitePage';
-import { User, BordereauFile, Partner } from './types';
+
+// Lazy loading pour toutes les autres pages - améliore le temps de chargement initial
+const GammeFinancierePage = lazy(() => import('./GammeFinancierePage'));
+const NosArchivesPage = lazy(() => import('./NosArchivesPage'));
+const ManagePage = lazy(() => import('./ManagePage'));
+const NotificationsPage = lazy(() => import('./NotificationsPage'));
+const FavorisPage = lazy(() => import('./FavorisPage'));
+const HomePage = lazy(() => import('./pages/HomePage'));
+const GammeProduitsPage = lazy(() => import('./pages/GammeProduitsPage'));
+const PartenairesPage = lazy(() => import('./pages/PartenairesPage'));
+const RencontresPage = lazy(() => import('./pages/RencontresPage'));
+const ReglementairePage = lazy(() => import('./pages/ReglementairePage'));
+const ProduitsStructuresPage = lazy(() => import('./pages/ProduitsStructuresPage'));
+const SimulateursPage = lazy(() => import('./pages/SimulateursPage'));
+const ComptabilitePage = lazy(() => import('./pages/ComptabilitePage'));
+const GestionComptabilitePage = lazy(() => import('./pages/GestionComptabilitePage'));
+const NotFoundPage = lazy(() => import('./components/NotFoundPage'));
 
 // Types pour les utilisateurs et fichiers
 interface AuthUserRecord {
@@ -30,6 +37,8 @@ interface AuthUserRecord {
 // Login Page Components moved to pages/ExtranetLoginPage.tsx and pages/AdminLoginPage.tsx
 
 function App() {
+  const { showSuccess, showError, showWarning } = useAlert();
+  
   // État de connexion avec persistance
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     const savedLoginState = localStorage.getItem('isLoggedIn');
@@ -42,17 +51,10 @@ function App() {
     const hash = window.location.hash.slice(1); // Remove the # symbol
     const validPages = ['accueil', 'gamme-produits', 'partenaires', 'rencontres', 'reglementaire', 'produits-structures', 'simulateurs', 'comptabilite', 'gestion-comptabilite', 'nos-archives', 'manage'];
     
-    // Si l'utilisateur essaie d'accéder à /manage mais n'est pas admin, rediriger vers accueil
-    const savedUser = localStorage.getItem('currentUser');
-    if (hash === 'manage' && savedUser) {
-      try {
-        const user = JSON.parse(savedUser);
-        if (user.role !== 'admin') {
-          return 'accueil';
-        }
-      } catch (e) {
-        return 'accueil';
-      }
+    // Pour /manage, on garde la page - la vérification admin se fait plus tard
+    // Cela permet de garder le hash correct pendant le rechargement
+    if (hash === 'manage') {
+      return 'manage';
     }
     
     return validPages.includes(hash) ? hash : 'accueil';
@@ -188,7 +190,7 @@ function App() {
       
       // Bloquer l'accès à /manage si l'utilisateur n'est pas admin
       if (hash === 'manage' && currentUser && currentUser.role !== 'admin') {
-        alert('Accès refusé : Seuls les administrateurs peuvent accéder à cette page.');
+        showError('Accès refusé : Seuls les administrateurs peuvent accéder à cette page.');
         window.location.hash = 'accueil';
         setCurrentPage('accueil');
         return;
@@ -223,39 +225,67 @@ function App() {
   const [bordereaux, setBordereaux] = useState<BordereauFile[]>([]);
 
 
+  // Composant de chargement pour le lazy loading
+  const LoadingSpinner = () => (
+    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+      <div className="flex flex-col items-center space-y-6">
+        <div className="relative">
+          <div className="w-16 h-16 border-4 border-blue-200 rounded-full"></div>
+          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin absolute inset-0"></div>
+        </div>
+        <div className="text-center">
+          <p className="text-gray-700 font-medium">Chargement en cours...</p>
+          <p className="text-gray-400 text-sm mt-1">Alliance Courtage</p>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderPage = () => {
-    switch (currentPage) {
-      case "accueil":
-        return <HomePage />;
-      case "gamme-produits":
-        return <GammeProduitsPage />;
-      case "partenaires":
-        return <PartenairesPage />;
-      case "gamme-financiere":
-        return <GammeFinancierePage />;
-      case "rencontres":
-        return <RencontresPage />;
-      case "reglementaire":
-        return <ReglementairePage currentUser={currentUser} />;
-      case "produits-structures":
-        return <ProduitsStructuresPage />;
-      case "simulateurs":
-        return <SimulateursPage />;
-      case "comptabilite":
-        return <ComptabilitePage currentUser={currentUser} bordereaux={bordereaux} />;
-      case "gestion-comptabilite":
-        return <GestionComptabilitePage currentUser={currentUser} />;
-      case "nos-archives":
-        return <NosArchivesPage />;
-      case "notifications":
-        return <NotificationsPage />;
-      case "favoris":
-        return <FavorisPage />;
-              case "manage":
-        return <ManagePage />;
-      default:
-        return <HomePage />;
-    }
+    const pageContent = (() => {
+      switch (currentPage) {
+        case "accueil":
+          return <HomePage />;
+        case "gamme-produits":
+          return <GammeProduitsPage />;
+        case "partenaires":
+          return <PartenairesPage />;
+        case "gamme-financiere":
+          return <GammeFinancierePage />;
+        case "rencontres":
+          return <RencontresPage />;
+        case "reglementaire":
+          return <ReglementairePage currentUser={currentUser} />;
+        case "produits-structures":
+          return <ProduitsStructuresPage />;
+        case "simulateurs":
+          return <SimulateursPage />;
+        case "comptabilite":
+          return <ComptabilitePage currentUser={currentUser} bordereaux={bordereaux} />;
+        case "gestion-comptabilite":
+          return <GestionComptabilitePage currentUser={currentUser} />;
+        case "nos-archives":
+          return <NosArchivesPage />;
+        case "notifications":
+          return <NotificationsPage />;
+        case "favoris":
+          return <FavorisPage />;
+        case "manage":
+          return <ManagePage />;
+        default:
+          // Show 404 for unknown pages, but only if user is logged in
+          if (currentUser) {
+            return <NotFoundPage onGoHome={() => setCurrentPage('accueil')} />;
+          }
+          return <HomePage />;
+      }
+    })();
+
+    return (
+      <Suspense fallback={<LoadingSpinner />}>
+        {pageContent}
+      </Suspense>
+    );
   };
 
   if (!isLoggedIn) {
@@ -765,12 +795,12 @@ function App() {
                     if (!currentUser?.id) return;
 
                     if (passwordData.newPassword !== passwordData.confirmPassword) {
-                      alert('❌ Les mots de passe ne correspondent pas');
+                      showError('Les mots de passe ne correspondent pas');
                       return;
                     }
 
                     if (passwordData.newPassword.length < 6) {
-                      alert('❌ Le mot de passe doit contenir au moins 6 caractères');
+                      showWarning('Le mot de passe doit contenir au moins 6 caractères');
                       return;
                     }
 
@@ -791,15 +821,15 @@ function App() {
                       const data = await response.json();
 
                       if (response.ok) {
-                        alert('✅ Mot de passe modifié avec succès !');
+                        showSuccess('Mot de passe modifié avec succès !');
                         setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
                         setShowProfileModal(false);
                       } else {
-                        alert('❌ ' + (data.error || 'Erreur lors de la modification'));
+                        showError(data.error || 'Erreur lors de la modification');
                       }
                     } catch (error) {
                       console.error('Error updating password:', error);
-                      alert('❌ Erreur lors de la modification du mot de passe');
+                      showError('Erreur lors de la modification du mot de passe');
                     } finally {
                       setProfileLoading(false);
                     }
@@ -881,4 +911,13 @@ function App() {
   );
 }
 
-export default App;
+// Wrapper avec AlertProvider et ThemeProvider
+const AppWithProviders = () => (
+  <ThemeProvider>
+    <AlertProvider>
+      <App />
+    </AlertProvider>
+  </ThemeProvider>
+);
+
+export default AppWithProviders;

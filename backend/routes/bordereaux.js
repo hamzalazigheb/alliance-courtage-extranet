@@ -13,13 +13,28 @@ const storage = multer.memoryStorage();
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 50 * 1024 * 1024 // 50MB par défaut
+    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 100 * 1024 * 1024 // 100MB par défaut
   },
   fileFilter: (req, file, cb) => {
     // Accepter seulement certains types de fichiers
-    const allowedTypes = /pdf|doc|docx|xls|xlsx|ppt|pptx|txt|jpg|jpeg|png|gif/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
+    const allowedExtensions = /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|jpg|jpeg|png|gif)$/i;
+    const extname = allowedExtensions.test(path.extname(file.originalname).toLowerCase());
+    
+    // MIME types autorisés (incluant les types Excel spécifiques)
+    const allowedMimeTypes = [
+      'application/vnd.ms-excel', // .xls
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+      'application/octet-stream', // generic binary (browsers sometimes send this for XLS)
+      'application/x-msexcel',
+      'application/excel',
+      'application/x-excel'
+    ];
+    
+    // Pattern pour les autres types de fichiers
+    const allowedMimePatterns = /pdf|doc|docx|xls|xlsx|ppt|pptx|txt|jpg|jpeg|png|gif|msword|officedocument|image/i;
+    const mimetype = allowedMimePatterns.test(file.mimetype) || 
+                     allowedMimeTypes.includes(file.mimetype);
+    
     // Le nom du fichier doit commencer par une lettre
     const beginsWithLetter = /^[A-Za-zÀ-ÿ]/.test(path.basename(file.originalname));
     
@@ -28,7 +43,9 @@ const upload = multer({
     } else {
       const reason = !beginsWithLetter
         ? 'Le nom du fichier doit commencer par une lettre'
-        : 'Type de fichier non autorisé';
+        : !extname
+        ? 'Extension de fichier non autorisée. Types acceptés: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT, JPG, JPEG, PNG, GIF'
+        : 'Type de fichier non autorisé. Vérifiez que le fichier est bien un fichier Excel (.xls ou .xlsx)';
       cb(new Error(reason));
     }
   }
@@ -390,6 +407,78 @@ router.get('/:id/download', auth, async (req, res) => {
     console.error('Erreur download bordereau:', error);
     res.status(500).json({ 
       error: 'Erreur serveur lors du téléchargement du bordereau' 
+    });
+  }
+});
+
+// @route   PUT /api/bordereaux/:id
+// @desc    Modifier un bordereau (admin seulement) - principalement pour changer la période
+// @access  Private (Admin seulement)
+router.put('/:id', auth, authorize('admin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { period_year, period_month, period_day, display_date, title, description } = req.body;
+    
+    // Vérifier que le bordereau existe
+    const bordereaux = await query('SELECT id FROM bordereaux WHERE id = ?', [id]);
+    
+    if (bordereaux.length === 0) {
+      return res.status(404).json({ error: 'Bordereau non trouvé' });
+    }
+    
+    // Construire la requête UPDATE dynamiquement
+    const updates = [];
+    const values = [];
+    
+    if (period_year !== undefined) {
+      updates.push('period_year = ?');
+      values.push(period_year ? parseInt(period_year) : null);
+    }
+    
+    if (period_month !== undefined) {
+      updates.push('period_month = ?');
+      values.push(period_month ? parseInt(period_month) : null);
+    }
+    
+    // Si display_date est fourni, l'utiliser pour created_at (date d'affichage)
+    if (display_date !== undefined) {
+      try {
+        const displayDateValue = new Date(display_date);
+        if (!isNaN(displayDateValue.getTime())) {
+          updates.push('created_at = ?');
+          values.push(displayDateValue.toISOString().slice(0, 19).replace('T', ' '));
+        }
+      } catch (dateError) {
+        console.error('Erreur parsing display_date:', dateError);
+      }
+    }
+    
+    if (title !== undefined) {
+      updates.push('title = ?');
+      values.push(title);
+    }
+    
+    if (description !== undefined) {
+      updates.push('description = ?');
+      values.push(description);
+    }
+    
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'Aucune modification à effectuer' });
+    }
+    
+    values.push(id);
+    
+    await query(
+      `UPDATE bordereaux SET ${updates.join(', ')} WHERE id = ?`,
+      values
+    );
+    
+    res.json({ message: 'Bordereau modifié avec succès' });
+  } catch (error) {
+    console.error('Erreur update bordereau:', error);
+    res.status(500).json({ 
+      error: 'Erreur serveur lors de la modification du bordereau' 
     });
   }
 });

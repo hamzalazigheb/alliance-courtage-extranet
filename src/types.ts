@@ -40,6 +40,7 @@ export interface PartnerContact {
   prenom: string;
   email: string;
   telephone?: string;
+  service?: string;
   created_at?: string;
   updated_at?: string;
 }
