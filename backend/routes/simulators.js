@@ -89,8 +89,14 @@ router.get('/usage', auth, async (req, res) => {
       params.push(end_date);
     }
 
-    sql += ' ORDER BY su.created_at DESC LIMIT ?';
-    params.push(parseInt(limit));
+    // LIMIT ne peut pas utiliser de paramètre préparé, utiliser une valeur littérale sécurisée
+    const limitValue = parseInt(limit) || 100;
+    if (limitValue < 1 || limitValue > 10000) {
+      return res.status(400).json({ 
+        error: 'La limite doit être entre 1 et 10000' 
+      });
+    }
+    sql += ` ORDER BY su.created_at DESC LIMIT ${limitValue}`;
 
     const usage = await query(sql, params);
 
