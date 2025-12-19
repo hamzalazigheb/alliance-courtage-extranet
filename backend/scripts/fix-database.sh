@@ -273,6 +273,36 @@ CREATE TABLE IF NOT EXISTS financial_documents (
   INDEX idx_is_active (is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 14. Créer la table assurances
+CREATE TABLE IF NOT EXISTS assurances (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255) UNIQUE NOT NULL,
+  montant_enveloppe DECIMAL(15, 2) DEFAULT 0,
+  color VARCHAR(50),
+  icon VARCHAR(10),
+  description TEXT,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_name (name),
+  INDEX idx_is_active (is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 15. Ajouter colonne assurance à archives si elle n'existe pas
+SET @col_exists = 0;
+SELECT COUNT(*) INTO @col_exists 
+FROM INFORMATION_SCHEMA.COLUMNS 
+WHERE TABLE_SCHEMA = 'alliance_courtage' 
+AND TABLE_NAME = 'archives' 
+AND COLUMN_NAME = 'assurance';
+
+SET @sql = IF(@col_exists = 0, 
+  'ALTER TABLE archives ADD COLUMN assurance VARCHAR(255) NULL AFTER category', 
+  'SELECT "Colonne assurance existe déjà" as message');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 SELECT '✅ Migration terminée!' as status;
 SQL
 
