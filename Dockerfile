@@ -6,7 +6,7 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
+# Install all dependencies (including devDependencies needed for build)
 RUN npm install
 
 # Copy source code
@@ -14,6 +14,7 @@ COPY . .
 
 # Build the application in production mode
 ENV NODE_ENV=production
+# Use esbuild minifier (faster and doesn't require terser)
 RUN npm run build
 
 # Production stage

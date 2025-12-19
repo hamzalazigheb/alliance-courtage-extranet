@@ -11,14 +11,14 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
-    // Optimisations de build
-    minify: 'terser',
-    terserOptions: {
+    // Optimisations de build - utiliser esbuild par défaut (plus rapide), terser si disponible
+    minify: process.env.USE_TERSER === 'true' ? 'terser' : 'esbuild',
+    terserOptions: process.env.USE_TERSER === 'true' ? {
       compress: {
         drop_console: true, // Supprimer console.log en production
         drop_debugger: true,
       },
-    },
+    } : undefined,
     // Fallback si terser n'est pas disponible
     commonjsOptions: {
       include: [/node_modules/],
