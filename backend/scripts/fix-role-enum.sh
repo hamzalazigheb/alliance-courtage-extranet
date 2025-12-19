@@ -4,26 +4,37 @@
 echo "🔧 Correction de l'ENUM du rôle dans la table users..."
 echo ""
 
+echo "📋 ENUM actuel:"
+sudo docker exec alliance-courtage-mysql mysql -u root -palliance2024Secure alliance_courtage -e "
+SELECT COLUMN_TYPE 
+FROM INFORMATION_SCHEMA.COLUMNS 
+WHERE TABLE_SCHEMA = 'alliance_courtage' 
+AND TABLE_NAME = 'users' 
+AND COLUMN_NAME = 'role';
+" 2>/dev/null
+
+echo ""
+echo "🔧 Modification de l'ENUM pour inclure 'user'..."
 sudo docker exec -i alliance-courtage-mysql mysql -u root -palliance2024Secure alliance_courtage << 'SQL'
--- Vérifier l'ENUM actuel
-SELECT COLUMN_TYPE as 'ENUM actuel' 
-FROM INFORMATION_SCHEMA.COLUMNS 
-WHERE TABLE_SCHEMA = 'alliance_courtage' 
-AND TABLE_NAME = 'users' 
-AND COLUMN_NAME = 'role';
-
--- Modifier l'ENUM pour inclure 'user'
+-- Modifier l'ENUM pour inclure 'user' (force la modification)
 ALTER TABLE users MODIFY COLUMN role ENUM('admin', 'broker', 'client', 'user') DEFAULT 'user';
-
--- Vérifier l'ENUM après modification
-SELECT COLUMN_TYPE as 'ENUM après modification' 
-FROM INFORMATION_SCHEMA.COLUMNS 
-WHERE TABLE_SCHEMA = 'alliance_courtage' 
-AND TABLE_NAME = 'users' 
-AND COLUMN_NAME = 'role';
-
-SELECT '✅ ENUM du rôle corrigé!' as status;
 SQL
+
+if [ $? -eq 0 ]; then
+  echo "✅ ENUM modifié avec succès!"
+  echo ""
+  echo "📋 ENUM après modification:"
+  sudo docker exec alliance-courtage-mysql mysql -u root -palliance2024Secure alliance_courtage -e "
+  SELECT COLUMN_TYPE 
+  FROM INFORMATION_SCHEMA.COLUMNS 
+  WHERE TABLE_SCHEMA = 'alliance_courtage' 
+  AND TABLE_NAME = 'users' 
+  AND COLUMN_NAME = 'role';
+  " 2>/dev/null
+else
+  echo "❌ Erreur lors de la modification de l'ENUM"
+  exit 1
+fi
 
 echo ""
 echo "✅ Script terminé!"
