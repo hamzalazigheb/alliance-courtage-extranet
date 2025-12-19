@@ -361,34 +361,39 @@ CREATE TABLE IF NOT EXISTS file_permissions (
 -- 19. Créer la table reglementaire_folders
 CREATE TABLE IF NOT EXISTS reglementaire_folders (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(255) NOT NULL,
+  title VARCHAR(255) NOT NULL,
   description TEXT,
   parent_id INT,
-  order_index INT DEFAULT 0,
+  display_order INT DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (parent_id) REFERENCES reglementaire_folders(id) ON DELETE CASCADE,
   INDEX idx_parent_id (parent_id),
-  INDEX idx_order_index (order_index)
+  INDEX idx_display_order (display_order)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 20. Créer la table reglementaire_documents
 CREATE TABLE IF NOT EXISTS reglementaire_documents (
   id INT AUTO_INCREMENT PRIMARY KEY,
   folder_id INT,
-  title VARCHAR(255) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  title VARCHAR(255),
   description TEXT,
   file_path VARCHAR(500),
   file_content LONGTEXT,
   file_size BIGINT,
   file_type VARCHAR(100),
+  display_order INT DEFAULT 0,
+  is_active BOOLEAN DEFAULT TRUE,
   uploaded_by INT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (folder_id) REFERENCES reglementaire_folders(id) ON DELETE CASCADE,
   FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL,
   INDEX idx_folder_id (folder_id),
-  INDEX idx_title (title)
+  INDEX idx_name (name),
+  INDEX idx_is_active (is_active),
+  INDEX idx_display_order (display_order)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 21. Créer la table bordereaux
