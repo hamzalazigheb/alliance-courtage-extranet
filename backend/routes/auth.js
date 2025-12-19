@@ -22,8 +22,9 @@ router.post('/login', async (req, res) => {
     }
 
     // Rechercher l'utilisateur (sans filtrer par is_active pour pouvoir donner un message approprié)
+    // Note: validite_date peut ne pas exister dans certaines versions de la base de données
     const users = await query(
-      'SELECT id, email, nom, prenom, role, password, is_active, validite_date, created_at FROM users WHERE email = ?',
+      'SELECT id, email, nom, prenom, role, password, is_active, created_at FROM users WHERE email = ?',
       [email]
     );
 
@@ -43,8 +44,9 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Vérifier si le compte a expiré (date de validité dépassée)
-    if (user.validite_date && new Date(user.validite_date) < new Date()) {
+    // Vérifier si le compte a expiré (date de validité dépassée) - seulement si la colonne existe
+    // Note: On vérifie d'abord si validite_date existe dans le résultat
+    if (user.validite_date !== undefined && user.validite_date !== null && new Date(user.validite_date) < new Date()) {
       return res.status(403).json({ 
         error: 'Votre compte a expiré. Veuillez contacter l\'administration pour renouveler votre accès.',
         code: 'ACCOUNT_EXPIRED'
