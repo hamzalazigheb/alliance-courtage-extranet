@@ -87,7 +87,7 @@ echo ""
 echo "🐳 Vérification de Docker..."
 if command -v docker &> /dev/null; then
     echo -e "${GREEN}✅ Docker est installé${NC}"
-    docker --version
+    docker --version 2>/dev/null || sudo docker --version
 else
     echo -e "${RED}❌ Docker n'est pas installé${NC}"
     echo "   Installation de Docker..."
@@ -97,6 +97,16 @@ else
     sudo systemctl enable docker
     sudo usermod -aG docker $USER
     echo -e "${YELLOW}⚠️  Vous devez vous déconnecter et reconnecter pour que les changements prennent effet${NC}"
+fi
+
+# Vérifier les permissions Docker
+if docker ps &> /dev/null; then
+    echo -e "${GREEN}✅ Permissions Docker OK${NC}"
+else
+    echo -e "${YELLOW}⚠️  Permissions Docker manquantes, ajout de l'utilisateur au groupe docker...${NC}"
+    sudo usermod -aG docker $USER
+    echo -e "${YELLOW}⚠️  Vous devez vous déconnecter et reconnecter, ou utiliser 'newgrp docker'${NC}"
+    echo -e "${YELLOW}   Ou utilisez 'sudo' avec les commandes docker${NC}"
 fi
 
 if command -v docker-compose &> /dev/null || docker compose version &> /dev/null; then
