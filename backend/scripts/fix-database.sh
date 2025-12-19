@@ -303,6 +303,94 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+-- 16. Ajouter colonnes uploaded_by_prenom et uploaded_by_nom à archives si elles n'existent pas
+SET @col_exists = 0;
+SELECT COUNT(*) INTO @col_exists 
+FROM INFORMATION_SCHEMA.COLUMNS 
+WHERE TABLE_SCHEMA = 'alliance_courtage' 
+AND TABLE_NAME = 'archives' 
+AND COLUMN_NAME = 'uploaded_by_prenom';
+
+SET @sql = IF(@col_exists = 0, 
+  'ALTER TABLE archives ADD COLUMN uploaded_by_prenom VARCHAR(100) NULL AFTER uploaded_by', 
+  'SELECT "Colonne uploaded_by_prenom existe déjà" as message');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col_exists = 0;
+SELECT COUNT(*) INTO @col_exists 
+FROM INFORMATION_SCHEMA.COLUMNS 
+WHERE TABLE_SCHEMA = 'alliance_courtage' 
+AND TABLE_NAME = 'archives' 
+AND COLUMN_NAME = 'uploaded_by_nom';
+
+SET @sql = IF(@col_exists = 0, 
+  'ALTER TABLE archives ADD COLUMN uploaded_by_nom VARCHAR(100) NULL AFTER uploaded_by_prenom', 
+  'SELECT "Colonne uploaded_by_nom existe déjà" as message');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- 17. Créer la table cms_content
+CREATE TABLE IF NOT EXISTS cms_content (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  page VARCHAR(100) UNIQUE NOT NULL,
+  content TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_page (page)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 18. Créer la table file_permissions
+CREATE TABLE IF NOT EXISTS file_permissions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  file_id INT NOT NULL,
+  file_type VARCHAR(50) NOT NULL COMMENT 'Type: archive, document, bordereau, etc.',
+  user_id INT,
+  role VARCHAR(50),
+  permission_type ENUM('read', 'write', 'delete') DEFAULT 'read',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_file (file_id, file_type),
+  INDEX idx_user_id (user_id),
+  INDEX idx_role (role)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 19. Créer la table reglementaire_folders
+CREATE TABLE IF NOT EXISTS reglementaire_folders (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  parent_id INT,
+  order_index INT DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (parent_id) REFERENCES reglementaire_folders(id) ON DELETE CASCADE,
+  INDEX idx_parent_id (parent_id),
+  INDEX idx_order_index (order_index)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 20. Créer la table reglementaire_documents
+CREATE TABLE IF NOT EXISTS reglementaire_documents (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  folder_id INT,
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  file_path VARCHAR(500),
+  file_content LONGTEXT,
+  file_size BIGINT,
+  file_type VARCHAR(100),
+  uploaded_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (folder_id) REFERENCES reglementaire_folders(id) ON DELETE CASCADE,
+  FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL,
+  INDEX idx_folder_id (folder_id),
+  INDEX idx_title (title)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SELECT '✅ Migration terminée!' as status;
 SQL
 
