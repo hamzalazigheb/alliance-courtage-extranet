@@ -33,8 +33,10 @@ router.get('/', async (req, res) => {
       sql += ' WHERE ' + conditions.join(' AND ');
     }
     
-    sql += ' ORDER BY n.published_at DESC LIMIT ? OFFSET ?';
-    params.push(parseInt(limit), parseInt(offset));
+    // LIMIT et OFFSET ne peuvent pas utiliser de paramètres préparés, utiliser des valeurs littérales sécurisées
+    const limitValue = Math.max(1, Math.min(parseInt(limit) || 10, 100));
+    const offsetValue = Math.max(0, parseInt(offset) || 0);
+    sql += ` ORDER BY n.published_at DESC LIMIT ${limitValue} OFFSET ${offsetValue}`;
     
     const news = await query(sql, params);
     

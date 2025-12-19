@@ -523,7 +523,13 @@ router.get('/years/list', async (req, res) => {
 // @access  Private (Admin seulement)
 router.get('/recent', auth, authorize('admin'), async (req, res) => {
   try {
+    // LIMIT ne peut pas utiliser de paramètre préparé, utiliser une valeur littérale sécurisée
     const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    if (limit < 1 || limit > 100) {
+      return res.status(400).json({ 
+        error: 'La limite doit être entre 1 et 100' 
+      });
+    }
     const rows = await query(
       `SELECT a.id as archiveId, a.title, a.file_path as filePath, 
               CASE WHEN a.file_content IS NOT NULL THEN 1 ELSE 0 END as has_file_content,
@@ -532,8 +538,7 @@ router.get('/recent', auth, authorize('admin'), async (req, res) => {
        FROM archives a
        LEFT JOIN users u ON a.uploaded_by = u.id
        ORDER BY a.created_at DESC
-       LIMIT ?`,
-      [limit]
+       LIMIT ${limit}`
     );
 
     const host = `${req.protocol}://${req.get('host')}`;
