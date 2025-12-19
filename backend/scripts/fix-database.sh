@@ -130,6 +130,81 @@ CREATE TABLE IF NOT EXISTS partner_documents (
   INDEX idx_document_type (document_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- 9. Créer la table favoris
+CREATE TABLE IF NOT EXISTS `favoris` (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  item_type VARCHAR(50) NOT NULL COMMENT 'Type: document, product, archive, etc.',
+  item_id INT NOT NULL COMMENT 'ID de l element favori',
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  url VARCHAR(500),
+  metadata TEXT COMMENT 'JSON pour stocker des infos supplémentaires',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_user_id (user_id),
+  INDEX idx_item_type (item_type),
+  INDEX idx_item_id (item_id),
+  INDEX idx_created_at (created_at),
+  UNIQUE KEY unique_user_item (user_id, item_type, item_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 10. Créer la table simulator_usage
+CREATE TABLE IF NOT EXISTS simulator_usage (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT NOT NULL,
+  simulator_type VARCHAR(50) NOT NULL,
+  parameters JSON,
+  result_summary TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_user_id (user_id),
+  INDEX idx_simulator_type (simulator_type),
+  INDEX idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 11. Créer la table product_reservations
+CREATE TABLE IF NOT EXISTS product_reservations (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  product_id INT NOT NULL,
+  user_id INT NOT NULL,
+  montant DECIMAL(15, 2) NOT NULL,
+  notes TEXT,
+  status VARCHAR(50) DEFAULT 'pending',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_product_id (product_id),
+  INDEX idx_user_id (user_id),
+  INDEX idx_status (status),
+  INDEX idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 12. Créer la table formations
+CREATE TABLE IF NOT EXISTS formations (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  user_name VARCHAR(255) NOT NULL,
+  nom_document VARCHAR(255) NOT NULL,
+  date DATE NOT NULL,
+  heures DECIMAL(10, 2) DEFAULT 0,
+  categories TEXT COMMENT 'JSON array of categories',
+  delivree_par VARCHAR(255),
+  file_path VARCHAR(500) DEFAULT '',
+  file_content LONGTEXT,
+  file_size INT,
+  file_type VARCHAR(255),
+  year INT NOT NULL,
+  statut ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_user_id (user_id),
+  INDEX idx_year (year),
+  INDEX idx_statut (statut),
+  INDEX idx_date (date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SELECT '✅ Migration terminée!' as status;
 SQL
 
