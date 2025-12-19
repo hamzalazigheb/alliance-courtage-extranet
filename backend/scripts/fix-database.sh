@@ -62,6 +62,74 @@ CREATE TABLE IF NOT EXISTS password_reset_requests (
   INDEX idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- 5. Ajouter logo_content à partners si elle n'existe pas
+SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
+  WHERE TABLE_SCHEMA = 'alliance_courtage' 
+  AND TABLE_NAME = 'partners' 
+  AND COLUMN_NAME = 'logo_content');
+
+SET @sql = IF(@col_exists = 0, 
+  'ALTER TABLE partners ADD COLUMN logo_content LONGTEXT NULL AFTER logo_url', 
+  'SELECT "Colonne logo_content existe déjà" as message');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- 6. Créer la table notifications
+CREATE TABLE IF NOT EXISTS notifications (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NULL,
+  type ENUM('info', 'warning', 'error', 'success', 'reservation', 'reservation_public') DEFAULT 'info',
+  title VARCHAR(255) NOT NULL,
+  message TEXT NOT NULL,
+  is_read BOOLEAN DEFAULT FALSE,
+  related_id INT NULL,
+  related_type VARCHAR(100) NULL,
+  link VARCHAR(500) NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_user_id (user_id),
+  INDEX idx_is_read (is_read),
+  INDEX idx_type (type),
+  INDEX idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 7. Créer la table partner_contacts
+CREATE TABLE IF NOT EXISTS partner_contacts (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  partner_id INT NOT NULL,
+  fonction VARCHAR(100) NOT NULL,
+  nom VARCHAR(100) NOT NULL,
+  prenom VARCHAR(100) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  telephone VARCHAR(20),
+  service VARCHAR(100),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (partner_id) REFERENCES partners(id) ON DELETE CASCADE,
+  INDEX idx_partner_id (partner_id),
+  INDEX idx_email (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 8. Créer la table partner_documents
+CREATE TABLE IF NOT EXISTS partner_documents (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  partner_id INT NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  file_content LONGTEXT,
+  file_size INT,
+  file_type VARCHAR(255),
+  document_type VARCHAR(100) DEFAULT 'convention',
+  uploaded_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (partner_id) REFERENCES partners(id) ON DELETE CASCADE,
+  FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL,
+  INDEX idx_partner_id (partner_id),
+  INDEX idx_document_type (document_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 SELECT '✅ Migration terminée!' as status;
 SQL
 
