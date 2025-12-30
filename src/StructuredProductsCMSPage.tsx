@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { structuredProductsAPI, assurancesAPI, buildAPIURL, buildFileURL } from './api';
 
 interface StructuredProduct {
@@ -23,7 +23,13 @@ interface PageContent {
   introText: string;
 }
 
-const StructuredProductsCMSPage: React.FC = () => {
+interface StructuredProductsCMSPageProps {
+  mode?: 'full' | 'content-only' | 'products-only';
+}
+
+const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({ 
+  mode = 'full' 
+}) => {
   const [products, setProducts] = useState<StructuredProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -31,8 +37,28 @@ const StructuredProductsCMSPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   
+  // Déterminer les sections disponibles selon le mode
+  const availableSections = useMemo(() => {
+    if (mode === 'content-only') return ['content'];
+    if (mode === 'products-only') return ['products', 'assurances'];
+    return ['content', 'products', 'assurances']; // full
+  }, [mode]);
+
   // Gestion du contenu CMS
-  const [activeSection, setActiveSection] = useState<'content' | 'products' | 'assurances'>('content');
+  const [activeSection, setActiveSection] = useState<'content' | 'products' | 'assurances'>(() => {
+    if (mode === 'content-only') return 'content';
+    if (mode === 'products-only') return 'products';
+    return 'content';
+  });
+
+  // Définir la section par défaut selon le mode
+  useEffect(() => {
+    if (mode === 'content-only') {
+      setActiveSection('content');
+    } else if (mode === 'products-only') {
+      setActiveSection('products');
+    }
+  }, [mode]);
   const [contentLoading, setContentLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -60,8 +86,8 @@ const StructuredProductsCMSPage: React.FC = () => {
   const [assuranceForm, setAssuranceForm] = useState({
     name: '',
     montant_enveloppe: '',
-    color: 'gray',
-    icon: '📄',
+    color: 'blue',
+    icon: '🛡️',
     description: '',
     is_active: true
   });
@@ -274,47 +300,64 @@ const StructuredProductsCMSPage: React.FC = () => {
       {/* Header */}
       <div className="bg-gradient-to-r from-[#0B1220] to-[#1D4ED8] rounded-xl p-6 text-white">
         <h1 className="text-2xl font-bold mb-2">Gestion des Produits Structurés</h1>
-        <p className="text-white/80">Gérez le contenu, les produits et les assurances</p>
+        <p className="text-white/80">
+          {mode === 'content-only' 
+            ? 'Gérez le contenu de la page' 
+            : mode === 'products-only'
+            ? 'Gérez les produits et les assurances'
+            : 'Gérez le contenu, les produits et les assurances'}
+        </p>
       </div>
 
-      {/* Navigation Sections */}
-      <div className="bg-slate-800 rounded-xl p-4 shadow-lg">
-        <div className="flex space-x-2">
-          <button
-            onClick={() => setActiveSection('content')}
-            className={`px-4 py-2 rounded-lg font-medium transition-all ${
-              activeSection === 'content'
-                ? 'bg-emerald-500 text-white'
-                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-            }`}
-          >
-            📝 Contenu de la Page
-          </button>
-          <button
-            onClick={() => setActiveSection('products')}
-            className={`px-4 py-2 rounded-lg font-medium transition-all ${
-              activeSection === 'products'
-                ? 'bg-emerald-500 text-white'
-                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-            }`}
-          >
-            📦 Produits
-          </button>
-          <button
-            onClick={() => setActiveSection('assurances')}
-            className={`px-4 py-2 rounded-lg font-medium transition-all ${
-              activeSection === 'assurances'
-                ? 'bg-emerald-500 text-white'
-                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-            }`}
-          >
-            🛡️ Assurances
-          </button>
+      {/* Navigation Sections - Afficher seulement si plusieurs sections disponibles */}
+      {availableSections.length > 1 && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-lg border border-gray-200 dark:border-gray-700">
+          <div className="flex flex-wrap gap-2">
+            {availableSections.includes('content') && (
+              <button
+                onClick={() => setActiveSection('content')}
+                className={`px-4 py-2.5 rounded-lg font-medium transition-all text-sm flex items-center space-x-2 ${
+                  activeSection === 'content'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                <span>📝</span>
+                <span>Contenu de la Page</span>
+              </button>
+            )}
+            {availableSections.includes('products') && (
+              <button
+                onClick={() => setActiveSection('products')}
+                className={`px-4 py-2.5 rounded-lg font-medium transition-all text-sm flex items-center space-x-2 ${
+                  activeSection === 'products'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                <span>📦</span>
+                <span>Produits</span>
+              </button>
+            )}
+            {availableSections.includes('assurances') && (
+              <button
+                onClick={() => setActiveSection('assurances')}
+                className={`px-4 py-2.5 rounded-lg font-medium transition-all text-sm flex items-center space-x-2 ${
+                  activeSection === 'assurances'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                <span>🛡️</span>
+                <span>Assurances</span>
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Content Section */}
-      {activeSection === 'content' && (
+      {activeSection === 'content' && availableSections.includes('content') && (
         <div className="bg-slate-800 rounded-xl p-6 shadow-lg">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-white">Gestion du Contenu</h2>
@@ -429,7 +472,7 @@ const StructuredProductsCMSPage: React.FC = () => {
       )}
 
       {/* Products Section */}
-      {activeSection === 'products' && (
+      {activeSection === 'products' && availableSections.includes('products') && (
         <div className="space-y-6">
       {/* Formulaire d'upload */}
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
@@ -463,16 +506,17 @@ const StructuredProductsCMSPage: React.FC = () => {
                     setAssuranceForm({
                       name: '',
                       montant_enveloppe: '',
-                      color: 'gray',
-                      icon: '📄',
+                      color: 'blue',
+                      icon: '🛡️',
                       description: '',
                       is_active: true
                     });
                     setShowAssuranceModal(true);
                   }}
-                  className="ml-2 text-xs text-blue-600 hover:text-blue-800 underline"
+                  className="ml-2 text-xs text-blue-600 hover:text-blue-800 underline font-semibold"
+                  title="Créer une nouvelle assurance pour ce produit"
                 >
-                  + Ajouter assurance
+                  + Créer une nouvelle assurance
                 </button>
               </label>
               <div className="flex gap-2">
@@ -482,7 +526,11 @@ const StructuredProductsCMSPage: React.FC = () => {
                   className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
                 >
-                  <option value="">Sélectionner une assurance</option>
+                  <option value="">
+                    {assurances.filter(a => a.is_active).length === 0 
+                      ? "⚠️ Aucune assurance active - Créez-en une d'abord" 
+                      : "Sélectionner une assurance"}
+                  </option>
                   {assurances.filter(a => a.is_active).map(assurance => (
                     <option key={assurance.id} value={assurance.name}>
                       {assurance.icon} {assurance.name} {assurance.montant_enveloppe > 0 && `(${new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(assurance.montant_enveloppe)})`}
@@ -490,6 +538,31 @@ const StructuredProductsCMSPage: React.FC = () => {
                   ))}
                 </select>
               </div>
+              {assurances.filter(a => a.is_active).length === 0 && (
+                <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800 mb-2">
+                    ⚠️ <strong>Aucune assurance active.</strong> Vous devez créer une assurance avant de pouvoir uploader un produit.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingAssurance(null);
+                      setAssuranceForm({
+                        name: '',
+                        montant_enveloppe: '',
+                        color: 'blue',
+                        icon: '🛡️',
+                        description: '',
+                        is_active: true
+                      });
+                      setShowAssuranceModal(true);
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors"
+                  >
+                    + Créer ma première assurance
+                  </button>
+                </div>
+              )}
             </div>
           </div>
           
@@ -714,7 +787,7 @@ const StructuredProductsCMSPage: React.FC = () => {
       )}
 
       {/* Assurances Section */}
-      {activeSection === 'assurances' && (
+      {activeSection === 'assurances' && availableSections.includes('assurances') && (
         <div className="bg-slate-800 rounded-xl p-6 shadow-lg">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-white">Gestion des Assurances</h2>
@@ -724,8 +797,8 @@ const StructuredProductsCMSPage: React.FC = () => {
                 setAssuranceForm({
                   name: '',
                   montant_enveloppe: '',
-                  color: 'gray',
-                  icon: '📄',
+                  color: 'blue',
+                  icon: '🛡️',
                   description: '',
                   is_active: true
                 });
@@ -795,9 +868,19 @@ const StructuredProductsCMSPage: React.FC = () => {
                         try {
                           await assurancesAPI.delete(assurance.id);
                           await loadAssurances();
-                          alert('Assurance supprimée avec succès');
-                        } catch (error) {
-                          alert('Erreur lors de la suppression');
+                          alert('✅ Assurance supprimée avec succès');
+                        } catch (error: any) {
+                          // Extraire le message d'erreur
+                          const errorMessage = error?.message || error?.error || 'Erreur lors de la suppression';
+                          
+                          // Message plus visible avec détails si des produits utilisent l'assurance
+                          if (errorMessage.includes('produit(s) l\'utilise(nt) encore')) {
+                            alert(`⚠️ Suppression impossible\n\n${errorMessage}\n\nVeuillez d'abord supprimer ou modifier les produits associés à cette assurance.`);
+                          } else {
+                            alert(`❌ ${errorMessage}`);
+                          }
+                          
+                          console.error('Erreur suppression assurance:', error);
                         }
                       }
                     }}
@@ -837,6 +920,8 @@ const StructuredProductsCMSPage: React.FC = () => {
               <form onSubmit={async (e) => {
                 e.preventDefault();
                 try {
+                  let createdAssurance = null;
+                  
                   if (editingAssurance) {
                     await assurancesAPI.update(editingAssurance.id, {
                       ...assuranceForm,
@@ -844,13 +929,31 @@ const StructuredProductsCMSPage: React.FC = () => {
                     });
                     alert('Assurance modifiée avec succès !');
                   } else {
-                    await assurancesAPI.create({
+                    // Créer la nouvelle assurance
+                    createdAssurance = await assurancesAPI.create({
                       ...assuranceForm,
                       montant_enveloppe: parseFloat(assuranceForm.montant_enveloppe) || 0
                     });
-                    alert('Assurance créée avec succès !');
                   }
+                  
+                  // Recharger la liste des assurances
                   await loadAssurances();
+                  
+                  // Si c'est une nouvelle assurance créée depuis le formulaire d'upload,
+                  // la sélectionner automatiquement
+                  if (createdAssurance && !editingAssurance) {
+                    // Attendre un peu pour que la liste soit mise à jour
+                    setTimeout(() => {
+                      setUploadForm(prev => ({
+                        ...prev,
+                        assurance: assuranceForm.name // Sélectionner la nouvelle assurance par son nom
+                      }));
+                      alert(`✅ Assurance "${assuranceForm.name}" créée et sélectionnée ! Vous pouvez maintenant uploader votre produit.`);
+                    }, 200);
+                  } else if (!editingAssurance) {
+                    alert(`✅ Assurance "${assuranceForm.name}" créée avec succès !`);
+                  }
+                  
                   setShowAssuranceModal(false);
                   setEditingAssurance(null);
                 } catch (error: any) {
@@ -875,8 +978,11 @@ const StructuredProductsCMSPage: React.FC = () => {
                       value={assuranceForm.icon}
                       onChange={(e) => setAssuranceForm({...assuranceForm, icon: e.target.value})}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="📄"
+                      placeholder="🛡️"
                     />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Utilisez un emoji pour représenter l'assurance (ex: 🛡️, 🏢, 💼, etc.)
+                    </p>
                   </div>
                 </div>
 
@@ -980,15 +1086,15 @@ const StructuredProductsCMSPage: React.FC = () => {
                       <div className="flex space-x-2">
                         <button
                           onClick={() => {
-                            setEditingAssurance(assurance);
-                            setAssuranceForm({
-                              name: assurance.name,
-                              montant_enveloppe: assurance.montant_enveloppe.toString(),
-                              color: assurance.color || 'gray',
-                              icon: assurance.icon || '📄',
-                              description: assurance.description || '',
-                              is_active: assurance.is_active
-                            });
+                      setEditingAssurance(assurance);
+                      setAssuranceForm({
+                        name: assurance.name,
+                        montant_enveloppe: assurance.montant_enveloppe.toString(),
+                        color: assurance.color || 'blue',
+                        icon: assurance.icon || '🛡️',
+                        description: assurance.description || '',
+                        is_active: assurance.is_active
+                      });
                           }}
                           className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
                         >
@@ -1000,9 +1106,19 @@ const StructuredProductsCMSPage: React.FC = () => {
                               try {
                                 await assurancesAPI.delete(assurance.id);
                                 await loadAssurances();
-                                alert('Assurance supprimée');
+                                alert('✅ Assurance supprimée avec succès');
                               } catch (error: any) {
-                                alert(error.message || 'Erreur lors de la suppression');
+                                // Extraire le message d'erreur
+                                const errorMessage = error?.message || error?.error || 'Erreur lors de la suppression';
+                                
+                                // Message plus visible avec détails si des produits utilisent l'assurance
+                                if (errorMessage.includes('produit(s) l\'utilise(nt) encore')) {
+                                  alert(`⚠️ Suppression impossible\n\n${errorMessage}\n\nVeuillez d'abord supprimer ou modifier les produits associés à cette assurance.`);
+                                } else {
+                                  alert(`❌ ${errorMessage}`);
+                                }
+                                
+                                console.error('Erreur suppression assurance:', error);
                               }
                             }
                           }}

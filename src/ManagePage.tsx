@@ -5,6 +5,7 @@ import PartnerManagementPage from './PartnerManagementPage';
 import FinancialDocumentsPage from './FinancialDocumentsPage';
 import UserManagementPage from './UserManagementPage';
 import CMSManagementPage from './CMSManagementPage';
+import StructuredProductsCMSPage from './StructuredProductsCMSPage';
 import ProductReservationsPage from './ProductReservationsPage';
 import SimulatorStatsPage from './SimulatorStatsPage';
 import GlobalSearch from './components/GlobalSearch';
@@ -18,6 +19,7 @@ import {
   DocumentIcon,
   UserIcon,
   CMSIcon,
+  StructuredProductsIcon,
   CartIcon,
   ChartIcon
 } from './components/NavIcons';
@@ -43,7 +45,7 @@ const ManagePage: React.FC = () => {
   const { showSuccess, showError, showWarning } = useAlert();
   const { theme, toggleTheme, isDark } = useTheme();
   
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'archives' | 'partenaires' | 'documents' | 'utilisateurs' | 'cms' | 'reservations' | 'simulateurs'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'archives' | 'partenaires' | 'documents' | 'utilisateurs' | 'cms' | 'produits-structures' | 'reservations' | 'simulateurs'>('dashboard');
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [profileData, setProfileData] = useState({
@@ -207,6 +209,12 @@ const ManagePage: React.FC = () => {
       adminOnly: false
     },
     {
+      id: 'produits-structures',
+      label: 'Produits Structurés',
+      icon: <StructuredProductsIcon />,
+      adminOnly: false
+    },
+    {
       id: 'reservations',
       label: 'Produits Réservés',
       icon: <CartIcon />,
@@ -363,6 +371,7 @@ const ManagePage: React.FC = () => {
             )
           )}
           {activeTab === 'cms' && <CMSManagementPage />}
+          {activeTab === 'produits-structures' && <StructuredProductsCMSPage mode="products-only" />}
           {activeTab === 'reservations' && (
             currentUser?.role === 'admin' ? (
               <ProductReservationsPage />

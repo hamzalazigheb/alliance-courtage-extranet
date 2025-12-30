@@ -1132,7 +1132,7 @@ const CMSManagementPage: React.FC = () => {
         )}
 
         {activePage === 'produits-structures' && (
-          <StructuredProductsCMSPage />
+          <StructuredProductsCMSPage mode="content-only" />
         )}
 
         {activePage === 'rencontres' && (
