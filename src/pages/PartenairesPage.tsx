@@ -119,6 +119,25 @@ export default function PartenairesPage() {
     return [...partenaires.coa, ...partenaires.cif];
   };
 
+  // Helper function to build logo URL
+  const getLogoUrl = (partenaire: Partner): string | null => {
+    if (partenaire.logoUrl) {
+      // If logoUrl starts with /api/, use buildAPIURL to construct full URL
+      if (partenaire.logoUrl.startsWith('/api/')) {
+        return buildAPIURL(partenaire.logoUrl);
+      }
+      // Otherwise use as is (might be full URL)
+      return partenaire.logoUrl;
+    }
+    if (partenaire.logo_url) {
+      if (partenaire.logo_url.startsWith('/uploads/')) {
+        return buildFileURL(partenaire.logo_url);
+      }
+      return partenaire.logo_url;
+    }
+    return null;
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-8">
       {/* Page Header */}
@@ -192,10 +211,10 @@ export default function PartenairesPage() {
                 <div key={`coa-${partenaire.id}-${index}`} className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden hover:shadow-xl transition-all duration-300">
                   {/* Logo */}
                   <div className={`h-32 flex items-center justify-center p-6 ${partenaire.nom === 'AESTIAM' ? 'bg-gray-800' : 'bg-gradient-to-br from-gray-50 to-gray-100'}`}>
-                    {(partenaire.logoUrl || partenaire.logo_url) ? (
+                    {getLogoUrl(partenaire) ? (
                       <div className="w-full h-full flex items-center justify-center">
                       <img 
-                          src={partenaire.logoUrl || (partenaire.logo_url && partenaire.logo_url.startsWith('/uploads/') ? buildFileURL(partenaire.logo_url) : partenaire.logo_url)} 
+                          src={getLogoUrl(partenaire)!} 
                         alt={`Logo ${partenaire.nom}`}
                           className="max-h-20 max-w-[90%] w-auto h-auto object-contain"
                           style={{ 
@@ -205,7 +224,7 @@ export default function PartenairesPage() {
                             height: 'auto'
                           }}
                           onError={(e) => {
-                            console.error('Image failed to load:', partenaire.logoUrl || partenaire.logo_url);
+                            console.error('Image failed to load:', getLogoUrl(partenaire));
                             (e.target as HTMLImageElement).style.display = 'none';
                             (e.target as HTMLImageElement).parentElement!.innerHTML = `<div class="w-20 h-20 bg-gradient-to-br from-blue-400 to-purple-400 rounded-lg flex items-center justify-center text-white font-bold text-xl">${partenaire.nom.charAt(0)}</div>`;
                           }}
@@ -342,10 +361,10 @@ export default function PartenairesPage() {
                 <div key={`cif-${partenaire.id}-${index}`} className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden hover:shadow-xl transition-all duration-300">
                   {/* Logo */}
                   <div className={`h-32 flex items-center justify-center p-6 ${partenaire.nom === 'AESTIAM' ? 'bg-gray-800' : 'bg-gradient-to-br from-gray-50 to-gray-100'}`}>
-                    {(partenaire.logoUrl || partenaire.logo_url) ? (
+                    {getLogoUrl(partenaire) ? (
                       <div className="w-full h-full flex items-center justify-center">
                       <img 
-                          src={partenaire.logoUrl || (partenaire.logo_url && partenaire.logo_url.startsWith('/uploads/') ? buildFileURL(partenaire.logo_url) : partenaire.logo_url)} 
+                          src={getLogoUrl(partenaire)!} 
                         alt={`Logo ${partenaire.nom}`}
                           className="max-h-20 max-w-[90%] w-auto h-auto object-contain"
                           style={{ 
@@ -355,7 +374,7 @@ export default function PartenairesPage() {
                             height: 'auto'
                           }}
                           onError={(e) => {
-                            console.error('Image failed to load:', partenaire.logoUrl || partenaire.logo_url);
+                            console.error('Image failed to load:', getLogoUrl(partenaire));
                             (e.target as HTMLImageElement).style.display = 'none';
                             (e.target as HTMLImageElement).parentElement!.innerHTML = `<div class="w-20 h-20 bg-gradient-to-br from-purple-400 to-pink-400 rounded-lg flex items-center justify-center text-white font-bold text-xl">${partenaire.nom.charAt(0)}</div>`;
                           }}
@@ -496,9 +515,9 @@ export default function PartenairesPage() {
               .map((partenaire: Partner) => (
                 <div key={partenaire.id} className="border border-gray-200 rounded-lg p-5 bg-white">
                   <div className="flex items-center space-x-3 mb-4">
-                    {(partenaire.logoUrl || partenaire.logo_url) && (
+                    {getLogoUrl(partenaire) && (
                       <img 
-                        src={partenaire.logoUrl || (partenaire.logo_url && partenaire.logo_url.startsWith('/uploads/') ? buildFileURL(partenaire.logo_url) : partenaire.logo_url)} 
+                        src={getLogoUrl(partenaire)!} 
                         alt={`Logo ${partenaire.nom}`}
                         className="w-12 h-12 object-contain"
                       />
@@ -566,9 +585,9 @@ export default function PartenairesPage() {
               .map((partenaire: Partner) => (
                 <div key={partenaire.id} className="border border-gray-200 rounded-lg p-5 bg-white">
                   <div className="flex items-center space-x-3 mb-4">
-                    {(partenaire.logoUrl || partenaire.logo_url) && (
+                    {getLogoUrl(partenaire) && (
                       <img 
-                        src={partenaire.logoUrl || (partenaire.logo_url && partenaire.logo_url.startsWith('/uploads/') ? buildFileURL(partenaire.logo_url) : partenaire.logo_url)} 
+                        src={getLogoUrl(partenaire)!} 
                         alt={`Logo ${partenaire.nom}`}
                         className="w-12 h-12 object-contain"
                       />
