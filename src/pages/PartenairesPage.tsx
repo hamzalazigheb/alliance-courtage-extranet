@@ -25,9 +25,22 @@ export default function PartenairesPage() {
         
         if (cached) {
           console.log('📊 Partners loaded from cache:', cached.length);
+          
+          // Ensure all partners have logoUrl if they have logo_content or hasLogoContent
+          const cachedWithLogos = cached.map((p: Partner) => {
+            // If partner has logo but no logoUrl, construct it
+            if ((p.hasLogoContent || p.logo_content) && !p.logoUrl) {
+              return {
+                ...p,
+                logoUrl: `/api/partners/${p.id}/logo`
+              };
+            }
+            return p;
+          });
+          
           // Organiser par catégorie
-          const coa = cached.filter((p: Partner) => p.is_active && (p.category === 'coa' || p.category?.toLowerCase() === 'coa'));
-          const cif = cached.filter((p: Partner) => p.is_active && (p.category === 'cif' || p.category?.toLowerCase() === 'cif'));
+          const coa = cachedWithLogos.filter((p: Partner) => p.is_active && (p.category === 'coa' || p.category?.toLowerCase() === 'coa'));
+          const cif = cachedWithLogos.filter((p: Partner) => p.is_active && (p.category === 'cif' || p.category?.toLowerCase() === 'cif'));
           setPartenaires({ coa, cif });
           setLoading(false);
           return;
@@ -58,12 +71,25 @@ export default function PartenairesPage() {
         // Filter out large base64 logos before caching to avoid quota issues
         const dataForCache = data.map((partner: Partner) => {
           // Remove logo_content if it's too large (over 100KB)
+          // BUT ALWAYS keep logoUrl so frontend can fetch via API
           if (partner.logo_content) {
             const logoSize = partner.logo_content.length;
             if (logoSize > 100 * 1024) { // 100KB
-              console.warn(`Removing large logo_content from partner ${partner.id} (${(logoSize / 1024).toFixed(2)}KB)`);
-              return { ...partner, logo_content: undefined };
+              console.warn(`Removing large logo_content from partner ${partner.id} (${(logoSize / 1024).toFixed(2)}KB), keeping logoUrl`);
+              return { 
+                ...partner, 
+                logo_content: undefined,
+                // CRITICAL: Keep logoUrl so frontend can fetch via /api/partners/:id/logo
+                logoUrl: partner.logoUrl || `/api/partners/${partner.id}/logo`
+              };
             }
+          }
+          // Ensure logoUrl is always present if hasLogoContent is true
+          if (partner.hasLogoContent && !partner.logoUrl) {
+            return {
+              ...partner,
+              logoUrl: `/api/partners/${partner.id}/logo`
+            };
           }
           return partner;
         });
@@ -122,19 +148,33 @@ export default function PartenairesPage() {
   // Helper function to build logo URL
   const getLogoUrl = (partenaire: Partner): string | null => {
     if (partenaire.logoUrl) {
-      // If logoUrl starts with /api/, use buildAPIURL to construct full URL
+      // If logoUrl already starts with /api/, use it directly (it's already a valid relative path)
+      // buildAPIURL would add /api again, causing /api/api/... (double)
       if (partenaire.logoUrl.startsWith('/api/')) {
-        return buildAPIURL(partenaire.logoUrl);
+        // Use directly - it's already a valid relative path that works with nginx proxy
+        return partenaire.logoUrl;
       }
-      // Otherwise use as is (might be full URL)
-      return partenaire.logoUrl;
+      // If it's already a full URL, use as is
+      if (partenaire.logoUrl.startsWith('http://') || partenaire.logoUrl.startsWith('https://')) {
+        return partenaire.logoUrl;
+      }
+      // Otherwise, assume it's a relative path without /api and use buildAPIURL
+      return buildAPIURL(partenaire.logoUrl);
     }
+    
+    // Fallback: logo_url (legacy file-based logos)
     if (partenaire.logo_url) {
       if (partenaire.logo_url.startsWith('/uploads/')) {
         return buildFileURL(partenaire.logo_url);
       }
+      // If it's already a full URL
+      if (partenaire.logo_url.startsWith('http://') || partenaire.logo_url.startsWith('https://')) {
+        return partenaire.logo_url;
+      }
+      // Otherwise, assume relative path
       return partenaire.logo_url;
     }
+    
     return null;
   };
 
