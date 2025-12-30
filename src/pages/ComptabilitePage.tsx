@@ -36,10 +36,12 @@ function ComptabilitePage({ currentUser, bordereaux }: { currentUser: User | nul
           // Extraire toutes les années disponibles depuis les bordereaux
           const years = new Set<string>();
           allData.forEach((b: any) => {
-            if (b.periodYear) {
-              years.add(b.periodYear.toString());
-            } else if (b.createdAt) {
-              const year = new Date(b.createdAt).getFullYear().toString();
+            // Utiliser periodYear si disponible, sinon YEAR(createdAt) comme fallback
+            const year = b.periodYear 
+              ? b.periodYear.toString() 
+              : (b.createdAt ? new Date(b.createdAt).getFullYear().toString() : null);
+            
+            if (year) {
               years.add(year);
             }
           });
@@ -49,7 +51,13 @@ function ComptabilitePage({ currentUser, bordereaux }: { currentUser: User | nul
           
           // Si aucune année trouvée, utiliser les années par défaut
           if (sortedYears.length === 0) {
-            sortedYears.push('2025', '2024');
+            sortedYears.push('2026', '2025', '2024');
+          } else {
+            // S'assurer que 2026 est présent si on est en 2026 ou après
+            const currentYear = new Date().getFullYear();
+            if (currentYear >= 2026 && !sortedYears.includes('2026')) {
+              sortedYears.unshift('2026');
+            }
           }
           
           setAvailableYears(sortedYears);
@@ -59,11 +67,17 @@ function ComptabilitePage({ currentUser, bordereaux }: { currentUser: User | nul
             setSelectedYear(sortedYears[0]);
           }
           
-          // Filter by selected year
+          // Filter by selected year - utiliser periodYear si disponible, sinon YEAR(createdAt)
           const filteredData = allData.filter((b: any) => {
-            if (selectedYear && b.periodYear?.toString() !== selectedYear && 
-                !(b.periodYear === null && new Date(b.createdAt).getFullYear().toString() === selectedYear)) {
-              return false;
+            if (selectedYear) {
+              // Utiliser periodYear si disponible, sinon YEAR(createdAt)
+              const bordereauYear = b.periodYear 
+                ? b.periodYear.toString() 
+                : (b.createdAt ? new Date(b.createdAt).getFullYear().toString() : null);
+              
+              if (!bordereauYear || bordereauYear !== selectedYear) {
+                return false;
+              }
             }
             return true;
           });

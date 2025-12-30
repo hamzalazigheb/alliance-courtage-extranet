@@ -81,8 +81,10 @@ router.get('/', auth, async (req, res) => {
     // Si admin ET pas de user_id dans query → voir tous les fichiers (pour GestionComptabilitePage)
     
     if (req.query.year) {
-      conditions.push('b.period_year = ?');
-      params.push(parseInt(req.query.year));
+      const year = parseInt(req.query.year);
+      // Inclure aussi les bordereaux où period_year est NULL mais created_at correspond
+      conditions.push('(b.period_year = ? OR (b.period_year IS NULL AND YEAR(b.created_at) = ?))');
+      params.push(year, year);
     }
     
     if (req.query.month) {
@@ -192,15 +194,34 @@ router.post('/', auth, authorize('admin'), upload.single('file'), async (req, re
     
     if (!finalPeriodMonth || !finalPeriodYear) {
       const baseName = path.basename(req.file.originalname);
-      const m1 = baseName.match(/(20\d{2})[-_\s]?(0[1-9]|1[0-2])/); // YYYY-MM
-      const m2 = baseName.match(/(0[1-9]|1[0-2])[-_\s]?(20\d{2})/); // MM-YYYY
+      
+      // Pattern 1: YYYY-MM ou YYYY_MM ou YYYY MM ou YYYY/MM
+      const m1 = baseName.match(/(20\d{2})[-_\s\/]?(0[1-9]|1[0-2])/);
+      // Pattern 2: MM-YYYY ou MM_YYYY ou MM YYYY ou MM/YYYY
+      const m2 = baseName.match(/(0[1-9]|1[0-2])[-_\s\/]?(20\d{2})/);
+      // Pattern 3: MM YY (2 chiffres pour l'année) - ex: "01 24" = janvier 2024
+      const m3 = baseName.match(/(0[1-9]|1[0-2])[-_\s\/]?(\d{2})(?![0-9])/);
+      
       if (m1) { 
         finalPeriodYear = parseInt(m1[1], 10); 
         finalPeriodMonth = parseInt(m1[2], 10); 
       } else if (m2) { 
         finalPeriodYear = parseInt(m2[2], 10); 
         finalPeriodMonth = parseInt(m2[1], 10); 
+      } else if (m3) {
+        // MM YY -> 20YY (ex: "01 24" = janvier 2024)
+        const year = 2000 + parseInt(m3[2], 10);
+        finalPeriodYear = year;
+        finalPeriodMonth = parseInt(m3[1], 10);
       }
+    }
+    
+    // Fallback final : utiliser la date actuelle si toujours NULL
+    if (!finalPeriodYear) {
+      finalPeriodYear = new Date().getFullYear();
+    }
+    if (!finalPeriodMonth) {
+      finalPeriodMonth = new Date().getMonth() + 1;
     }
     
     // Utiliser la date d'affichage configurée ou la date actuelle
