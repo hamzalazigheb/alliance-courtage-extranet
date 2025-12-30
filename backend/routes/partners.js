@@ -83,8 +83,6 @@ router.get('/', async (req, res) => {
     
     const partners = await query(sql, params);
     
-    const host = `${req.protocol}://${req.get('host')}`;
-    
     // Récupérer les contacts et documents pour tous les partenaires
     const partnerIds = partners.map(p => p.id);
     let contactsMap = {};
@@ -124,7 +122,7 @@ router.get('/', async (req, res) => {
         }
         documentsMap[doc.partner_id].push({
           ...doc,
-          downloadUrl: `${host}/api/partners/${doc.partner_id}/documents/${doc.id}/download`
+          downloadUrl: `/api/partners/${doc.partner_id}/documents/${doc.id}/download`
         });
       });
     }
@@ -132,18 +130,19 @@ router.get('/', async (req, res) => {
     // Add logoUrl, contacts and documents for each partner
     const partnersWithLogoUrl = partners.map(partner => {
       let logoUrl = null;
-      if (partner.logo_content) {
-        // Logo en base64
-        logoUrl = `${host}/api/partners/${partner.id}/logo`;
+      // Utiliser has_logo_content de la requête SQL (1 ou 0)
+      if (partner.has_logo_content === 1 || partner.has_logo_content === true) {
+        // Logo en base64 - URL relative pour fonctionner en production
+        logoUrl = `/api/partners/${partner.id}/logo`;
       } else if (partner.logo_url && partner.logo_url.trim() !== '') {
-        // Ancien logo avec logo_url
-        logoUrl = `${host}${partner.logo_url}`;
+        // Ancien logo avec logo_url - utiliser tel quel (déjà relatif)
+        logoUrl = partner.logo_url.startsWith('/') ? partner.logo_url : `/${partner.logo_url}`;
       }
       
       return {
         ...partner,
         logoUrl: logoUrl,
-        hasLogoContent: !!partner.logo_content,
+        hasLogoContent: partner.has_logo_content === 1 || partner.has_logo_content === true,
         contacts: contactsMap[partner.id] || [],
         documents: documentsMap[partner.id] || []
       };

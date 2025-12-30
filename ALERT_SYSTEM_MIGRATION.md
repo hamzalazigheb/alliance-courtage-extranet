@@ -201,3 +201,6 @@ Ces fichiers contiennent encore quelques `alert()` :
 **Développeur** : Assistant IA  
 **Statut** : ✅ TERMINÉ
 
+
+
+

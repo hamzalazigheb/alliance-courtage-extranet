@@ -98,3 +98,6 @@ async function fixMissingColumns() {
 // Exécuter la migration
 fixMissingColumns();
 
+
+
+
