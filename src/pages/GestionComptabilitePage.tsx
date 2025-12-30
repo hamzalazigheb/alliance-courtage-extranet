@@ -48,7 +48,7 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
       // Load recent bordereaux uploads from backend so they persist across sessions
       (async () => {
         try {
-          const res = await fetch(buildAPIURL('/bordereaux/recent?limit=20'), {
+          const res = await fetch(buildAPIURL('/bordereaux/recent?limit=1000'), {
             headers: { 'x-auth-token': localStorage.getItem('token') || '' }
           });
           if (res.ok) {
@@ -416,7 +416,7 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
                 periodMonth: data.periodMonth || null
               },
               ...prev
-            ].slice(0, 20));
+            ]);
           } else {
             const errorData = await response.json().catch(() => ({}));
             uploadError = errorData.error || 'Erreur lors de l\'upload';

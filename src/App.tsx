@@ -76,11 +76,6 @@ function App() {
     if (savedUser) {
       try {
         const user = JSON.parse(savedUser);
-        // Update cached user if it's VALOSA to use new name
-        if (user.name === 'VALOSA') {
-          user.name = 'JEAN MARTIN';
-          localStorage.setItem('currentUser', JSON.stringify(user));
-        }
         return user;
       } catch (error) {
         console.error('Error parsing saved user:', error);
@@ -377,7 +372,7 @@ function App() {
               <img 
                 src="/alliance-courtage-logo.svg" 
                 alt="Alliance Courtage Logo" 
-                className="h-12 sm:h-16 md:h-20 w-auto"
+                className="h-16 sm:h-20 md:h-28 w-auto"
               />
               {/* Texte de marque */}
               <div>
@@ -411,14 +406,20 @@ function App() {
                 )}
               </button>
               <div className="text-right hidden sm:block flex-shrink-0">
-                <div className="text-sm font-medium text-gray-900">{currentUser?.name}</div>
+                <div className="text-sm font-medium text-gray-900">
+                  {currentUser?.prenom && currentUser?.nom 
+                    ? `${currentUser.prenom} ${currentUser.nom}`
+                    : currentUser?.denomination_sociale || currentUser?.name || 'Utilisateur'}
+                </div>
                 <div className="text-xs text-gray-500">
                   {currentUser?.role === 'admin' ? 'Super Admin' : 'Utilisateur'}
                 </div>
               </div>
               <div className="flex-shrink-0">
                 <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center flex-shrink-0">
-                <span className="text-sm font-medium text-gray-700">{currentUser?.name?.charAt(0)}</span>
+                <span className="text-sm font-medium text-gray-700">
+                  {(currentUser?.prenom || currentUser?.nom || currentUser?.name || 'U')?.charAt(0).toUpperCase()}
+                </span>
                 </div>
               </div>
               <button
@@ -578,7 +579,8 @@ function App() {
                   <span className={currentPage === "simulateurs" ? "font-semibold" : ""}>Simulateurs</span>
                 </button>
               </li>
-              <li>
+              {/* Page Rencontres temporairement masquée */}
+              {/* <li>
                 <button 
                   onClick={() => changePage("rencontres")}
                   className={`w-full flex items-center space-x-4 px-4 py-3 rounded-xl transition-all duration-200 ${
@@ -592,7 +594,7 @@ function App() {
                   }`}></div>
                   <span className={currentPage === "rencontres" ? "font-semibold" : ""}>Rencontres Alliance Courtage</span>
                 </button>
-              </li>
+              </li> */}
 
               <li>
                 <button 

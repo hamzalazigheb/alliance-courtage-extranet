@@ -55,10 +55,6 @@ function UserManagementPage() {
   const [selectedRequest, setSelectedRequest] = useState<PasswordResetRequest | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [resetNotes, setResetNotes] = useState('');
-  const [showUploadForm, setShowUploadForm] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [selectedUserForUpload, setSelectedUserForUpload] = useState<number | null>(null);
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
   
   // Edit user state
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -434,43 +430,6 @@ function UserManagementPage() {
     }
   };
 
-  const handleFileUpload = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!uploadFile || !selectedUserForUpload) {
-      alert('Veuillez sélectionner un fichier et un utilisateur');
-      return;
-    }
-
-    try {
-      setUploading(true);
-      const formData = new FormData();
-      formData.append('file', uploadFile);
-      formData.append('user_id', selectedUserForUpload.toString());
-
-      const response = await fetch(buildAPIURL('/archives'), {
-        method: 'POST',
-        headers: {
-          'x-auth-token': localStorage.getItem('token') || ''
-        },
-        body: formData
-      });
-
-      if (response.ok) {
-        alert('Fichier uploadé avec succès pour l\'utilisateur!');
-        setUploadFile(null);
-        setSelectedUserForUpload(null);
-        setShowUploadForm(false);
-      } else {
-        const error = await response.json();
-        alert(error.error || 'Erreur lors de l\'upload');
-      }
-    } catch (error) {
-      console.error('Error uploading file:', error);
-      alert('Erreur lors de l\'upload du fichier');
-    } finally {
-      setUploading(false);
-    }
-  };
 
   // Get pending requests count
   const pendingRequests = resetRequests.filter(r => r.status === 'pending');
@@ -905,8 +864,8 @@ function UserManagementPage() {
         ) : (
           <div>
             
-            <div className="overflow-x-auto">
-            <table className="w-full">
+            <div className="overflow-x-auto overflow-y-visible" style={{ minWidth: '100%' }}>
+            <table className="w-full" style={{ minWidth: '1200px' }}>
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Utilisateur</th>
@@ -916,7 +875,7 @@ function UserManagementPage() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '80px', width: '80px' }}>Code postal</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rôle</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '280px', width: '280px' }}>Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -1011,50 +970,39 @@ function UserManagementPage() {
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-4 text-sm font-medium space-x-2">
-                      <button
-                        onClick={() => {
-                          setEditingUser(user);
-                          setEditFormData({
-                            nom: user.nom,
-                            prenom: user.prenom,
-                            denomination_sociale: user.denomination_sociale || '',
-                            telephone: user.telephone || '',
-                            code_postal: user.code_postal || '',
-                            validite_date: user.validite_date ? user.validite_date.split('T')[0] : ''
-                          });
-                        }}
-                        className="text-blue-600 hover:text-blue-700 transition-colors mr-3"
-                        title="Modifier"
-                      >
-                        <svg className="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                        Modifier
-                      </button>
-                      <button
-                        onClick={() => {
-                          setSelectedUserForUpload(user.id);
-                          setShowUploadForm(true);
-                        }}
-                        className="text-green-600 hover:text-green-700 transition-colors mr-3"
-                        title="Upload fichier"
-                      >
-                        <svg className="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                        </svg>
-                        Upload
-                      </button>
-                      <button
-                        onClick={() => handleDelete(user.id)}
-                        className="text-red-600 hover:text-red-700 transition-colors"
-                        title="Supprimer"
-                      >
-                        <svg className="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                        Supprimer
-                      </button>
+                    <td className="px-4 py-4 text-sm font-medium whitespace-nowrap" style={{ minWidth: '280px', width: '280px' }}>
+                      <div className="flex items-center space-x-2 flex-wrap gap-2">
+                        <button
+                          onClick={() => {
+                            setEditingUser(user);
+                            setEditFormData({
+                              nom: user.nom,
+                              prenom: user.prenom,
+                              denomination_sociale: user.denomination_sociale || '',
+                              telephone: user.telephone || '',
+                              code_postal: user.code_postal || '',
+                              validite_date: user.validite_date ? user.validite_date.split('T')[0] : ''
+                            });
+                          }}
+                          className="text-blue-600 hover:text-blue-700 transition-colors flex-shrink-0 flex items-center"
+                          title="Modifier"
+                        >
+                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          <span className="whitespace-nowrap">Modifier</span>
+                        </button>
+                        <button
+                          onClick={() => handleDelete(user.id)}
+                          className="text-red-600 hover:text-red-700 transition-colors flex-shrink-0 flex items-center"
+                          title="Supprimer"
+                        >
+                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          <span className="whitespace-nowrap">Supprimer</span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1071,77 +1019,6 @@ function UserManagementPage() {
           </div>
         )}
       </div>
-
-      {/* File Upload Modal - Premium Style */}
-      {showUploadForm && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl p-6 shadow-2xl border border-gray-200 max-w-md w-full">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-gray-900">Upload fichier</h3>
-              <button
-                onClick={() => {
-                  setShowUploadForm(false);
-                  setUploadFile(null);
-                  setSelectedUserForUpload(null);
-                }}
-                className="text-gray-400 hover:text-gray-600 text-2xl"
-              >
-                ×
-              </button>
-            </div>
-            
-            <form onSubmit={handleFileUpload} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Utilisateur</label>
-                <select
-                  value={selectedUserForUpload || ''}
-                  onChange={(e) => setSelectedUserForUpload(parseInt(e.target.value))}
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                  required
-                >
-                  <option value="">Sélectionner un utilisateur</option>
-                  {users.map(user => (
-                    <option key={user.id} value={user.id}>
-                      {user.nom} {user.prenom} ({user.email})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Fichier</label>
-                <input
-                  type="file"
-                  onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                  required
-                />
-              </div>
-
-              <div className="flex space-x-3 pt-4">
-                <button
-                  type="submit"
-                  disabled={uploading}
-                  className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-all disabled:opacity-50"
-                >
-                  {uploading ? 'Upload...' : 'Uploader'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowUploadForm(false);
-                    setUploadFile(null);
-                    setSelectedUserForUpload(null);
-                  }}
-                  className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-medium transition-all"
-                >
-                  Annuler
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* Edit User Modal - Premium Style */}
       {editingUser && (

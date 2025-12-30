@@ -7,10 +7,12 @@ export default function ReglementairePage({ currentUser }: { currentUser: User |
   const [folders, setFolders] = useState<any[]>([]);
   const [documents, setDocuments] = useState<any[]>([]);
   const [loadingReglementaire, setLoadingReglementaire] = useState(true);
-  const [selectedYear, setSelectedYear] = useState('2025');
+  const [selectedYearValidantes, setSelectedYearValidantes] = useState('2025');
+  const [selectedYearObligatoires, setSelectedYearObligatoires] = useState('2025');
   const [selectedFormationType, setSelectedFormationType] = useState('validantes'); // 'validantes' ou 'obligatoires'
   const [selectedCategory, setSelectedCategory] = useState('all'); // 'all', 'CIF', 'IAS', 'IOB', 'IMMOBILIER'
   const [formations, setFormations] = useState<any[]>([]);
+  const [formationsObligatoires, setFormationsObligatoires] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -66,13 +68,13 @@ export default function ReglementairePage({ currentUser }: { currentUser: User |
     loadReglementaire();
   }, []);
 
-  // Load formations from API
+  // Load formations from API - charger pour l'année sélectionnée dans les validantes
   useEffect(() => {
     const loadFormations = async () => {
       if (!currentUser?.id) return;
       setLoading(true);
       try {
-        const data = await formationsAPI.getAll({ year: selectedYear });
+        const data = await formationsAPI.getAll({ year: selectedYearValidantes });
         setFormations(data);
       } catch (error) {
         console.error('Error loading formations:', error);
@@ -81,7 +83,21 @@ export default function ReglementairePage({ currentUser }: { currentUser: User |
       }
     };
     loadFormations();
-  }, [selectedYear, currentUser?.id]);
+  }, [selectedYearValidantes, currentUser?.id]);
+
+  // Load formations obligatoires from API - charger pour l'année sélectionnée dans les obligatoires
+  useEffect(() => {
+    const loadFormationsObligatoires = async () => {
+      if (!currentUser?.id) return;
+      try {
+        const data = await formationsAPI.getAll({ year: selectedYearObligatoires });
+        setFormationsObligatoires(data);
+      } catch (error) {
+        console.error('Error loading formations obligatoires:', error);
+      }
+    };
+    loadFormationsObligatoires();
+  }, [selectedYearObligatoires, currentUser?.id]);
 
   // Handle form submission
   const handleSubmitFormation = async (e: React.FormEvent) => {
@@ -143,11 +159,11 @@ export default function ReglementairePage({ currentUser }: { currentUser: User |
         heures: '',
         categories: [],
         delivree_par: '',
-        year: selectedYear,
+        year: selectedYearValidantes,
         file: null
       });
       // Reload formations
-      const reloadData = await formationsAPI.getAll({ year: selectedYear });
+      const reloadData = await formationsAPI.getAll({ year: selectedYearValidantes });
       setFormations(reloadData);
     } catch (error: any) {
       console.error('Error submitting formation:', error);
@@ -280,8 +296,9 @@ export default function ReglementairePage({ currentUser }: { currentUser: User |
     }
   };
 
-  // Années disponibles
-  const availableYears = ['2024', '2025', '2026'];
+  // Années disponibles - de 2024 à l'année actuelle + 1
+  const currentYear = new Date().getFullYear();
+  const availableYears = Array.from({ length: currentYear - 2023 + 1 }, (_, i) => (2024 + i).toString());
 
   // Filtrer les formations selon la catégorie sélectionnée
   const getFilteredFormations = () => {
@@ -293,9 +310,9 @@ export default function ReglementairePage({ currentUser }: { currentUser: User |
     return approvedFormations.filter(formation => formation.categories.includes(selectedCategory));
   };
 
-  // Calculer le total d'heures par catégorie pour l'année sélectionnée
+  // Calculer le total d'heures par catégorie pour l'année sélectionnée dans les obligatoires
   const getTotalHoursByCategory = (category: string) => {
-    const approvedFormations = formations.filter(f => f.statut === 'approved');
+    const approvedFormations = formationsObligatoires.filter(f => f.statut === 'approved');
     return approvedFormations
       .filter(formation => formation.categories.includes(category))
       .reduce((total, formation) => {
@@ -321,32 +338,27 @@ export default function ReglementairePage({ currentUser }: { currentUser: User |
         </p>
       </div>
 
-      {/* Navigation par Année */}
-      <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-gray-800">Sélection de l'Année</h2>
-          <div className="flex space-x-2">
-            {availableYears.map((year) => (
-              <button
-                key={year}
-                onClick={() => setSelectedYear(year)}
-                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-                  selectedYear === year
-                    ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
-              >
-                {year}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
       {/* Section Formations Obligatoires */}
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden border border-white/20">
         <div className="bg-gradient-to-r from-red-800 to-red-900 p-6">
-          <h2 className="text-2xl font-bold text-white">MES FORMATIONS OBLIGATOIRES {selectedYear}</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold text-white">MES FORMATIONS OBLIGATOIRES</h2>
+            <div className="flex space-x-2">
+              {availableYears.map((year) => (
+                <button
+                  key={year}
+                  onClick={() => setSelectedYearObligatoires(year)}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    selectedYearObligatoires === year
+                      ? "bg-white text-red-800 shadow-lg"
+                      : "bg-red-700 text-white hover:bg-red-600"
+                  }`}
+                >
+                  {year}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
         <div className="p-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -395,7 +407,22 @@ export default function ReglementairePage({ currentUser }: { currentUser: User |
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden border border-white/20">
         <div className="bg-gradient-to-r from-blue-800 to-blue-900 p-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-white">MES FORMATIONS VALIDANTES {selectedYear}</h2>
+            <h2 className="text-2xl font-bold text-white">MES FORMATIONS VALIDANTES</h2>
+            <div className="flex space-x-2">
+              {availableYears.map((year) => (
+                <button
+                  key={year}
+                  onClick={() => setSelectedYearValidantes(year)}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    selectedYearValidantes === year
+                      ? "bg-white text-blue-800 shadow-lg"
+                      : "bg-blue-700 text-white hover:bg-blue-600"
+                  }`}
+                >
+                  {year}
+                </button>
+              ))}
+            </div>
             <div className="flex space-x-2">
               <button
                 onClick={() => setSelectedCategory('all')}
@@ -535,7 +562,7 @@ export default function ReglementairePage({ currentUser }: { currentUser: User |
                 ) : (
                   <tr>
                     <td className="border border-gray-300 px-4 py-2 text-gray-500" colSpan={7}>
-                      Aucune formation approuvée enregistrée pour {selectedCategory === 'all' ? 'cette année' : selectedCategory} en {selectedYear}
+                      Aucune formation approuvée enregistrée pour {selectedCategory === 'all' ? 'cette année' : selectedCategory} en {selectedYearValidantes}
                   </td>
                 </tr>
                 )}

@@ -76,7 +76,11 @@ router.get('/home', auth, async (req, res) => {
         content: JSON.stringify({
           welcomeTitle: 'Bienvenue chez Alliance Courtage',
           news: [],
-          services: []
+          services: [],
+          contact: {
+            phone: '07.45.06.43.88',
+            email: 'contact@alliance-courtage.fr'
+          }
         })
       });
     }

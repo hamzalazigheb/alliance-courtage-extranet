@@ -241,7 +241,7 @@ const ManagePage: React.FC = () => {
               <img 
                 src="/alliance-courtage-logo.svg" 
                 alt="Alliance Courtage Logo" 
-                className="h-10 w-auto"
+                className="h-16 sm:h-20 md:h-24 w-auto"
               />
               <div className="hidden lg:block">
                 <h1 className="text-xl font-bold text-gray-900 dark:text-white">Administration</h1>

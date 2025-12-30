@@ -31,6 +31,10 @@ interface HomePageContent {
   welcomeTitle: string;
   news: NewsItem[];
   services: ServiceItem[];
+  contact?: {
+    phone: string;
+    email: string;
+  };
 }
 
 const CMSManagementPage: React.FC = () => {
@@ -63,14 +67,18 @@ const CMSManagementPage: React.FC = () => {
       { name: 'Prévoyance et santé' },
       { name: 'Assurances collectives' },
       { name: 'Investissement financier (CIF)' }
-    ]
+    ],
+    contact: {
+      phone: '07.45.06.43.88',
+      email: 'contact@alliance-courtage.fr'
+    }
   });
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [activePage, setActivePage] = useState<'home' | 'gamme-produits' | 'formations' | 'produits-structures' | 'rencontres' | 'reglementaire' | 'gamme-financiere' | 'partenaires' | 'notifications'>('home');
-  const [activeSection, setActiveSection] = useState<'welcome' | 'news' | 'services'>('welcome');
+  const [activeSection, setActiveSection] = useState<'welcome' | 'news' | 'services' | 'contact'>('welcome');
   const [pendingFormations, setPendingFormations] = useState<any[]>([]);
   const [allFormations, setAllFormations] = useState<any[]>([]);
   const [loadingFormations, setLoadingFormations] = useState(false);
@@ -264,6 +272,13 @@ const CMSManagementPage: React.FC = () => {
         if (data?.content) {
           if (activePage === 'home') {
             const parsedContent = JSON.parse(data.content);
+            // Assurer que contact existe avec les valeurs par défaut
+            if (!parsedContent.contact) {
+              parsedContent.contact = {
+                phone: '07.45.06.43.88',
+                email: 'contact@alliance-courtage.fr'
+              };
+            }
             setContent(parsedContent);
           } else {
             const parsed = JSON.parse(data.content);
@@ -554,7 +569,8 @@ const CMSManagementPage: React.FC = () => {
             {[
               { id: 'welcome', label: '🏠 Accueil' },
               { id: 'news', label: '📰 Actualités' },
-              { id: 'services', label: '⚙️ Services' }
+              { id: 'services', label: '⚙️ Services' },
+              { id: 'contact', label: '📞 Contact' }
             ].map(tab => (
               <button
                 key={tab.id}
@@ -1296,6 +1312,48 @@ const CMSManagementPage: React.FC = () => {
             ))}
           </div>
         )}
+
+        {activePage === 'home' && activeSection === 'contact' && (
+          <div className="space-y-4">
+            <h3 className="text-xl font-bold text-white mb-4">Contact</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-slate-300 mb-2">Téléphone</label>
+                <input
+                  type="text"
+                  value={content.contact?.phone || ''}
+                  onChange={(e) => setContent({ 
+                    ...content, 
+                    contact: { 
+                      ...content.contact, 
+                      phone: e.target.value 
+                    } as any 
+                  })}
+                  className="w-full px-4 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500"
+                  placeholder="07.45.06.43.88"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-semibold text-slate-300 mb-2">Email</label>
+                <input
+                  type="email"
+                  value={content.contact?.email || ''}
+                  onChange={(e) => setContent({ 
+                    ...content, 
+                    contact: { 
+                      ...content.contact, 
+                      email: e.target.value 
+                    } as any 
+                  })}
+                  className="w-full px-4 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500"
+                  placeholder="contact@alliance-courtage.fr"
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Live Preview - Only for Home page */}
@@ -1320,6 +1378,22 @@ const CMSManagementPage: React.FC = () => {
                   <li key={index} className="text-gray-700">• {service.name}</li>
                 ))}
               </ul>
+            )}
+            {activeSection === 'contact' && content.contact && (
+              <div className="space-y-2">
+                {content.contact.phone && (
+                  <div className="flex items-center space-x-2 text-gray-700">
+                    <span>📞</span>
+                    <span>{content.contact.phone}</span>
+                  </div>
+                )}
+                {content.contact.email && (
+                  <div className="flex items-center space-x-2 text-gray-700">
+                    <span>📧</span>
+                    <span>{content.contact.email}</span>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>

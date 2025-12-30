@@ -325,7 +325,7 @@ router.post('/', auth, authorize('admin'), upload.single('file'), async (req, re
 // @access  Private (Admin seulement)
 router.get('/recent', auth, authorize('admin'), async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const limit = Math.min(parseInt(req.query.limit) || 1000, 10000);
     // Utiliser l'interpolation directe pour LIMIT car MySQL ne supporte pas bien LIMIT avec paramètres préparés
     const rows = await query(
       `SELECT b.id as bordereauId, b.title, b.file_path as filePath, b.created_at,
