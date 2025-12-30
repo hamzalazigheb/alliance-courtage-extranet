@@ -34,6 +34,14 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
   const [editPeriodMonth, setEditPeriodMonth] = useState<string>('');
   const [editPeriodDay, setEditPeriodDay] = useState<string>('');
   
+  // Filtres pour les derniers fichiers uploadés
+  const [recentUploadsFilter, setRecentUploadsFilter] = useState({
+    search: '',
+    userId: '' as number | '',
+    year: '' as number | '',
+    month: '' as number | ''
+  });
+  
   // Upload results modal
   const [uploadResultsModal, setUploadResultsModal] = useState<{
     show: boolean;
@@ -660,6 +668,159 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
     }
   };
 
+  // Fonctions de filtrage pour les derniers fichiers uploadés
+  const getFilteredRecentUploads = () => {
+    return recentUploads.filter((r) => {
+      if (!r || !r.title) return false;
+      
+      // Filtre par recherche (nom du fichier ou utilisateur)
+      if (recentUploadsFilter.search) {
+        const searchLower = recentUploadsFilter.search.toLowerCase();
+        if (!r.title.toLowerCase().includes(searchLower) && 
+            !(r.userLabel || '').toLowerCase().includes(searchLower)) {
+          return false;
+        }
+      }
+      
+      // Filtre par utilisateur
+      if (recentUploadsFilter.userId && r.userId !== recentUploadsFilter.userId) {
+        return false;
+      }
+      
+      // Filtre par année
+      if (recentUploadsFilter.year) {
+        const fileYear = r.periodYear || (r.createdAt ? new Date(r.createdAt).getFullYear() : null);
+        if (fileYear !== recentUploadsFilter.year) {
+          return false;
+        }
+      }
+      
+      // Filtre par mois
+      if (recentUploadsFilter.month) {
+        const fileMonth = r.periodMonth || (r.createdAt ? new Date(r.createdAt).getMonth() + 1 : null);
+        if (fileMonth !== recentUploadsFilter.month) {
+          return false;
+        }
+      }
+      
+      return true;
+    });
+  };
+
+  // Extraire les années disponibles
+  const getAvailableYears = () => {
+    const years = new Set<number>();
+    recentUploads.forEach(r => {
+      const year = r.periodYear || (r.createdAt ? new Date(r.createdAt).getFullYear() : null);
+      if (year) years.add(year);
+    });
+    return Array.from(years).sort((a, b) => b - a);
+  };
+
+  // Liste des mois
+  const getAvailableMonths = () => {
+    return [
+      { value: 1, label: 'Janvier' },
+      { value: 2, label: 'Février' },
+      { value: 3, label: 'Mars' },
+      { value: 4, label: 'Avril' },
+      { value: 5, label: 'Mai' },
+      { value: 6, label: 'Juin' },
+      { value: 7, label: 'Juillet' },
+      { value: 8, label: 'Août' },
+      { value: 9, label: 'Septembre' },
+      { value: 10, label: 'Octobre' },
+      { value: 11, label: 'Novembre' },
+      { value: 12, label: 'Décembre' }
+    ];
+  };
+
+  // Fonction pour obtenir l'icône selon le type de fichier
+  const getFileIcon = (fileName: string) => {
+    const extension = fileName.toLowerCase().split('.').pop() || '';
+    
+    // PDF
+    if (extension === 'pdf') {
+      return (
+        <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" />
+          <path d="M8,10H16V12H8V10M8,14H13V16H8V14Z" />
+        </svg>
+      );
+    }
+    
+    // Word (.doc, .docx)
+    if (extension === 'doc' || extension === 'docx') {
+      return (
+        <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" />
+          <path d="M8,10H16V12H8V10M8,14H13V16H8V14Z" />
+        </svg>
+      );
+    }
+    
+    // Excel (.xls, .xlsx)
+    if (extension === 'xls' || extension === 'xlsx') {
+      return (
+        <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" />
+          <path d="M8,10H12V12H8V10M8,14H12V16H8V14M14,10H16V12H14V10M14,14H16V16H14V14Z" />
+        </svg>
+      );
+    }
+    
+    // PowerPoint (.ppt, .pptx)
+    if (extension === 'ppt' || extension === 'pptx') {
+      return (
+        <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" />
+          <circle cx="12" cy="13" r="2" />
+          <path d="M8,10H16V12H8V10Z" />
+        </svg>
+      );
+    }
+    
+    // Image
+    if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp'].includes(extension)) {
+      return (
+        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      );
+    }
+    
+    // Fichier générique (par défaut)
+    return (
+      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    );
+  };
+
+  // Fonction pour obtenir la couleur du badge selon le type de fichier
+  const getFileIconBg = (fileName: string) => {
+    const extension = fileName.toLowerCase().split('.').pop() || '';
+    
+    if (extension === 'pdf') {
+      return 'bg-gradient-to-br from-red-500 to-red-600';
+    }
+    if (extension === 'doc' || extension === 'docx') {
+      return 'bg-gradient-to-br from-blue-600 to-blue-700';
+    }
+    if (extension === 'xls' || extension === 'xlsx') {
+      return 'bg-gradient-to-br from-green-600 to-green-700';
+    }
+    if (extension === 'ppt' || extension === 'pptx') {
+      return 'bg-gradient-to-br from-orange-500 to-orange-600';
+    }
+    if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp'].includes(extension)) {
+      return 'bg-gradient-to-br from-purple-500 to-purple-600';
+    }
+    
+    // Par défaut : couleur de la charte graphique
+    return 'bg-gradient-to-br from-[#0B1220] to-[#1D4ED8]';
+  };
+
   // Handle bulk file selection (original method - for preview mode)
   const handleBulkFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -800,29 +961,176 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
         </div>
 
         {recentUploads.length > 0 && (
-          <div className="mb-8 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-            <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-emerald-50 to-green-50">
-              <h3 className="text-xl font-bold text-gray-800">Derniers fichiers uploadés</h3>
-            </div>
-            <div className="divide-y divide-gray-200">
-              {recentUploads
-                .filter((r) => r && r.title) // Filtrer les valeurs null/undefined
-                .map((r) => (
-                <div key={r.archiveId} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                  <div className="flex-1">
-                    <div className="font-medium text-gray-900">{r.title}</div>
-                    <div className="text-sm text-gray-600">→ {r.userLabel || 'Inconnu'}</div>
-                    <div className="text-xs text-gray-400 mt-1">
-                      {r.createdAt ? new Date(r.createdAt).toLocaleString('fr-FR') : 'Date inconnue'}
+          <div className="mb-8 bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
+            <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-[#0B1220] via-[#1D4ED8] to-[#1E40AF]">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+                <div>
+                  <h3 className="text-2xl font-bold text-white mb-1">Derniers fichiers uploadés</h3>
+                  <p className="text-blue-100 text-sm">Gérez et filtrez vos fichiers uploadés</p>
+                </div>
+                <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-2 border border-white/30">
+                  <span className="text-white font-semibold text-lg">
+                    {getFilteredRecentUploads().length} / {recentUploads.length}
+                  </span>
+                  <span className="text-blue-100 text-sm ml-1">fichier(s)</span>
+                </div>
+              </div>
+              
+              {/* Filtres Premium */}
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Recherche */}
+                  <div className="space-y-2">
+                    <label className="flex items-center space-x-2 text-white text-sm font-semibold">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      <span>Recherche</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Nom fichier ou utilisateur..."
+                        value={recentUploadsFilter.search}
+                        onChange={(e) => setRecentUploadsFilter({ ...recentUploadsFilter, search: e.target.value })}
+                        className="w-full px-4 py-2.5 pl-10 text-sm bg-white rounded-lg border-2 border-white/30 focus:border-white focus:ring-2 focus:ring-white/50 shadow-lg transition-all placeholder-gray-400"
+                      />
+                      <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-3">
+                  
+                  {/* Filtre par utilisateur */}
+                  <div className="space-y-2">
+                    <label className="flex items-center space-x-2 text-white text-sm font-semibold">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      <span>Utilisateur</span>
+                    </label>
+                    <select
+                      value={recentUploadsFilter.userId}
+                      onChange={(e) => setRecentUploadsFilter({ ...recentUploadsFilter, userId: e.target.value ? parseInt(e.target.value) : '' })}
+                      className="w-full px-4 py-2.5 text-sm bg-white rounded-lg border-2 border-white/30 focus:border-white focus:ring-2 focus:ring-white/50 shadow-lg transition-all appearance-none cursor-pointer"
+                    >
+                      <option value="">Tous les utilisateurs</option>
+                      {users.map(user => (
+                        <option key={user.id} value={user.id}>
+                          {user.prenom} {user.nom}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  {/* Filtre par année */}
+                  <div className="space-y-2">
+                    <label className="flex items-center space-x-2 text-white text-sm font-semibold">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span>Année</span>
+                    </label>
+                    <select
+                      value={recentUploadsFilter.year}
+                      onChange={(e) => setRecentUploadsFilter({ ...recentUploadsFilter, year: e.target.value ? parseInt(e.target.value) : '', month: '' })}
+                      className="w-full px-4 py-2.5 text-sm bg-white rounded-lg border-2 border-white/30 focus:border-white focus:ring-2 focus:ring-white/50 shadow-lg transition-all appearance-none cursor-pointer"
+                    >
+                      <option value="">Toutes les années</option>
+                      {getAvailableYears().map(year => (
+                        <option key={year} value={year}>{year}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  {/* Filtre par mois */}
+                  <div className="space-y-2">
+                    <label className="flex items-center space-x-2 text-white text-sm font-semibold">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span>Mois</span>
+                    </label>
+                    <select
+                      value={recentUploadsFilter.month}
+                      onChange={(e) => setRecentUploadsFilter({ ...recentUploadsFilter, month: e.target.value ? parseInt(e.target.value) : '' })}
+                      className="w-full px-4 py-2.5 text-sm bg-white rounded-lg border-2 border-white/30 focus:border-white focus:ring-2 focus:ring-white/50 shadow-lg transition-all appearance-none cursor-pointer disabled:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={!recentUploadsFilter.year}
+                    >
+                      <option value="">Tous les mois</option>
+                      {getAvailableMonths().map(month => (
+                        <option key={month.value} value={month.value}>{month.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                
+                {/* Bouton réinitialiser les filtres */}
+                {(recentUploadsFilter.search || recentUploadsFilter.userId || recentUploadsFilter.year || recentUploadsFilter.month) && (
+                  <div className="mt-4 pt-4 border-t border-white/20">
+                    <button
+                      onClick={() => setRecentUploadsFilter({ search: '', userId: '', year: '', month: '' })}
+                      className="flex items-center space-x-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg font-medium transition-all duration-200 hover:scale-105"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      <span>Réinitialiser les filtres</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="divide-y divide-gray-100">
+              {getFilteredRecentUploads().length > 0 ? (
+                getFilteredRecentUploads()
+                  .filter((r) => r && r.title) // Filtrer les valeurs null/undefined
+                  .map((r) => (
+                <div key={r.archiveId} className="p-5 flex items-center justify-between hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-all duration-200 group">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center space-x-3 mb-2">
+                      <div className={`flex-shrink-0 w-10 h-10 ${getFileIconBg(r.title)} rounded-lg flex items-center justify-center shadow-md group-hover:shadow-lg transition-shadow`}>
+                        {getFileIcon(r.title)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-gray-900 truncate group-hover:text-[#1D4ED8] transition-colors">{r.title}</div>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <div className="flex items-center space-x-1 text-sm text-gray-600">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                            <span className="truncate">{r.userLabel || 'Inconnu'}</span>
+                          </div>
+                          {r.periodYear && (
+                            <div className="flex items-center space-x-1 text-xs text-[#1D4ED8] bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                              <span>{r.periodYear}{r.periodMonth ? `/${String(r.periodMonth).padStart(2, '0')}` : ''}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-400 mt-1 flex items-center space-x-1">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span>{r.createdAt ? new Date(r.createdAt).toLocaleString('fr-FR') : 'Date inconnue'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2 ml-4">
                     <button
                       onClick={() => handleOpenBordereau(r.fileUrl, r.title, r.archiveId)}
-                      className="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                      className="px-4 py-2 text-sm rounded-lg bg-gradient-to-r from-[#0B1220] to-[#1D4ED8] text-white hover:from-[#0b1428] hover:to-[#1E40AF] transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 flex items-center space-x-1.5 font-medium"
                       title="Ouvrir le fichier"
                     >
-                      👁️ Ouvrir
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                      <span>Ouvrir</span>
                     </button>
                     <button
                       onClick={() => {
@@ -832,32 +1140,59 @@ function GestionComptabilitePage({ currentUser }: { currentUser: User | null }) 
                         setEditPeriodMonth(r.periodMonth?.toString() || (createdAt.getMonth() + 1).toString());
                         setEditPeriodDay(createdAt.getDate().toString());
                       }}
-                      className="px-3 py-1.5 text-sm rounded-md bg-yellow-600 text-white hover:bg-yellow-700 transition-colors"
+                      className="px-4 py-2 text-sm rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 flex items-center space-x-1.5 font-medium"
                       title="Modifier la période (année, mois, jour)"
                     >
-                      📅 Modifier période
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span>Période</span>
                     </button>
                     <button
                       onClick={() => handleDeleteBordereau(r.archiveId)}
                       disabled={deletingIds.has(r.archiveId)}
-                      className="px-3 py-1.5 text-sm rounded-md bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1 font-medium"
+                      className="px-4 py-2 text-sm rounded-lg bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700 transition-all duration-200 shadow-md hover:shadow-lg transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center space-x-1.5 font-medium"
                       title="Supprimer ce fichier (action irréversible)"
                     >
                       {deletingIds.has(r.archiveId) ? (
                         <>
-                          <span className="animate-spin">⏳</span>
+                          <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
                           <span>Suppression...</span>
                         </>
                       ) : (
                         <>
-                          <span>🗑️</span>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
                           <span>Supprimer</span>
                         </>
                       )}
                     </button>
                   </div>
                 </div>
-              ))}
+                ))
+              ) : (
+                <div className="p-12 text-center">
+                  <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
+                    <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <p className="text-gray-600 font-medium mb-2">Aucun fichier ne correspond aux filtres sélectionnés</p>
+                  <p className="text-sm text-gray-400 mb-4">Essayez de modifier vos critères de recherche</p>
+                  <button
+                    onClick={() => setRecentUploadsFilter({ search: '', userId: '', year: '', month: '' })}
+                    className="inline-flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-[#0B1220] to-[#1D4ED8] hover:from-[#0b1428] hover:to-[#1E40AF] text-white rounded-lg font-medium transition-all duration-200 hover:scale-105 shadow-md hover:shadow-lg"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <span>Réinitialiser les filtres</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}

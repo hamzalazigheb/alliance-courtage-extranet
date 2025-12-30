@@ -76,7 +76,7 @@ function ComptabilitePage({ currentUser, bordereaux }: { currentUser: User | nul
                 : (b.createdAt ? new Date(b.createdAt).getFullYear().toString() : null);
               
               if (!bordereauYear || bordereauYear !== selectedYear) {
-                return false;
+              return false;
               }
             }
             return true;
