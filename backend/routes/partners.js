@@ -130,8 +130,16 @@ router.get('/', async (req, res) => {
     // Add logoUrl, contacts and documents for each partner
     const partnersWithLogoUrl = partners.map(partner => {
       let logoUrl = null;
-      // Utiliser has_logo_content de la requête SQL (1 ou 0)
-      if (partner.has_logo_content === 1 || partner.has_logo_content === true) {
+      // Convertir has_logo_content en booléen de manière robuste
+      // MySQL peut retourner 1, 0, true, false, Buffer, etc.
+      const hasLogo = !!(partner.has_logo_content && (
+        partner.has_logo_content === 1 || 
+        partner.has_logo_content === true || 
+        Number(partner.has_logo_content) === 1 ||
+        String(partner.has_logo_content) === '1'
+      ));
+      
+      if (hasLogo) {
         // Logo en base64 - URL relative pour fonctionner en production
         logoUrl = `/api/partners/${partner.id}/logo`;
       } else if (partner.logo_url && partner.logo_url.trim() !== '') {
@@ -142,7 +150,7 @@ router.get('/', async (req, res) => {
       return {
         ...partner,
         logoUrl: logoUrl,
-        hasLogoContent: partner.has_logo_content === 1 || partner.has_logo_content === true,
+        hasLogoContent: hasLogo,
         contacts: contactsMap[partner.id] || [],
         documents: documentsMap[partner.id] || []
       };
