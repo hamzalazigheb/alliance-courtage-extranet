@@ -348,7 +348,11 @@ function App() {
         </div>
       );
     }
-    return <ManagePage />;
+    return (
+      <Suspense fallback={<LoadingSpinner />}>
+        <ManagePage />
+      </Suspense>
+    );
   }
 
   return (
