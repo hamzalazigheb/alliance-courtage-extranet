@@ -47,8 +47,8 @@ function UserManagementPage() {
   const [loading, setLoading] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all');
   
-  // Pagination
-  const { paginatedData: paginatedUsers, pagination, goToPage, setItemsPerPage } = usePagination(users, 50);
+  // Pagination - Display all users to avoid scrolling
+  const { paginatedData: paginatedUsers, pagination, goToPage, setItemsPerPage } = usePagination(users, 1000);
   const [showAddForm, setShowAddForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [resetRequests, setResetRequests] = useState<PasswordResetRequest[]>([]);
@@ -878,17 +878,17 @@ function UserManagementPage() {
         ) : (
           <div className="w-full">
             <div className="w-full">
-            <table className="w-full table-auto" style={{ tableLayout: 'auto' }}>
-              <thead className="bg-gray-50">
+            <table className="w-full table-auto" style={{ tableLayout: 'auto', fontSize: '0.75rem' }}>
+              <thead className="bg-gray-50 sticky top-0 z-10">
                 <tr>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Utilisateur</th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dénomination sociale</th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Téléphone</th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code postal</th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rôle</th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Utilisateur</th>
+                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dénomination sociale</th>
+                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Téléphone</th>
+                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code postal</th>
+                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rôle</th>
+                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
+                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -897,32 +897,32 @@ function UserManagementPage() {
                     key={user.id} 
                     className={`${!user.is_active || (user.validite_date && new Date(user.validite_date) < new Date()) ? 'bg-gray-100 opacity-75' : 'hover:bg-gray-50'} transition-colors`}
                   >
-                    <td className="px-3 py-4">
-                      <div className="text-sm font-medium text-gray-900 truncate">{user.nom} {user.prenom}</div>
-                      <div className="text-xs text-gray-500 mt-1">{new Date(user.created_at).toLocaleDateString('fr-FR')}</div>
+                    <td className="px-2 py-2">
+                      <div className="text-xs font-medium text-gray-900 truncate">{user.nom} {user.prenom}</div>
+                      <div className="text-xs text-gray-500">{new Date(user.created_at).toLocaleDateString('fr-FR')}</div>
                     </td>
-                    <td className="px-3 py-4">
-                      <div className="text-sm text-gray-700 truncate">
+                    <td className="px-2 py-2">
+                      <div className="text-xs text-gray-700 truncate">
                         {user.denomination_sociale && user.denomination_sociale.trim() !== '' 
                           ? user.denomination_sociale 
                           : <span className="text-gray-400 italic">-</span>}
                       </div>
                     </td>
-                    <td className="px-3 py-4">
-                      <div className="text-sm text-gray-700 truncate">{user.email}</div>
+                    <td className="px-2 py-2">
+                      <div className="text-xs text-gray-700 truncate">{user.email}</div>
                     </td>
-                    <td className="px-3 py-4 text-sm text-gray-700 truncate">
+                    <td className="px-2 py-2 text-xs text-gray-700 truncate">
                       {user.telephone && user.telephone.trim() !== '' 
                         ? user.telephone 
                         : <span className="text-gray-400 italic">-</span>}
                     </td>
-                    <td className="px-3 py-4 text-sm text-gray-700 truncate">
+                    <td className="px-2 py-2 text-xs text-gray-700 truncate">
                       {user.code_postal && user.code_postal.trim() !== '' 
                         ? user.code_postal 
                         : <span className="text-gray-400 italic">-</span>}
                     </td>
-                    <td className="px-3 py-4">
-                      <div className="flex items-center space-x-2 flex-wrap gap-1">
+                    <td className="px-2 py-2">
+                      <div className="flex items-center space-x-1 flex-wrap gap-1">
                         <select
                           value={user.role}
                           onChange={async (e) => {
@@ -947,23 +947,23 @@ function UserManagementPage() {
                               alert('Erreur lors de la mise à jour du rôle');
                             }
                           }}
-                          className="px-2 py-1 rounded border border-gray-300 bg-white text-gray-700 text-xs"
+                          className="px-1 py-0.5 rounded border border-gray-300 bg-white text-gray-700 text-xs"
                         >
                           <option value="user">Utilisateur</option>
                           <option value="admin">Administrateur</option>
                         </select>
-                        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                        <span className={`inline-flex px-1.5 py-0.5 text-xs font-medium rounded-full ${
                           user.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
                         }`}>
                           {user.role === 'admin' ? 'Admin' : 'User'}
                         </span>
                       </div>
                     </td>
-                    <td className="px-3 py-4">
-                      <div className="flex flex-col gap-1">
+                    <td className="px-2 py-2">
+                      <div className="flex flex-col gap-0.5">
                         <button
                           onClick={() => handleToggleActive(user.id, user.is_active)}
-                          className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                          className={`inline-flex px-1.5 py-0.5 text-xs font-medium rounded-full ${
                             user.is_active
                               ? 'bg-green-100 text-green-800 hover:bg-green-200'
                               : 'bg-red-100 text-red-800 hover:bg-red-200'
@@ -972,18 +972,18 @@ function UserManagementPage() {
                           {user.is_active ? '✓ Actif' : '✗ Inactif'}
                         </button>
                         {user.validite_date && new Date(user.validite_date) < new Date() && (
-                          <span className="inline-flex px-2 py-0.5 text-xs font-medium rounded-full bg-orange-100 text-orange-800">
+                          <span className="inline-flex px-1.5 py-0.5 text-xs font-medium rounded-full bg-orange-100 text-orange-800">
                             ⏰ Expiré
                           </span>
                         )}
                         {user.validite_date && new Date(user.validite_date) >= new Date() && (
                           <span className="text-xs text-gray-500 truncate">
-                            Expire: {new Date(user.validite_date).toLocaleDateString('fr-FR')}
+                            {new Date(user.validite_date).toLocaleDateString('fr-FR')}
                           </span>
                         )}
                       </div>
                     </td>
-                    <td className="px-3 py-4 text-sm font-medium">
+                    <td className="px-2 py-2 text-xs font-medium">
                       <div className="flex items-center space-x-1 flex-wrap gap-1">
                       <button
                         onClick={() => {
@@ -997,19 +997,19 @@ function UserManagementPage() {
                             validite_date: user.validite_date ? user.validite_date.split('T')[0] : ''
                           });
                         }}
-                          className="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors flex-shrink-0"
+                          className="p-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors flex-shrink-0"
                         title="Modifier"
                       >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                         </svg>
                       </button>
                       <button
                         onClick={() => handleDelete(user.id)}
-                          className="p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors flex-shrink-0"
+                          className="p-1 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors flex-shrink-0"
                         title="Supprimer"
                       >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
                       </button>
@@ -1024,9 +1024,9 @@ function UserManagementPage() {
         )}
         </div>
         
-        {/* Pagination - Fixed at bottom */}
-        {users.length > 0 && pagination.totalPages > 1 && (
-          <div className="p-4 border-t border-gray-200 flex-shrink-0 bg-white">
+        {/* Pagination - Hidden when all users fit on one page */}
+        {users.length > 0 && pagination.totalPages > 1 && users.length > 1000 && (
+          <div className="p-2 border-t border-gray-200 flex-shrink-0 bg-white">
             <PaginationControls
               pagination={pagination}
               onPageChange={goToPage}
