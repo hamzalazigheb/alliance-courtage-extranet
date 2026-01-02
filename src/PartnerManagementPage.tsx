@@ -770,6 +770,17 @@ const PartnerManagementPage: React.FC = () => {
             setSelectedPartnerForContacts(null);
             loadPartners();
           }}
+          onPartnerUpdate={(updatedPartner) => {
+            // Mettre à jour le partenaire dans la liste immédiatement
+            setPartners(prevPartners => 
+              prevPartners.map(p => p.id === updatedPartner.id ? updatedPartner : p)
+            );
+            setAllPartners(prevAllPartners => 
+              prevAllPartners.map(p => p.id === updatedPartner.id ? updatedPartner : p)
+            );
+            // Mettre à jour aussi le partenaire sélectionné
+            setSelectedPartnerForContacts(updatedPartner);
+          }}
         />
       )}
 
@@ -792,9 +803,10 @@ const PartnerManagementPage: React.FC = () => {
 interface ContactsManagementModalProps {
   partner: Partner;
   onClose: () => void;
+  onPartnerUpdate?: (updatedPartner: Partner) => void;
 }
 
-const ContactsManagementModal: React.FC<ContactsManagementModalProps> = ({ partner, onClose }) => {
+const ContactsManagementModal: React.FC<ContactsManagementModalProps> = ({ partner, onClose, onPartnerUpdate }) => {
   const { showSuccess, showError, showWarning } = useAlert();
   const [contacts, setContacts] = useState<PartnerContact[]>(partner.contacts || []);
   const [loading, setLoading] = useState(false);
@@ -818,7 +830,17 @@ const ContactsManagementModal: React.FC<ContactsManagementModalProps> = ({ partn
       });
       if (response.ok) {
         const data = await response.json();
-        setContacts(Array.isArray(data) ? data : []);
+        const updatedContacts = Array.isArray(data) ? data : [];
+        setContacts(updatedContacts);
+        
+        // Mettre à jour le partenaire dans le state parent si callback fourni
+        if (onPartnerUpdate) {
+          const updatedPartner = {
+            ...partner,
+            contacts: updatedContacts
+          };
+          onPartnerUpdate(updatedPartner);
+        }
       } else {
         // Améliorer la gestion d'erreur
         const errorData = await response.json().catch(() => ({}));
@@ -905,7 +927,7 @@ const ContactsManagementModal: React.FC<ContactsManagementModalProps> = ({ partn
       }
 
       showSuccess('Contact supprimé avec succès !');
-      loadContacts();
+      await loadContacts();
     } catch (error) {
       console.error('Erreur suppression contact:', error);
       showError('Erreur lors de la suppression du contact');
