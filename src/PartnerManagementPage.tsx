@@ -795,6 +795,7 @@ interface ContactsManagementModalProps {
 }
 
 const ContactsManagementModal: React.FC<ContactsManagementModalProps> = ({ partner, onClose }) => {
+  const { showSuccess, showError, showWarning } = useAlert();
   const [contacts, setContacts] = useState<PartnerContact[]>(partner.contacts || []);
   const [loading, setLoading] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -1123,6 +1124,7 @@ interface DocumentsManagementModalProps {
 }
 
 const DocumentsManagementModal: React.FC<DocumentsManagementModalProps> = ({ partner, onClose }) => {
+  const { showSuccess, showError, showWarning } = useAlert();
   const [documents, setDocuments] = useState<PartnerDocument[]>(partner.documents || []);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
