@@ -436,7 +436,7 @@ function UserManagementPage() {
   const pendingCount = pendingRequests.length;
 
   return (
-    <div className="h-full flex flex-col space-y-3 overflow-hidden">
+    <div className="h-full w-full flex flex-col overflow-hidden -m-6 p-6">
       {/* Header - Compact */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex-shrink-0">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
@@ -842,9 +842,9 @@ function UserManagementPage() {
         </div>
       </div>
 
-      {/* Users List - Full height with internal scroll */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex-1 flex flex-col min-h-0">
-        <div className="p-4 border-b border-gray-200 flex-shrink-0">
+      {/* Users List - Full height without scroll */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex-1 flex flex-col min-h-0 h-full">
+        <div className="p-2 border-b border-gray-200 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <UserIcon className="w-5 h-5 text-blue-600" />
@@ -853,8 +853,8 @@ function UserManagementPage() {
           </div>
         </div>
 
-        {/* Table Container - Full height without internal scroll */}
-        <div className="flex-1 overflow-x-auto min-h-0">
+        {/* Table Container - Full height, no scroll, fit all content */}
+        <div className="flex-1 min-h-0 overflow-visible">
           {loading ? (
             <div className="p-8 text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -878,17 +878,17 @@ function UserManagementPage() {
         ) : (
           <div className="w-full">
             <div className="w-full">
-            <table className="w-full table-auto" style={{ tableLayout: 'auto', fontSize: '0.75rem' }}>
-              <thead className="bg-gray-50 sticky top-0 z-10">
+            <table className="w-full table-fixed" style={{ tableLayout: 'fixed', fontSize: '0.7rem' }}>
+              <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Utilisateur</th>
-                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dénomination sociale</th>
-                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Téléphone</th>
-                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code postal</th>
-                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rôle</th>
-                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
-                  <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-1.5 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ width: '12%' }}>Utilisateur</th>
+                  <th className="px-1.5 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ width: '15%' }}>Dénomination sociale</th>
+                  <th className="px-1.5 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ width: '18%' }}>Email</th>
+                  <th className="px-1.5 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ width: '10%' }}>Téléphone</th>
+                  <th className="px-1.5 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ width: '8%' }}>Code postal</th>
+                  <th className="px-1.5 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ width: '12%' }}>Rôle</th>
+                  <th className="px-1.5 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ width: '10%' }}>Statut</th>
+                  <th className="px-1.5 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ width: '10%' }}>Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -897,94 +897,75 @@ function UserManagementPage() {
                     key={user.id} 
                     className={`${!user.is_active || (user.validite_date && new Date(user.validite_date) < new Date()) ? 'bg-gray-100 opacity-75' : 'hover:bg-gray-50'} transition-colors`}
                   >
-                    <td className="px-2 py-2">
+                    <td className="px-1.5 py-1 overflow-hidden">
                       <div className="text-xs font-medium text-gray-900 truncate">{user.nom} {user.prenom}</div>
-                      <div className="text-xs text-gray-500">{new Date(user.created_at).toLocaleDateString('fr-FR')}</div>
+                      <div className="text-xs text-gray-500 truncate">{new Date(user.created_at).toLocaleDateString('fr-FR')}</div>
                     </td>
-                    <td className="px-2 py-2">
+                    <td className="px-1.5 py-1 overflow-hidden">
                       <div className="text-xs text-gray-700 truncate">
                         {user.denomination_sociale && user.denomination_sociale.trim() !== '' 
                           ? user.denomination_sociale 
                           : <span className="text-gray-400 italic">-</span>}
                       </div>
                     </td>
-                    <td className="px-2 py-2">
+                    <td className="px-1.5 py-1 overflow-hidden">
                       <div className="text-xs text-gray-700 truncate">{user.email}</div>
                     </td>
-                    <td className="px-2 py-2 text-xs text-gray-700 truncate">
+                    <td className="px-1.5 py-1 text-xs text-gray-700 truncate overflow-hidden">
                       {user.telephone && user.telephone.trim() !== '' 
                         ? user.telephone 
                         : <span className="text-gray-400 italic">-</span>}
                     </td>
-                    <td className="px-2 py-2 text-xs text-gray-700 truncate">
+                    <td className="px-1.5 py-1 text-xs text-gray-700 truncate overflow-hidden">
                       {user.code_postal && user.code_postal.trim() !== '' 
                         ? user.code_postal 
                         : <span className="text-gray-400 italic">-</span>}
                     </td>
-                    <td className="px-2 py-2">
-                      <div className="flex items-center space-x-1 flex-wrap gap-1">
-                        <select
-                          value={user.role}
-                          onChange={async (e) => {
-                            const newRole = e.target.value;
-                            try {
-                              const response = await fetch(buildAPIURL(`/users/${user.id}`), {
-                                method: 'PUT',
-                                headers: {
-                                  'Content-Type': 'application/json',
-                                  'x-auth-token': localStorage.getItem('token') || ''
-                                },
-                                body: JSON.stringify({ role: newRole })
-                              });
-                              if (response.ok) {
-                                loadUsers();
-                              } else {
-                                const err = await response.json().catch(() => ({}));
-                                alert(err.error || 'Erreur lors de la mise à jour du rôle');
-                              }
-                            } catch (err) {
-                              console.error('Error updating role:', err);
-                              alert('Erreur lors de la mise à jour du rôle');
+                    <td className="px-1.5 py-1 overflow-hidden">
+                      <select
+                        value={user.role}
+                        onChange={async (e) => {
+                          const newRole = e.target.value;
+                          try {
+                            const response = await fetch(buildAPIURL(`/users/${user.id}`), {
+                              method: 'PUT',
+                              headers: {
+                                'Content-Type': 'application/json',
+                                'x-auth-token': localStorage.getItem('token') || ''
+                              },
+                              body: JSON.stringify({ role: newRole })
+                            });
+                            if (response.ok) {
+                              loadUsers();
+                            } else {
+                              const err = await response.json().catch(() => ({}));
+                              alert(err.error || 'Erreur lors de la mise à jour du rôle');
                             }
-                          }}
-                          className="px-1 py-0.5 rounded border border-gray-300 bg-white text-gray-700 text-xs"
-                        >
-                          <option value="user">Utilisateur</option>
-                          <option value="admin">Administrateur</option>
-                        </select>
-                        <span className={`inline-flex px-1.5 py-0.5 text-xs font-medium rounded-full ${
-                          user.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
-                        }`}>
-                          {user.role === 'admin' ? 'Admin' : 'User'}
-                        </span>
-                      </div>
+                          } catch (err) {
+                            console.error('Error updating role:', err);
+                            alert('Erreur lors de la mise à jour du rôle');
+                          }
+                        }}
+                        className="w-full px-1 py-0.5 rounded border border-gray-300 bg-white text-gray-700 text-xs"
+                      >
+                        <option value="user">User</option>
+                        <option value="admin">Admin</option>
+                      </select>
                     </td>
-                    <td className="px-2 py-2">
-                      <div className="flex flex-col gap-0.5">
-                        <button
-                          onClick={() => handleToggleActive(user.id, user.is_active)}
-                          className={`inline-flex px-1.5 py-0.5 text-xs font-medium rounded-full ${
-                            user.is_active
-                              ? 'bg-green-100 text-green-800 hover:bg-green-200'
-                              : 'bg-red-100 text-red-800 hover:bg-red-200'
-                          }`}
-                        >
-                          {user.is_active ? '✓ Actif' : '✗ Inactif'}
-                        </button>
-                        {user.validite_date && new Date(user.validite_date) < new Date() && (
-                          <span className="inline-flex px-1.5 py-0.5 text-xs font-medium rounded-full bg-orange-100 text-orange-800">
-                            ⏰ Expiré
-                          </span>
-                        )}
-                        {user.validite_date && new Date(user.validite_date) >= new Date() && (
-                          <span className="text-xs text-gray-500 truncate">
-                            {new Date(user.validite_date).toLocaleDateString('fr-FR')}
-                          </span>
-                        )}
-                      </div>
+                    <td className="px-1.5 py-1 overflow-hidden">
+                      <button
+                        onClick={() => handleToggleActive(user.id, user.is_active)}
+                        className={`w-full px-1 py-0.5 text-xs font-medium rounded ${
+                          user.is_active
+                            ? 'bg-green-100 text-green-800 hover:bg-green-200'
+                            : 'bg-red-100 text-red-800 hover:bg-red-200'
+                        }`}
+                      >
+                        {user.is_active ? '✓' : '✗'}
+                      </button>
                     </td>
-                    <td className="px-2 py-2 text-xs font-medium">
-                      <div className="flex items-center space-x-1 flex-wrap gap-1">
+                    <td className="px-1.5 py-1 text-xs font-medium overflow-hidden">
+                      <div className="flex items-center gap-0.5">
                       <button
                         onClick={() => {
                           setEditingUser(user);
@@ -997,19 +978,19 @@ function UserManagementPage() {
                             validite_date: user.validite_date ? user.validite_date.split('T')[0] : ''
                           });
                         }}
-                          className="p-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors flex-shrink-0"
+                          className="p-0.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
                         title="Modifier"
                       >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                         </svg>
                       </button>
                       <button
                         onClick={() => handleDelete(user.id)}
-                          className="p-1 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors flex-shrink-0"
+                          className="p-0.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
                         title="Supprimer"
                       >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
                       </button>
