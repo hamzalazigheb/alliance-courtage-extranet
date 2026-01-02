@@ -818,10 +818,16 @@ const ContactsManagementModal: React.FC<ContactsManagementModalProps> = ({ partn
       });
       if (response.ok) {
         const data = await response.json();
-        setContacts(data);
+        setContacts(Array.isArray(data) ? data : []);
+      } else {
+        // Améliorer la gestion d'erreur
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Erreur chargement contacts:', response.status, errorData);
+        showError('Erreur lors du chargement des contacts');
       }
     } catch (error) {
       console.error('Erreur chargement contacts:', error);
+      showError('Erreur lors du chargement des contacts');
     } finally {
       setLoading(false);
     }
@@ -854,12 +860,15 @@ const ContactsManagementModal: React.FC<ContactsManagementModalProps> = ({ partn
       });
 
       if (!response.ok) {
-        throw new Error('Erreur lors de la sauvegarde');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Erreur lors de la sauvegarde');
       }
 
       showSuccess(editingContact ? 'Contact mis à jour avec succès !' : 'Contact créé avec succès !');
       resetForm();
-      loadContacts();
+      // Attendre un peu pour que le backend termine l'insertion
+      await new Promise(resolve => setTimeout(resolve, 300));
+      await loadContacts();
     } catch (error) {
       console.error('Erreur sauvegarde contact:', error);
       showError('Erreur lors de la sauvegarde du contact');
