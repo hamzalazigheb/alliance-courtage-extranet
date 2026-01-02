@@ -35,21 +35,11 @@ const AdminNavbar: React.FC<AdminNavbarProps> = ({
   className = ''
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isScrolled, setIsScrolled] = useState(false);
 
   // Filter items based on user role
   const visibleItems = useMemo(() => {
     return items.filter(item => !item.adminOnly || userRole === 'admin');
   }, [items, userRole]);
-
-  // Handle scroll for navbar shadow
-  useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 10);
-    };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
   // Close mobile menu on resize
   useEffect(() => {
@@ -93,16 +83,14 @@ const AdminNavbar: React.FC<AdminNavbarProps> = ({
 
   return (
     <>
-      {/* Desktop Navigation - Sticky Header */}
+      {/* Desktop Navigation - Fixed Header */}
       <nav
-        className={`hidden md:block bg-white border-b border-gray-200 shadow-sm transition-shadow duration-200 sticky top-0 z-40 ${
-          isScrolled ? 'shadow-md' : 'shadow-sm'
-        } ${className}`}
+        className={`hidden md:block bg-white border-b border-gray-200 shadow-sm transition-shadow duration-200 z-40 ${className}`}
         role="navigation"
         aria-label="Navigation principale"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex space-x-1.5 overflow-x-auto scrollbar-hide py-2">
+          <div className="flex space-x-0.5 py-2">
             {visibleItems.map((item, index) => {
               const isActive = activeTab === item.id;
               return (
@@ -116,9 +104,9 @@ const AdminNavbar: React.FC<AdminNavbarProps> = ({
                     handleArrowNavigation(e, index);
                   }}
                   className={`
-                    relative flex items-center space-x-2 px-4 py-2.5 
-                    font-medium text-sm transition-all duration-200 ease-in-out
-                    whitespace-nowrap rounded-lg
+                    relative flex items-center space-x-1 px-2 py-1.5 
+                    font-medium text-xs transition-all duration-200 ease-in-out
+                    whitespace-nowrap rounded-lg flex-shrink-0
                     focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
                     ${isActive
                       ? 'text-blue-700 bg-blue-50'
@@ -147,7 +135,7 @@ const AdminNavbar: React.FC<AdminNavbarProps> = ({
                   </span>
                   
                   {/* Label */}
-                  <span className="font-medium">{item.label}</span>
+                  <span className="font-medium text-xs">{item.label}</span>
                   
                   {/* Badge/Notification */}
                   {(item.badge || item.notification) && (

@@ -336,6 +336,21 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+-- 17. Ajouter colonne montant_enveloppe à archives si elle n'existe pas
+SET @col_exists = 0;
+SELECT COUNT(*) INTO @col_exists 
+FROM INFORMATION_SCHEMA.COLUMNS 
+WHERE TABLE_SCHEMA = 'alliance_courtage' 
+AND TABLE_NAME = 'archives' 
+AND COLUMN_NAME = 'montant_enveloppe';
+
+SET @sql = IF(@col_exists = 0, 
+  'ALTER TABLE archives ADD COLUMN montant_enveloppe DECIMAL(15, 2) NULL DEFAULT 0 COMMENT "Enveloppe spécifique à ce produit structuré" AFTER assurance', 
+  'SELECT "Colonne montant_enveloppe existe déjà" as message');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 SET @col_exists = 0;
 SELECT COUNT(*) INTO @col_exists 
 FROM INFORMATION_SCHEMA.COLUMNS 

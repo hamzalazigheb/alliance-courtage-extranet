@@ -5,7 +5,8 @@ interface StructuredProduct {
   id: number;
   title: string;
   description: string;
-  assurance: string;
+  assurance: string; // Nom de l'assureur
+  montant_enveloppe?: number; // Enveloppe spécifique à ce produit
   category: string;
   file_path: string;
   file_size: number;
@@ -75,6 +76,7 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
     title: '',
     description: '',
     assurance: '',
+    montant_enveloppe: '',
     category: '',
     file: null as File | null
   });
@@ -214,6 +216,7 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
       formData.append('description', uploadForm.description || '');
       formData.append('assurance', uploadForm.assurance);
       formData.append('category', uploadForm.category);
+      formData.append('montant_enveloppe', uploadForm.montant_enveloppe || '0');
 
       // Appel à l'API d'upload
       const response = await fetch(buildAPIURL('/structured-products'), {
@@ -234,6 +237,7 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
         title: '',
         description: '',
         assurance: '',
+        montant_enveloppe: '',
         category: '',
         file: null
       });
@@ -564,6 +568,28 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                 </div>
               )}
             </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Montant enveloppe (€) *
+                <span className="text-xs text-gray-500 ml-2 font-normal">
+                  (Enveloppe spécifique à ce produit)
+                </span>
+              </label>
+              <input
+                type="number"
+                value={uploadForm.montant_enveloppe}
+                onChange={(e) => setUploadForm({...uploadForm, montant_enveloppe: e.target.value})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Ex: 1000000"
+                min="0"
+                step="0.01"
+                required
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Montant disponible pour ce produit spécifique. Un assureur peut avoir plusieurs produits avec différentes enveloppes.
+              </p>
+            </div>
           </div>
           
           <div>
@@ -705,11 +731,29 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
             <p className="text-gray-500 mt-2">Commencez par uploader votre premier produit</p>
           </div>
         ) : (
-          Object.entries(productsByAssurance).map(([assurance, assuranceProducts]) => (
+          Object.entries(productsByAssurance).map(([assurance, assuranceProducts]) => {
+            // Trouver l'assurance correspondante pour obtenir l'enveloppe globale
+            const assuranceData = assurances.find(a => a.name === assurance);
+            const assuranceGlobalEnvelope = assuranceData?.montant_enveloppe || 0;
+            
+            // Calculer la somme des enveloppes de tous les produits de cet assureur
+            const totalProductsEnvelope = assuranceProducts.reduce((sum, product) => {
+              // Gérer tous les cas : null, undefined, string, number
+              let montant = 0;
+              if (product.montant_enveloppe != null && product.montant_enveloppe !== '') {
+                const parsed = typeof product.montant_enveloppe === 'string' 
+                  ? parseFloat(product.montant_enveloppe) 
+                  : Number(product.montant_enveloppe);
+                montant = isNaN(parsed) || parsed < 0 ? 0 : parsed;
+              }
+              return sum + montant;
+            }, 0);
+            
+            return (
             <div key={assurance} className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden border border-white/20">
               {/* En-tête Assurance */}
               <div className={`${getAssuranceColor(assurance)} text-white p-6`}>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-4">
                   <div className="flex items-center space-x-4">
                     <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
                       <span className="text-2xl font-bold">{assurance.charAt(0)}</span>
@@ -718,6 +762,21 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                       <h2 className="text-2xl font-bold">{assurance}</h2>
                       <p className="text-white/80">{assuranceProducts.length} produit{assuranceProducts.length > 1 ? 's' : ''}</p>
                     </div>
+                  </div>
+                  {/* Enveloppe globale de l'assureur */}
+                  <div className="bg-white/20 rounded-lg px-4 py-3 border border-white/30">
+                    <p className="text-xs text-white/80 mb-1 font-medium">Enveloppe globale assureur</p>
+                    <p className="text-xl font-bold">
+                      {assuranceGlobalEnvelope > 0 ? new Intl.NumberFormat('fr-FR', { 
+                        style: 'currency', 
+                        currency: 'EUR' 
+                      }).format(assuranceGlobalEnvelope) : 'Non définie'}
+                    </p>
+                    {totalProductsEnvelope > 0 && (
+                      <p className="text-xs text-white/70 mt-1">
+                        Utilisé: {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(totalProductsEnvelope)}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -743,7 +802,38 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                         <p className="text-gray-600 text-sm mb-4 line-clamp-2">{product.description}</p>
                       )}
                       
+                      {/* Enveloppe spécifique du produit - Section mise en évidence */}
+                      {product.montant_enveloppe && product.montant_enveloppe > 0 ? (
+                        <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg p-4 mb-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-1">
+                                💰 Enveloppe de ce produit
+                              </p>
+                              <p className="text-2xl font-bold text-green-700">
+                                {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(product.montant_enveloppe)}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">
+                                Spécifique à ce produit
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+                          <p className="text-xs text-yellow-700 italic">
+                            ⚠️ Aucune enveloppe spécifique définie. Vous pouvez l'ajouter lors de l'édition du produit.
+                          </p>
+                        </div>
+                      )}
+                      
                       <div className="space-y-2 text-xs text-gray-500 mb-4">
+                        <div className="flex justify-between">
+                          <span>🛡️ Assureur:</span>
+                          <span className="font-medium text-gray-700">{product.assurance || 'Non spécifié'}</span>
+                        </div>
                         <div className="flex justify-between">
                           <span>👤 Uploadé par:</span>
                           <span>{product.uploaded_by_prenom} {product.uploaded_by_nom}</span>
@@ -780,7 +870,8 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                 </div>
               </div>
             </div>
-          ))
+            );
+          })
         )}
       </div>
         </div>
@@ -897,7 +988,7 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
 
       {/* Modal de gestion des assurances */}
       {showAssuranceModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-white/20">
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">

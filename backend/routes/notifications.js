@@ -19,7 +19,8 @@ router.get('/', auth, async (req, res) => {
     // Tous les utilisateurs voient leurs notifications personnelles + les notifications globales (user_id IS NULL)
     // MAIS les utilisateurs non-admin ne voient PAS les notifications de type 'reservation' globales (pour protéger les noms)
     // MAIS ils voient les notifications de type 'reservation_public' (sans noms)
-    let sql = `SELECT * FROM notifications WHERE (user_id = ? OR (user_id IS NULL AND (type = 'reservation_public' OR type != 'reservation' OR ? = 1)))`;
+    // MAIS les utilisateurs non-admin ne voient PAS les notifications de type 'user_created' (création d'utilisateurs)
+    let sql = `SELECT * FROM notifications WHERE (user_id = ? OR (user_id IS NULL AND (type = 'reservation_public' OR (type != 'reservation' AND type != 'user_created') OR ? = 1)))`;
     const params = [req.user.id, isAdmin ? 1 : 0];
     
     if (unread_only === 'true') {
@@ -54,8 +55,9 @@ router.get('/unread-count', auth, async (req, res) => {
     // Tous les utilisateurs voient leurs notifications personnelles + les notifications globales
     // MAIS les utilisateurs non-admin ne voient PAS les notifications de type 'reservation' globales
     // MAIS ils voient les notifications de type 'reservation_public' (sans noms)
+    // MAIS les utilisateurs non-admin ne voient PAS les notifications de type 'user_created'
     let sql = `SELECT COUNT(*) as count FROM notifications 
-               WHERE (user_id = ? OR (user_id IS NULL AND (type = 'reservation_public' OR type != 'reservation' OR ? = 1))) AND is_read = FALSE`;
+               WHERE (user_id = ? OR (user_id IS NULL AND (type = 'reservation_public' OR (type != 'reservation' AND type != 'user_created') OR ? = 1))) AND is_read = FALSE`;
     const params = [req.user.id, isAdmin ? 1 : 0];
     
     const result = await query(sql, params);
@@ -84,8 +86,9 @@ router.put('/:id/read', auth, async (req, res) => {
     // Can mark as read if it's user's personal notification or a global notification
     // MAIS les utilisateurs non-admin ne peuvent pas marquer les notifications de type 'reservation' globales
     // MAIS ils peuvent marquer les notifications de type 'reservation_public'
+    // MAIS les utilisateurs non-admin ne peuvent pas marquer les notifications de type 'user_created'
     await query(
-      'UPDATE notifications SET is_read = TRUE WHERE id = ? AND (user_id = ? OR (user_id IS NULL AND (type = \'reservation_public\' OR type != \'reservation\' OR ? = 1)))',
+      'UPDATE notifications SET is_read = TRUE WHERE id = ? AND (user_id = ? OR (user_id IS NULL AND (type = \'reservation_public\' OR (type != \'reservation\' AND type != \'user_created\') OR ? = 1)))',
       [notificationId, req.user.id, isAdmin ? 1 : 0]
     );
     
@@ -110,8 +113,9 @@ router.put('/read-all', auth, async (req, res) => {
     
     // Mark all notifications as read (personal + global, avec filtrage pour les non-admins)
     // Les utilisateurs peuvent marquer les notifications 'reservation_public' comme lues
+    // MAIS les utilisateurs non-admin ne peuvent pas marquer les notifications de type 'user_created'
     await query(
-      'UPDATE notifications SET is_read = TRUE WHERE (user_id = ? OR (user_id IS NULL AND (type = \'reservation_public\' OR type != \'reservation\' OR ? = 1))) AND is_read = FALSE',
+      'UPDATE notifications SET is_read = TRUE WHERE (user_id = ? OR (user_id IS NULL AND (type = \'reservation_public\' OR (type != \'reservation\' AND type != \'user_created\') OR ? = 1))) AND is_read = FALSE',
       [req.user.id, isAdmin ? 1 : 0]
     );
     

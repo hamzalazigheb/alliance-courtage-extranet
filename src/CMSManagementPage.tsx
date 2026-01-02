@@ -90,9 +90,19 @@ const CMSManagementPage: React.FC = () => {
   // Gamme Produits structured content
   type ClientId = 'particulier' | 'professionnel' | 'entreprise';
   type ProdId = 'epargne' | 'retraite' | 'prevoyance' | 'sante' | 'cif';
+  type ProductDocument = {
+    id: string; // UUID ou timestamp pour identifier le document
+    title: string;
+    file_name: string;
+    file_content: string; // base64
+    file_size: number;
+    file_type: string;
+    uploaded_at: string;
+  };
   type Product = {
     name: string;
     description: string;
+    documents?: ProductDocument[];
   };
   type GPContent = { 
     products: Record<ClientId, Record<ProdId, Product[]>> 
@@ -107,11 +117,17 @@ const CMSManagementPage: React.FC = () => {
   };
 
   const [gpContent, setGpContent] = useState<GPContent>(emptyGP);
-  const [gpClient, setGpClient] = useState<ClientId>('particulier');
+  const [selectedClients, setSelectedClients] = useState<ClientId[]>(['particulier']); // Multi-sélection
   const [selectedFamilies, setSelectedFamilies] = useState<string[]>(['epargne']); // Multi-sélection
   const [newProductName, setNewProductName] = useState('');
   const [newProductDescription, setNewProductDescription] = useState('');
   const [newFamilyName, setNewFamilyName] = useState('');
+  const [showDocumentModal, setShowDocumentModal] = useState(false);
+  const [editingProductDocument, setEditingProductDocument] = useState<{productName: string, family: string} | null>(null);
+  const [documentForm, setDocumentForm] = useState({
+    title: '',
+    file: null as File | null
+  });
 
   useEffect(() => {
     loadContent();
@@ -194,6 +210,32 @@ const CMSManagementPage: React.FC = () => {
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
   }, [showNotifications]);
+
+  // Gérer le scroll quand le modal de document s'ouvre
+  useEffect(() => {
+    if (showDocumentModal) {
+      // Sauvegarder la position de scroll actuelle
+      const scrollY = window.scrollY;
+      
+      // Désactiver le scroll du body et forcer le scroll vers le haut
+      document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+      
+      // Scroll vers le haut de la page immédiatement
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      
+      return () => {
+        // Réactiver le scroll du body et restaurer la position
+        document.body.style.overflow = '';
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.width = '';
+        window.scrollTo({ top: scrollY, behavior: 'instant' });
+      };
+    }
+  }, [showDocumentModal]);
 
   const loadFormations = async () => {
     setLoadingFormations(true);
@@ -282,6 +324,8 @@ const CMSManagementPage: React.FC = () => {
             setContent(parsedContent);
           } else {
             const parsed = JSON.parse(data.content);
+            console.log('📥 Contenu chargé depuis le serveur:', JSON.stringify(parsed, null, 2).substring(0, 1000));
+            
             const loadedContent = {
               products: {
                 particulier: { epargne: [], retraite: [], prevoyance: [], sante: [], cif: [], ...(parsed?.products?.particulier || {}) },
@@ -289,28 +333,64 @@ const CMSManagementPage: React.FC = () => {
                 entreprise: { epargne: [], retraite: [], prevoyance: [], sante: [], cif: [], ...(parsed?.products?.entreprise || {}) }
               }
             };
-            // Convertir les anciens produits (strings) en objets {name, description}
+            // Convertir les anciens produits (strings) en objets {name, description, documents}
             const convertProducts = (products: any): Product[] => {
               if (!Array.isArray(products)) return [];
               return products.map((p: any) => {
                 if (typeof p === 'string') {
-                  return { name: p, description: '' };
+                  return { name: p, description: '', documents: [] };
                 }
-                return { name: p.name || '', description: p.description || '' };
+                const converted = { 
+                  name: p.name || '', 
+                  description: p.description || '',
+                  documents: p.documents && Array.isArray(p.documents) ? p.documents : []
+                };
+                if (converted.documents.length > 0) {
+                  console.log(`✅ Document restauré pour "${converted.name}": ${converted.documents.length} document(s)`);
+                }
+                return converted;
               });
             };
             // Convertir tous les produits
+            let totalDocumentsLoaded = 0;
             Object.keys(loadedContent.products).forEach((clientKey) => {
               Object.keys(loadedContent.products[clientKey as ClientId]).forEach((familyKey) => {
                 const products = loadedContent.products[clientKey as ClientId][familyKey as ProdId] as any;
                 if (Array.isArray(products)) {
-                  (loadedContent.products[clientKey as ClientId] as any)[familyKey] = convertProducts(products);
+                  const converted = convertProducts(products);
+                  (loadedContent.products[clientKey as ClientId] as any)[familyKey] = converted;
+                  converted.forEach((p: Product) => {
+                    if (p.documents && Array.isArray(p.documents)) {
+                      totalDocumentsLoaded += p.documents.length;
+                    }
+                  });
                 }
               });
             });
+            console.log(`📊 Total documents chargés: ${totalDocumentsLoaded}`);
+            
+            // Log détaillé du contenu chargé pour le produit "test"
+            if (loadedContent.products.particulier && loadedContent.products.particulier.epargne) {
+              const testProduct = loadedContent.products.particulier.epargne.find((p: Product) => p.name === 'test');
+              if (testProduct) {
+                console.log('🔍 Produit "test" trouvé dans particulier/epargne:', {
+                  name: testProduct.name,
+                  description: testProduct.description,
+                  hasDocuments: !!testProduct.documents,
+                  isArray: Array.isArray(testProduct.documents),
+                  documentsCount: testProduct.documents && Array.isArray(testProduct.documents) ? testProduct.documents.length : 0,
+                  documents: testProduct.documents
+                });
+              } else {
+                console.log('⚠️ Produit "test" NON trouvé dans particulier/epargne');
+              }
+            }
+            
+            console.log('📦 État complet gpContent après chargement:', JSON.stringify(loadedContent, null, 2).substring(0, 2000));
+            
             setGpContent(loadedContent);
             // Initialiser la sélection avec la première famille disponible
-            const firstFamily = Object.keys(loadedContent.products[gpClient])[0];
+            const firstFamily = Object.keys(loadedContent.products[selectedClients[0] || 'particulier'])[0];
             if (firstFamily) {
               setSelectedFamilies([firstFamily]);
             }
@@ -330,6 +410,30 @@ const CMSManagementPage: React.FC = () => {
     
     try {
       const endpoint = activePage === 'home' ? 'home' : 'gamme-produits';
+      
+      if (activePage === 'gamme-produits') {
+        // Vérifier que les documents sont présents avant sauvegarde
+        console.log('💾 Début sauvegarde Gamme Produits');
+        console.log('📦 gpContent avant sauvegarde:', JSON.stringify(gpContent, null, 2).substring(0, 1000));
+        
+        // Compter les documents
+        let totalDocuments = 0;
+        Object.keys(gpContent.products).forEach((clientKey) => {
+          Object.keys(gpContent.products[clientKey as ClientId]).forEach((familyKey) => {
+            const products = gpContent.products[clientKey as ClientId][familyKey as ProdId];
+            if (Array.isArray(products)) {
+              products.forEach((p: Product) => {
+                if (p.documents && Array.isArray(p.documents)) {
+                  totalDocuments += p.documents.length;
+                  console.log(`📄 Produit "${p.name}" (${clientKey}/${familyKey}): ${p.documents.length} document(s)`);
+                }
+              });
+            }
+          });
+        });
+        console.log(`📊 Total documents à sauvegarder: ${totalDocuments}`);
+      }
+      
       const payload = activePage === 'home'
         ? JSON.stringify({ content: JSON.stringify(content) })
         : JSON.stringify({ content: JSON.stringify(gpContent) });
@@ -344,10 +448,14 @@ const CMSManagementPage: React.FC = () => {
       });
       
       if (response.ok) {
+        const responseData = await response.json();
+        console.log('✅ Sauvegarde réussie. Réponse serveur:', responseData);
         setSuccessMessage('✅ Contenu sauvegardé avec succès!');
         setTimeout(() => setSuccessMessage(''), 3000);
       } else {
-        throw new Error('Failed to save');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ Erreur sauvegarde:', errorData);
+        throw new Error(errorData.error || 'Failed to save');
       }
     } catch (error) {
       console.error('Error saving CMS content:', error);
@@ -597,26 +705,116 @@ const CMSManagementPage: React.FC = () => {
             {/* Choix client / type de produit */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold text-slate-300 mb-2">Type de client</label>
-                <select
-                  value={gpClient}
-                  onChange={(e) => {
-                    const newClient = e.target.value as ClientId;
-                    setGpClient(newClient);
-                    // Réinitialiser la sélection avec la première famille du nouveau client
-                    const firstFamily = Object.keys(gpContent.products[newClient])[0];
-                    if (firstFamily) {
-                      setSelectedFamilies([firstFamily]);
-                    } else {
-                      setSelectedFamilies([]);
-                    }
-                  }}
-                  className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500"
-                >
-                  <option value="particulier">Particulier</option>
-                  <option value="professionnel">Professionnel</option>
-                  <option value="entreprise">Entreprise</option>
-                </select>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-semibold text-slate-300">Type(s) de client (multi-sélection)</label>
+                  <div className="flex space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedClients(['particulier', 'professionnel', 'entreprise']);
+                      }}
+                      className="px-2 py-1 text-xs bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded"
+                    >
+                      Tout sélectionner
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedClients([]);
+                      }}
+                      className="px-2 py-1 text-xs bg-gray-500/20 hover:bg-gray-500/30 text-gray-300 rounded"
+                    >
+                      Tout désélectionner
+                    </button>
+                  </div>
+                </div>
+                <div className="bg-slate-700 rounded-lg p-3 border border-slate-600">
+                  <label className="flex items-center space-x-2 py-2 cursor-pointer hover:bg-slate-600/50 rounded px-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedClients.includes('particulier')}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedClients([...selectedClients, 'particulier']);
+                        } else {
+                          setSelectedClients(selectedClients.filter(c => c !== 'particulier'));
+                        }
+                        // Réinitialiser les familles si aucun client n'est sélectionné
+                        if (selectedClients.length === 1 && selectedClients[0] === 'particulier' && !e.target.checked) {
+                          setSelectedFamilies([]);
+                        } else if (e.target.checked && selectedFamilies.length === 0) {
+                          const firstFamily = Object.keys(gpContent.products['particulier'])[0];
+                          if (firstFamily) {
+                            setSelectedFamilies([firstFamily]);
+                          }
+                        }
+                      }}
+                      className="w-4 h-4 text-emerald-500 bg-slate-600 border-slate-500 rounded focus:ring-emerald-500 focus:ring-2"
+                    />
+                    <span className="text-slate-300 text-sm">Particulier</span>
+                  </label>
+                  <label className="flex items-center space-x-2 py-2 cursor-pointer hover:bg-slate-600/50 rounded px-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedClients.includes('professionnel')}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedClients([...selectedClients, 'professionnel']);
+                        } else {
+                          setSelectedClients(selectedClients.filter(c => c !== 'professionnel'));
+                        }
+                        // Réinitialiser les familles si aucun client n'est sélectionné
+                        if (selectedClients.length === 1 && selectedClients[0] === 'professionnel' && !e.target.checked) {
+                          setSelectedFamilies([]);
+                        } else if (e.target.checked && selectedFamilies.length === 0) {
+                          const firstFamily = Object.keys(gpContent.products['professionnel'])[0];
+                          if (firstFamily) {
+                            setSelectedFamilies([firstFamily]);
+                          }
+                        }
+                      }}
+                      className="w-4 h-4 text-emerald-500 bg-slate-600 border-slate-500 rounded focus:ring-emerald-500 focus:ring-2"
+                    />
+                    <span className="text-slate-300 text-sm">Professionnel</span>
+                  </label>
+                  <label className="flex items-center space-x-2 py-2 cursor-pointer hover:bg-slate-600/50 rounded px-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedClients.includes('entreprise')}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedClients([...selectedClients, 'entreprise']);
+                        } else {
+                          setSelectedClients(selectedClients.filter(c => c !== 'entreprise'));
+                        }
+                        // Réinitialiser les familles si aucun client n'est sélectionné
+                        if (selectedClients.length === 1 && selectedClients[0] === 'entreprise' && !e.target.checked) {
+                          setSelectedFamilies([]);
+                        } else if (e.target.checked && selectedFamilies.length === 0) {
+                          const firstFamily = Object.keys(gpContent.products['entreprise'])[0];
+                          if (firstFamily) {
+                            setSelectedFamilies([firstFamily]);
+                          }
+                        }
+                      }}
+                      className="w-4 h-4 text-emerald-500 bg-slate-600 border-slate-500 rounded focus:ring-emerald-500 focus:ring-2"
+                    />
+                    <span className="text-slate-300 text-sm">Entreprise</span>
+                  </label>
+                </div>
+                {selectedClients.length === 0 && (
+                  <p className="text-xs text-yellow-400 mt-2">⚠️ Sélectionnez au moins un type de client</p>
+                )}
+                {selectedClients.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <span className="text-xs text-slate-400">Sélectionnés:</span>
+                    {selectedClients.map((client) => (
+                      <span key={client} className="px-2 py-1 bg-blue-500/20 text-blue-300 text-xs rounded capitalize">
+                        {client}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -625,8 +823,10 @@ const CMSManagementPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => {
-                        const allFamilies = Object.keys(gpContent.products[gpClient]);
-                        setSelectedFamilies(allFamilies);
+                        if (selectedClients.length > 0) {
+                          const allFamilies = Object.keys(gpContent.products[selectedClients[0]]);
+                          setSelectedFamilies(allFamilies);
+                        }
                       }}
                       className="px-2 py-1 text-xs bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded"
                     >
@@ -644,7 +844,7 @@ const CMSManagementPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="bg-slate-700 rounded-lg p-3 border border-slate-600 max-h-48 overflow-y-auto">
-                  {Object.keys(gpContent.products[gpClient]).map((k) => (
+                  {selectedClients.length > 0 && Object.keys(gpContent.products[selectedClients[0]]).map((k) => (
                     <label key={k} className="flex items-center space-x-2 py-2 cursor-pointer hover:bg-slate-600/50 rounded px-2">
                       <input
                         type="checkbox"
@@ -714,25 +914,29 @@ const CMSManagementPage: React.FC = () => {
                 </button>
                 <button
                   onClick={() => {
-                    const families = Object.keys(gpContent.products[gpClient]);
+                    const families = selectedClients.length > 0 
+                      ? Object.keys(gpContent.products[selectedClients[0]])
+                      : [];
                     if (families.length <= 1) {
                       showWarning('Il doit rester au moins une famille de produit');
                       return; // garder au moins une famille
                     }
-                    if (selectedFamilies.length === 0) {
-                      showWarning('Veuillez sélectionner la famille à supprimer');
-                      return;
-                    }
-                    if (selectedFamilies.length > 1) {
-                      showWarning('Veuillez sélectionner une seule famille à supprimer');
-                      return;
-                    }
-                    const familyToDelete = selectedFamilies[0];
-                    const next: GPContent = JSON.parse(JSON.stringify(gpContent));
-                    ['particulier','professionnel','entreprise'].forEach((c) => {
-                      delete (next.products[c as ClientId] as any)[familyToDelete];
-                    });
-                    const remaining = Object.keys(next.products[gpClient]) as ProdId[];
+                        if (selectedFamilies.length === 0) {
+                          showWarning('Veuillez sélectionner la famille à supprimer');
+                          return;
+                        }
+                        if (selectedFamilies.length > 1) {
+                          showWarning('Veuillez sélectionner une seule famille à supprimer');
+                          return;
+                        }
+                        const familyToDelete = selectedFamilies[0];
+                        const next: GPContent = JSON.parse(JSON.stringify(gpContent));
+                        ['particulier','professionnel','entreprise'].forEach((c) => {
+                          delete (next.products[c as ClientId] as any)[familyToDelete];
+                        });
+                        const remaining = selectedClients.length > 0 
+                          ? Object.keys(next.products[selectedClients[0]]) as ProdId[]
+                          : [];
                     setGpContent(next);
                     // Sélectionner la première famille restante
                     if (remaining.length > 0) {
@@ -783,6 +987,10 @@ const CMSManagementPage: React.FC = () => {
                           showWarning('Le nom du produit est obligatoire');
                           return;
                         }
+                        if (selectedClients.length === 0) {
+                          showWarning('Veuillez sélectionner au moins un type de client');
+                          return;
+                        }
                         if (selectedFamilies.length === 0) {
                           showWarning('Veuillez sélectionner au moins une famille de produit');
                           return;
@@ -792,66 +1000,113 @@ const CMSManagementPage: React.FC = () => {
                           name: name,
                           description: newProductDescription.trim()
                         };
-                        // Ajouter le produit à toutes les familles sélectionnées
-                        selectedFamilies.forEach((fam) => {
-                          if (!next.products[gpClient][fam as ProdId]) {
-                            (next.products[gpClient] as any)[fam] = [];
-                          }
-                          // Vérifier si le produit existe déjà (par nom)
-                          const existingIndex = next.products[gpClient][fam as ProdId].findIndex(
-                            (p: Product) => p.name === name
-                          );
-                          if (existingIndex === -1) {
-                            next.products[gpClient][fam as ProdId] = [...next.products[gpClient][fam as ProdId], newProduct];
-                          } else {
-                            // Mettre à jour le produit existant
-                            next.products[gpClient][fam as ProdId][existingIndex] = newProduct;
-                          }
+                        // Ajouter le produit à tous les clients sélectionnés et toutes les familles sélectionnées
+                        selectedClients.forEach((client) => {
+                          selectedFamilies.forEach((fam) => {
+                            if (!next.products[client][fam as ProdId]) {
+                              (next.products[client] as any)[fam] = [];
+                            }
+                            // Vérifier si le produit existe déjà (par nom)
+                            const existingIndex = next.products[client][fam as ProdId].findIndex(
+                              (p: Product) => p.name === name
+                            );
+                            if (existingIndex === -1) {
+                              next.products[client][fam as ProdId] = [...next.products[client][fam as ProdId], newProduct];
+                            } else {
+                              // Mettre à jour le produit existant
+                              next.products[client][fam as ProdId][existingIndex] = newProduct;
+                            }
+                          });
                         });
                         setGpContent(next);
                         setNewProductName('');
                         setNewProductDescription('');
                       }}
-                      disabled={selectedFamilies.length === 0 || !newProductName.trim()}
+                      disabled={selectedClients.length === 0 || selectedFamilies.length === 0 || !newProductName.trim()}
                       className="px-4 py-3 bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-500 disabled:cursor-not-allowed text-white rounded-lg font-medium whitespace-nowrap"
                     >
-                      + Ajouter à {selectedFamilies.length} famille{selectedFamilies.length > 1 ? 's' : ''}
+                      + Ajouter à {selectedClients.length} client{selectedClients.length > 1 ? 's' : ''} / {selectedFamilies.length} famille{selectedFamilies.length > 1 ? 's' : ''}
                     </button>
                   </div>
                 </div>
               </div>
 
               <div className="space-y-4">
-                {selectedFamilies.length === 0 ? (
+                {selectedClients.length === 0 ? (
+                  <div className="text-slate-300 text-sm">⚠️ Sélectionnez au moins un type de client pour voir les produits</div>
+                ) : selectedFamilies.length === 0 ? (
                   <div className="text-slate-300 text-sm">⚠️ Sélectionnez au moins une famille pour voir les produits</div>
                 ) : (
                   selectedFamilies.map((fam) => {
-                    const products = gpContent.products[gpClient][fam as ProdId] || [];
+                    const products = selectedClients.length > 0 
+                      ? gpContent.products[selectedClients[0]][fam as ProdId] || []
+                      : [];
+                    // Debug: vérifier les documents
+                    console.log(`🔍 Affichage produits pour ${selectedClients[0]}/${fam}:`, products.length, 'produit(s)');
+                    console.log(`🔍 État complet de gpContent.products[${selectedClients[0]}][${fam}]:`, JSON.stringify(gpContent.products[selectedClients[0]]?.[fam as ProdId], null, 2));
+                    products.forEach((p: Product, idx: number) => {
+                      console.log(`  📦 Produit ${idx}: "${p.name}"`, {
+                        hasDocuments: !!p.documents,
+                        isArray: Array.isArray(p.documents),
+                        documentsLength: p.documents && Array.isArray(p.documents) ? p.documents.length : 0,
+                        documents: p.documents,
+                        fullProduct: JSON.stringify(p, null, 2).substring(0, 500)
+                      });
+                      if (p.documents && Array.isArray(p.documents) && p.documents.length > 0) {
+                        console.log(`  ✅ Produit "${p.name}" a ${p.documents.length} document(s):`, p.documents.map((d: ProductDocument) => ({ id: d.id, title: d.title, file_name: d.file_name })));
+                      } else {
+                        console.warn(`  ⚠️ Produit "${p.name}" n'a PAS de documents ou tableau vide`);
+                      }
+                    });
                     return (
                       <div key={fam} className="border border-slate-600 rounded-lg p-3">
                         <div className="flex items-center justify-between mb-3">
-                          <h4 className="text-white font-semibold text-sm">Famille: <span className="text-emerald-400">{fam}</span></h4>
+                          <div>
+                            <h4 className="text-white font-semibold text-sm">Famille: <span className="text-emerald-400">{fam}</span></h4>
+                            {selectedClients.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {selectedClients.map((client) => (
+                                  <span key={client} className="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded capitalize">
+                                    {client}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                           <span className="text-xs text-slate-400">{products.length} produit{products.length > 1 ? 's' : ''}</span>
                         </div>
                         {products.length === 0 ? (
                           <div className="text-slate-400 text-sm italic">Aucun produit dans cette famille</div>
                         ) : (
                           <div className="space-y-3">
-                            {products.map((p, idx) => (
-                              <div key={idx} className="bg-slate-600/30 rounded-lg p-3 space-y-2">
+                            {products.map((p, idx) => {
+                              // Log pour chaque produit lors du rendu
+                              console.log(`🎨 Rendu produit "${p.name}" (idx: ${idx}):`, {
+                                hasDocuments: !!p.documents,
+                                isArray: Array.isArray(p.documents),
+                                documentsCount: p.documents && Array.isArray(p.documents) ? p.documents.length : 0
+                              });
+                              return (
+                              <div key={`${p.name}-${fam}-${idx}`} className="bg-slate-600/30 rounded-lg p-3 space-y-2">
                                 <div className="flex items-center space-x-2">
                                   <input
                                     type="text"
                                     value={p.name}
                                     onChange={(e) => {
-                                      const next = { ...gpContent };
-                                      if (!next.products[gpClient][fam as ProdId]) {
-                                        (next.products[gpClient] as any)[fam] = [];
-                                      }
-                                      next.products[gpClient][fam as ProdId][idx] = {
-                                        ...next.products[gpClient][fam as ProdId][idx],
-                                        name: e.target.value
-                                      };
+                                      const next = JSON.parse(JSON.stringify(gpContent)); // Deep copy
+                                      const newName = e.target.value;
+                                      // Mettre à jour le produit dans tous les clients sélectionnés
+                                      selectedClients.forEach((client) => {
+                                        if (!next.products[client][fam as ProdId]) {
+                                          (next.products[client] as any)[fam] = [];
+                                        }
+                                        if (next.products[client][fam as ProdId][idx]) {
+                                          next.products[client][fam as ProdId][idx] = {
+                                            ...next.products[client][fam as ProdId][idx],
+                                            name: newName
+                                          };
+                                        }
+                                      });
                                       setGpContent(next);
                                     }}
                                     className="flex-1 px-3 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500 text-sm font-medium"
@@ -859,8 +1114,19 @@ const CMSManagementPage: React.FC = () => {
                                   />
                                   <button
                                     onClick={() => {
-                                      const next = { ...gpContent };
-                                      next.products[gpClient][fam as ProdId] = next.products[gpClient][fam as ProdId].filter((_, i) => i !== idx);
+                                      if (!confirm('Êtes-vous sûr de vouloir supprimer ce produit ?')) {
+                                        return;
+                                      }
+                                      const next = JSON.parse(JSON.stringify(gpContent)); // Deep copy
+                                      const productName = p.name;
+                                      // Supprimer le produit de tous les clients sélectionnés
+                                      selectedClients.forEach((client) => {
+                                        if (next.products[client][fam as ProdId]) {
+                                          next.products[client][fam as ProdId] = next.products[client][fam as ProdId].filter(
+                                            (prod) => prod.name !== productName
+                                          );
+                                        }
+                                      });
                                       setGpContent(next);
                                     }}
                                     className="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded text-sm whitespace-nowrap"
@@ -870,23 +1136,127 @@ const CMSManagementPage: React.FC = () => {
                                 </div>
                                 <textarea
                                   value={p.description}
-                                  onChange={(e) => {
-                                    const next = { ...gpContent };
-                                    if (!next.products[gpClient][fam as ProdId]) {
-                                      (next.products[gpClient] as any)[fam] = [];
-                                    }
-                                    next.products[gpClient][fam as ProdId][idx] = {
-                                      ...next.products[gpClient][fam as ProdId][idx],
-                                      description: e.target.value
-                                    };
-                                    setGpContent(next);
-                                  }}
+                                    onChange={(e) => {
+                                      const next = JSON.parse(JSON.stringify(gpContent)); // Deep copy
+                                      const newDescription = e.target.value;
+                                      // Mettre à jour le produit dans tous les clients sélectionnés
+                                      selectedClients.forEach((client) => {
+                                        if (!next.products[client][fam as ProdId]) {
+                                          (next.products[client] as any)[fam] = [];
+                                        }
+                                        if (next.products[client][fam as ProdId][idx]) {
+                                          next.products[client][fam as ProdId][idx] = {
+                                            ...next.products[client][fam as ProdId][idx],
+                                            description: newDescription
+                                          };
+                                        }
+                                      });
+                                      setGpContent(next);
+                                    }}
                                   rows={2}
                                   className="w-full px-3 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500 text-sm resize-none"
                                   placeholder="Description du produit..."
                                 />
+                                
+                                {/* Section Documents */}
+                                <div className="mt-3 pt-3 border-t border-slate-600">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <label className="text-xs font-semibold text-slate-300">
+                                      Documents associés
+                                      {p.documents && (
+                                        <span className="ml-2 text-xs text-slate-400">
+                                          ({Array.isArray(p.documents) ? p.documents.length : 0})
+                                        </span>
+                                      )}
+                                    </label>
+                                    <button
+                                      onClick={() => {
+                                        console.log('🔍 Ouvrir modal pour produit:', p.name, 'Famille:', fam, 'Documents actuels:', p.documents);
+                                        setEditingProductDocument({ productName: p.name, family: fam });
+                                        setShowDocumentModal(true);
+                                      }}
+                                      className="px-2 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
+                                    >
+                                      + Ajouter document
+                                    </button>
+                                  </div>
+                                  {/* Debug info - toujours visible pour diagnostic */}
+                                  <div className="text-xs text-slate-500 mb-1 italic">
+                                    {p.documents ? (
+                                      Array.isArray(p.documents) ? (
+                                        `📄 ${p.documents.length} document(s) trouvé(s)`
+                                      ) : (
+                                        `⚠️ Type: ${typeof p.documents} (attendu: array)`
+                                      )
+                                    ) : (
+                                      '📄 Aucun document (undefined)'
+                                    )}
+                                  </div>
+                                  {(() => {
+                                    // Vérifier et afficher les documents
+                                    if (!p.documents) {
+                                      return <p className="text-xs text-slate-500 italic">Aucun document (undefined)</p>;
+                                    }
+                                    if (!Array.isArray(p.documents)) {
+                                      return <p className="text-xs text-yellow-500 italic">⚠️ Documents n'est pas un tableau: {typeof p.documents}</p>;
+                                    }
+                                    if (p.documents.length === 0) {
+                                      return <p className="text-xs text-slate-500 italic">Aucun document (tableau vide)</p>;
+                                    }
+                                    return (
+                                      <div className="space-y-1">
+                                        {p.documents.map((doc: ProductDocument) => {
+                                          if (!doc || !doc.id) {
+                                            console.error('Document invalide:', doc);
+                                            return null;
+                                          }
+                                          return (
+                                            <div key={doc.id} className="flex items-center justify-between bg-slate-600/20 rounded p-2">
+                                              <span className="text-xs text-slate-300 truncate flex-1">{doc.title || doc.file_name || 'Document sans nom'}</span>
+                                              <div className="flex space-x-2 ml-2">
+                                                <a
+                                                  href={`data:${doc.file_type || 'application/octet-stream'};base64,${doc.file_content}`}
+                                                  download={doc.file_name}
+                                                  className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                                                  title="Télécharger"
+                                                >
+                                                  📥
+                                                </a>
+                                                <button
+                                                  onClick={() => {
+                                                    const next = JSON.parse(JSON.stringify(gpContent)); // Deep copy
+                                                    selectedClients.forEach((client) => {
+                                                      const productIndex = next.products[client][fam as ProdId].findIndex(
+                                                        (prod: Product) => prod.name === p.name
+                                                      );
+                                                      if (productIndex !== -1) {
+                                                        if (!next.products[client][fam as ProdId][productIndex].documents) {
+                                                          next.products[client][fam as ProdId][productIndex].documents = [];
+                                                        }
+                                                        next.products[client][fam as ProdId][productIndex].documents = 
+                                                          next.products[client][fam as ProdId][productIndex].documents?.filter(
+                                                            (d: ProductDocument) => d.id !== doc.id
+                                                          ) || [];
+                                                      }
+                                                    });
+                                                    setGpContent(next);
+                                                  }}
+                                                  className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                                                  title="Supprimer"
+                                                >
+                                                  🗑️
+                                                </button>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    );
+                                  })()}
+                                </div>
                               </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         )}
                       </div>
@@ -895,6 +1265,154 @@ const CMSManagementPage: React.FC = () => {
                 )}
               </div>
             </div>
+            
+            {/* Modal pour ajouter un document */}
+            {showDocumentModal && editingProductDocument && (
+              <div 
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
+                style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+                onClick={(e) => {
+                  if (e.target === e.currentTarget) {
+                    setShowDocumentModal(false);
+                    setEditingProductDocument(null);
+                    setDocumentForm({ title: '', file: null });
+                  }
+                }}
+              >
+                <div 
+                  ref={(el) => {
+                    if (el && showDocumentModal) {
+                      // S'assurer que le modal est centré dans la viewport
+                      requestAnimationFrame(() => {
+                        el.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'nearest' });
+                      });
+                    }
+                  }}
+                  className="bg-slate-800 rounded-xl shadow-2xl border border-slate-600 max-w-md w-full p-6 max-h-[90vh] overflow-y-auto"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold text-white">Ajouter un document</h3>
+                    <button
+                      onClick={() => {
+                        setShowDocumentModal(false);
+                        setEditingProductDocument(null);
+                        setDocumentForm({ title: '', file: null });
+                      }}
+                      className="text-slate-400 hover:text-white text-2xl leading-none w-8 h-8 flex items-center justify-center rounded hover:bg-slate-700 transition-colors"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-300 mb-2">Titre du document</label>
+                      <input
+                        type="text"
+                        value={documentForm.title}
+                        onChange={(e) => setDocumentForm({...documentForm, title: e.target.value})}
+                        className="w-full px-4 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                        placeholder="Ex: Notice produit, Conditions générales..."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-300 mb-2">Fichier</label>
+                      <input
+                        type="file"
+                        onChange={(e) => setDocumentForm({...documentForm, file: e.target.files?.[0] || null})}
+                        className="w-full px-4 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-500 file:text-white hover:file:bg-emerald-600"
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                      />
+                      <p className="text-xs text-slate-400 mt-1">Formats acceptés: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX</p>
+                    </div>
+                    <div className="flex justify-end space-x-3 pt-2">
+                      <button
+                        onClick={() => {
+                          setShowDocumentModal(false);
+                          setEditingProductDocument(null);
+                          setDocumentForm({ title: '', file: null });
+                        }}
+                        className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors"
+                      >
+                        Annuler
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (!documentForm.file) {
+                            showWarning('Veuillez sélectionner un fichier');
+                            return;
+                          }
+                          // Convertir le fichier en base64
+                          const reader = new FileReader();
+                          reader.onload = (e) => {
+                            const fileContent = e.target?.result as string;
+                            const base64Content = fileContent.split(',')[1]; // Retirer le préfixe data:...
+                            const newDocument: ProductDocument = {
+                              id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+                              title: documentForm.title || documentForm.file!.name,
+                              file_name: documentForm.file!.name,
+                              file_content: base64Content,
+                              file_size: documentForm.file!.size,
+                              file_type: documentForm.file!.type,
+                              uploaded_at: new Date().toISOString()
+                            };
+                            // Ajouter le document au produit dans tous les clients sélectionnés
+                            const next = JSON.parse(JSON.stringify(gpContent)); // Deep copy
+                            let documentAdded = false;
+                            selectedClients.forEach((client) => {
+                              const products = next.products[client][editingProductDocument.family as ProdId];
+                              if (!products || !Array.isArray(products)) {
+                                console.error('Products array not found for', client, editingProductDocument.family);
+                                return;
+                              }
+                              const productIndex = products.findIndex(
+                                (p: Product) => p.name === editingProductDocument.productName
+                              );
+                              if (productIndex !== -1) {
+                                if (!products[productIndex].documents) {
+                                  products[productIndex].documents = [];
+                                }
+                                // Vérifier si le document existe déjà (par nom de fichier)
+                                const existingDocIndex = products[productIndex].documents.findIndex(
+                                  (d: ProductDocument) => d.file_name === newDocument.file_name
+                                );
+                                if (existingDocIndex === -1) {
+                                  products[productIndex].documents = [...(products[productIndex].documents || []), newDocument];
+                                  documentAdded = true;
+                                  console.log('✅ Document ajouté au produit:', editingProductDocument.productName, 'dans', client, editingProductDocument.family, 'Total documents:', products[productIndex].documents.length);
+                                  console.log('📄 Document ajouté:', newDocument);
+                                } else {
+                                  console.warn('⚠️ Document déjà existant:', newDocument.file_name);
+                                  showWarning('Ce document existe déjà pour ce produit');
+                                }
+                              } else {
+                                console.warn('⚠️ Produit non trouvé:', editingProductDocument.productName, 'dans', client, editingProductDocument.family, 'Produits disponibles:', products.map((p: Product) => p.name));
+                              }
+                            });
+                            if (documentAdded) {
+                              console.log('💾 Sauvegarde du contenu avec documents. Produit:', editingProductDocument.productName);
+                              console.log('📦 État complet après ajout:', JSON.stringify(next, null, 2));
+                              setGpContent(next);
+                              showSuccess('Document ajouté avec succès ! N\'oubliez pas de sauvegarder le contenu.');
+                              setShowDocumentModal(false);
+                              setEditingProductDocument(null);
+                              setDocumentForm({ title: '', file: null });
+                            } else {
+                              console.error('❌ Échec ajout document. Produit:', editingProductDocument.productName, 'Famille:', editingProductDocument.family, 'Clients sélectionnés:', selectedClients);
+                              showWarning('Produit non trouvé. Veuillez réessayer.');
+                            }
+                          };
+                          reader.readAsDataURL(documentForm.file);
+                        }}
+                        className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors font-medium"
+                      >
+                        Ajouter
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

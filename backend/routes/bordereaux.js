@@ -58,7 +58,7 @@ router.get('/', auth, async (req, res) => {
   try {
     let sql = `
       SELECT b.*, 
-             u.nom as user_nom, u.prenom as user_prenom, u.email as user_email,
+             u.nom as user_nom, u.prenom as user_prenom, u.email as user_email, u.role as user_role,
              admin.nom as uploaded_by_nom, admin.prenom as uploaded_by_prenom,
              CASE WHEN b.file_content IS NOT NULL THEN 1 ELSE 0 END as has_file_content
       FROM bordereaux b
@@ -77,8 +77,10 @@ router.get('/', auth, async (req, res) => {
       // Si pas de user_id dans query ET utilisateur n'est pas admin, filtrer par son user_id
       conditions.push('b.user_id = ?');
       params.push(req.user.id);
+    } else {
+      // Si admin ET pas de user_id dans query → voir tous les fichiers SAUF ceux des admins (Alliance Courtage ne se fait pas de bordereaux)
+      conditions.push('(u.role != "admin" OR u.role IS NULL)');
     }
-    // Si admin ET pas de user_id dans query → voir tous les fichiers (pour GestionComptabilitePage)
     
     if (req.query.year) {
       const year = parseInt(req.query.year);

@@ -246,7 +246,7 @@ export default function PartenairesPage() {
               <span className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center text-white text-sm font-bold mr-3">COA</span>
               Partenaires Courtiers en Assurances
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
               {partenaires.coa.map((partenaire: Partner, index: number) => (
                 <div key={`coa-${partenaire.id}-${index}`} className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden hover:shadow-xl transition-all duration-300">
                   {/* Logo */}
@@ -278,15 +278,15 @@ export default function PartenairesPage() {
                   </div>
                   
                   {/* Informations */}
-                  <div className="p-4 space-y-3">
-                    <h3 className="font-semibold text-gray-800 text-center">{partenaire.nom}</h3>
+                  <div className="p-3 sm:p-4 space-y-2 sm:space-y-3">
+                    <h3 className="font-semibold text-gray-800 text-center text-sm sm:text-base">{partenaire.nom}</h3>
                     
                     {/* Lien vers le site */}
                     <a
                       href={partenaire.website || partenaire.site}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="block text-center text-indigo-600 hover:text-indigo-800 text-sm font-medium hover:underline"
+                      className="block text-center text-indigo-600 hover:text-indigo-800 text-xs sm:text-sm font-medium hover:underline"
                     >
                       🌐 Visiter le site
                     </a>
@@ -396,7 +396,7 @@ export default function PartenairesPage() {
               <span className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center text-white text-sm font-bold mr-3">CIF</span>
               Partenaires Conseillers en Investissements Financiers
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
               {partenaires.cif.map((partenaire: Partner, index: number) => (
                 <div key={`cif-${partenaire.id}-${index}`} className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden hover:shadow-xl transition-all duration-300">
                   {/* Logo */}

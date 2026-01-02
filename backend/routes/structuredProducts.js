@@ -122,7 +122,8 @@ router.post('/', auth, authorize('admin'), upload.single('file'), handleMulterEr
       title,
       description,
       assurance,
-      category
+      category,
+      montant_enveloppe
     } = req.body;
     
     // Vérifier qu'un fichier a été uploadé
@@ -146,6 +147,14 @@ router.post('/', auth, authorize('admin'), upload.single('file'), handleMulterEr
       });
     }
     
+    // Validation du montant enveloppe (optionnel mais doit être un nombre positif si fourni)
+    const montantEnveloppe = montant_enveloppe ? parseFloat(montant_enveloppe) : 0;
+    if (montant_enveloppe && (isNaN(montantEnveloppe) || montantEnveloppe < 0)) {
+      return res.status(400).json({ 
+        error: 'Le montant enveloppe doit être un nombre positif' 
+      });
+    }
+    
     // Convert file buffer to base64
     const fileBase64 = req.file.buffer.toString('base64');
     const base64Prefix = `data:${req.file.mimetype};base64,`;
@@ -159,22 +168,51 @@ router.post('/', auth, authorize('admin'), upload.single('file'), handleMulterEr
     
     // Créer le produit structuré avec file_content (base64)
     // file_path stocke le nom original du fichier pour préserver l'extension
-    const result = await query(
-      `INSERT INTO archives 
-       (title, description, file_path, file_content, file_size, file_type, category, assurance, uploaded_by) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        title,
-        description || '',
-        originalFilename, // Stocker le nom original pour préserver l'extension
-        fileContent, // Store base64 encoded file
-        req.file.size,
-        req.file.mimetype,
-        category,
-        assurance,
-        req.user.id
-      ]
-    );
+    // Vérifier si la colonne montant_enveloppe existe
+    let result;
+    try {
+      // Essayer d'insérer avec montant_enveloppe
+      result = await query(
+        `INSERT INTO archives 
+         (title, description, file_path, file_content, file_size, file_type, category, assurance, uploaded_by, montant_enveloppe) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          title,
+          description || '',
+          originalFilename, // Stocker le nom original pour préserver l'extension
+          fileContent, // Store base64 encoded file
+          req.file.size,
+          req.file.mimetype,
+          category,
+          assurance,
+          req.user.id,
+          montantEnveloppe
+        ]
+      );
+    } catch (error) {
+      // Si la colonne n'existe pas, insérer sans montant_enveloppe
+      if (error.code === 'ER_BAD_FIELD_ERROR' || error.message.includes('montant_enveloppe')) {
+        console.warn('Colonne montant_enveloppe non trouvée, insertion sans cette colonne');
+        result = await query(
+          `INSERT INTO archives 
+           (title, description, file_path, file_content, file_size, file_type, category, assurance, uploaded_by) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            title,
+            description || '',
+            originalFilename,
+            fileContent,
+            req.file.size,
+            req.file.mimetype,
+            category,
+            assurance,
+            req.user.id
+          ]
+        );
+      } else {
+        throw error;
+      }
+    }
     
     const fileUrl = `${host}/api/structured-products/${result.insertId}/download`;
     

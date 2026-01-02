@@ -216,17 +216,17 @@ const SimulatorStatsPage: React.FC = () => {
   })) || [];
 
   return (
-    <div className="space-y-8">
-      {/* Premium Header */}
-      <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 rounded-2xl shadow-xl p-8 text-white relative overflow-hidden">
+    <div className="h-full flex flex-col space-y-3">
+      {/* Premium Header - Compact */}
+      <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 rounded-xl shadow-xl p-4 text-white relative overflow-hidden flex-shrink-0">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute inset-0" style={{backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.3) 1px, transparent 1px)', backgroundSize: '20px 20px'}}></div>
         </div>
         <div className="relative z-10">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold mb-2">Statistiques des Simulateurs</h1>
-              <p className="text-indigo-100 ml-15">
+              <h1 className="text-xl font-bold mb-1">Statistiques des Simulateurs</h1>
+              <p className="text-indigo-100 text-xs">
                 Suivi et analyse de l'utilisation des simulateurs financiers
               </p>
             </div>
@@ -242,141 +242,141 @@ const SimulatorStatsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats Cards - Compact */}
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 flex-shrink-0">
           {/* Total Uses */}
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all group">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                <ChartIcon className="w-7 h-7 text-white" />
+          <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-4 hover:shadow-xl transition-all group">
+            <div className="flex items-center justify-between mb-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                <ChartIcon className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-3 py-1 rounded-full">Total</span>
+              <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded-full">Total</span>
             </div>
-            <p className="text-sm font-medium text-gray-500 mb-1">Utilisations Totales</p>
-            <p className="text-4xl font-bold text-gray-900">{stats.global.total_uses || 0}</p>
+            <p className="text-xs font-medium text-gray-500 mb-1">Utilisations Totales</p>
+            <p className="text-2xl font-bold text-gray-900">{stats.global.total_uses || 0}</p>
           </div>
 
           {/* Unique Users */}
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all group">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-14 h-14 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                <UsersIcon className="w-7 h-7 text-white" />
+          <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-4 hover:shadow-xl transition-all group">
+            <div className="flex items-center justify-between mb-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-lg flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                <UsersIcon className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">Actifs</span>
+              <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">Actifs</span>
             </div>
-            <p className="text-sm font-medium text-gray-500 mb-1">Utilisateurs Uniques</p>
-            <p className="text-4xl font-bold text-gray-900">{stats.global.total_users || 0}</p>
+            <p className="text-xs font-medium text-gray-500 mb-1">Utilisateurs Uniques</p>
+            <p className="text-2xl font-bold text-gray-900">{stats.global.total_users || 0}</p>
           </div>
 
           {/* Simulator Types */}
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all group">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                <TrophyIcon className="w-7 h-7 text-white" />
+          <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-4 hover:shadow-xl transition-all group">
+            <div className="flex items-center justify-between mb-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                <TrophyIcon className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xs font-semibold text-purple-600 bg-purple-50 px-3 py-1 rounded-full">Types</span>
+              <span className="text-xs font-semibold text-purple-600 bg-purple-50 px-2 py-1 rounded-full">Types</span>
             </div>
-            <p className="text-sm font-medium text-gray-500 mb-1">Simulateurs Disponibles</p>
-            <p className="text-4xl font-bold text-gray-900">{stats.global.total_simulators || 0}</p>
+            <p className="text-xs font-medium text-gray-500 mb-1">Simulateurs Disponibles</p>
+            <p className="text-2xl font-bold text-gray-900">{stats.global.total_simulators || 0}</p>
           </div>
 
           {/* Last Usage */}
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 hover:shadow-xl transition-all group">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-14 h-14 bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                <ClockIcon className="w-7 h-7 text-white" />
+          <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-4 hover:shadow-xl transition-all group">
+            <div className="flex items-center justify-between mb-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-amber-600 rounded-lg flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                <ClockIcon className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xs font-semibold text-amber-600 bg-amber-50 px-3 py-1 rounded-full">Récent</span>
+              <span className="text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-1 rounded-full">Récent</span>
             </div>
-            <p className="text-sm font-medium text-gray-500 mb-1">Dernière Utilisation</p>
-            <p className="text-lg font-bold text-gray-900">
+            <p className="text-xs font-medium text-gray-500 mb-1">Dernière Utilisation</p>
+            <p className="text-sm font-bold text-gray-900">
               {stats.global.last_use_ever ? formatDate(stats.global.last_use_ever) : 'Aucune'}
             </p>
           </div>
         </div>
       )}
 
-      {/* Charts Section */}
+      {/* Charts Section - Full height with internal scroll */}
       {stats && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Pie Chart - Usage by Type */}
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-6">Répartition par Simulateur</h3>
-            <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={pieChartData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={100}
-                    paddingAngle={5}
-                    dataKey="value"
-                    label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                    labelLine={false}
-                  >
-                    {pieChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    formatter={(value: number) => [value, 'Utilisations']}
-                    contentStyle={{ 
-                      backgroundColor: '#fff', 
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '12px',
-                      boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+        <div className="flex-1 overflow-auto min-h-0 space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Pie Chart - Usage by Type */}
+            <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-4">
+              <h3 className="text-lg font-bold text-gray-900 mb-4">Répartition par Simulateur</h3>
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={pieChartData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={100}
+                      paddingAngle={5}
+                      dataKey="value"
+                      label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                      labelLine={false}
+                    >
+                      {pieChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      formatter={(value: number) => [value, 'Utilisations']}
+                      contentStyle={{ 
+                        backgroundColor: '#fff', 
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '12px',
+                        boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Area Chart - Daily Usage */}
+            <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-4">
+              <h3 className="text-lg font-bold text-gray-900 mb-4">Évolution sur 30 jours</h3>
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={dailyChartData}>
+                    <defs>
+                      <linearGradient id="colorUses" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10B981" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: '#fff', 
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '12px',
+                        boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
+                      }}
+                    />
+                    <Legend />
+                    <Area type="monotone" dataKey="utilisations" stroke="#3B82F6" fillOpacity={1} fill="url(#colorUses)" strokeWidth={2} />
+                    <Area type="monotone" dataKey="utilisateurs" stroke="#10B981" fillOpacity={1} fill="url(#colorUsers)" strokeWidth={2} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
 
-          {/* Area Chart - Daily Usage */}
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-6">Évolution sur 30 jours</h3>
-            <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={dailyChartData}>
-                  <defs>
-                    <linearGradient id="colorUses" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
-                    </linearGradient>
-                    <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10B981" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: '#fff', 
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '12px',
-                      boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
-                    }}
-                  />
-                  <Legend />
-                  <Area type="monotone" dataKey="utilisations" stroke="#3B82F6" fillOpacity={1} fill="url(#colorUses)" strokeWidth={2} />
-                  <Area type="monotone" dataKey="utilisateurs" stroke="#10B981" fillOpacity={1} fill="url(#colorUsers)" strokeWidth={2} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Stats by Type */}
-      {stats && stats.by_type.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
-          <h3 className="text-xl font-bold text-gray-900 mb-6">Détails par Simulateur</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Stats by Type */}
+          {stats && stats.by_type.length > 0 && (
+            <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-4">
+              <h3 className="text-lg font-bold text-gray-900 mb-4">Détails par Simulateur</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {stats.by_type.map((typeStat, index) => (
               <div
                 key={typeStat.simulator_type}
@@ -406,16 +406,16 @@ const SimulatorStatsPage: React.FC = () => {
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+              ))}
+              </div>
+            </div>
+          )}
 
-      {/* Top Users */}
-      {stats && stats.by_user.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
-          <h3 className="text-xl font-bold text-gray-900 mb-6">Utilisateurs les Plus Actifs</h3>
-          <div className="overflow-x-auto">
+          {/* Top Users */}
+          {stats && stats.by_user.length > 0 && (
+            <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-4">
+              <h3 className="text-lg font-bold text-gray-900 mb-4">Utilisateurs les Plus Actifs</h3>
+              <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b-2 border-gray-100">
@@ -464,16 +464,16 @@ const SimulatorStatsPage: React.FC = () => {
                   </tr>
                 ))}
               </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+              </table>
+              </div>
+            </div>
+          )}
 
-      {/* Recent Usage */}
-      <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-bold text-gray-900">Historique des Utilisations</h3>
-          <div className="flex items-center space-x-3">
+          {/* Recent Usage */}
+          <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900">Historique des Utilisations</h3>
+              <div className="flex items-center space-x-3">
             <select
               value={selectedFilter}
               onChange={(e) => setSelectedFilter(e.target.value)}
@@ -484,57 +484,59 @@ const SimulatorStatsPage: React.FC = () => {
               <option value="ifi">IFI</option>
               <option value="succession">Succession</option>
               <option value="placement">Placement</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b-2 border-gray-100">
-                <th className="px-4 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Date</th>
-                <th className="px-4 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Utilisateur</th>
-                <th className="px-4 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Simulateur</th>
-                <th className="px-4 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Résultat</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {recentUsage.slice(0, 20).map((usage) => (
-                <tr key={usage.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-4 text-sm text-gray-600">
-                    {formatDate(usage.created_at)}
-                  </td>
-                  <td className="px-4 py-4">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-8 h-8 bg-gradient-to-br from-gray-400 to-gray-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                        {usage.prenom?.[0]}{usage.nom?.[0]}
-                      </div>
-                      <span className="font-medium text-gray-900">{usage.prenom} {usage.nom}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-4">
-                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-50 text-indigo-700">
-                      {getSimulatorName(usage.simulator_type)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 text-sm text-gray-600 max-w-xs truncate">
-                    {usage.result_summary || '-'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {recentUsage.length === 0 && (
-          <div className="text-center py-12">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <ChartIcon className="w-8 h-8 text-gray-400" />
+              </select>
+              </div>
             </div>
-            <p className="text-gray-500">Aucune utilisation enregistrée</p>
+
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b-2 border-gray-100">
+                    <th className="px-4 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Date</th>
+                    <th className="px-4 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Utilisateur</th>
+                    <th className="px-4 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Simulateur</th>
+                    <th className="px-4 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Résultat</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {recentUsage.slice(0, 20).map((usage) => (
+                    <tr key={usage.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-4 text-sm text-gray-600">
+                        {formatDate(usage.created_at)}
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-8 h-8 bg-gradient-to-br from-gray-400 to-gray-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                            {usage.prenom?.[0]}{usage.nom?.[0]}
+                          </div>
+                          <span className="font-medium text-gray-900">{usage.prenom} {usage.nom}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-50 text-indigo-700">
+                          {getSimulatorName(usage.simulator_type)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-sm text-gray-600 max-w-xs truncate">
+                        {usage.result_summary || '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {recentUsage.length === 0 && (
+              <div className="text-center py-12">
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <ChartIcon className="w-8 h-8 text-gray-400" />
+                </div>
+                <p className="text-gray-500">Aucune utilisation enregistrée</p>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };

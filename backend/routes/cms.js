@@ -140,6 +140,37 @@ router.get('/gamme-produits', auth, async (req, res) => {
     );
 
     if (result.length > 0) {
+      const content = result[0].content;
+      const contentLength = typeof content === 'string' ? content.length : JSON.stringify(content).length;
+      console.log(`📥 GET /api/cms/gamme-produits - Taille du contenu: ${(contentLength / 1024).toFixed(2)} KB`);
+      
+      // Essayer de parser pour compter les documents
+      try {
+        let parsed = typeof content === 'string' ? JSON.parse(content) : content;
+        if (typeof parsed === 'string') {
+          parsed = JSON.parse(parsed);
+        }
+        
+        let totalDocuments = 0;
+        if (parsed && parsed.products) {
+          Object.keys(parsed.products).forEach((clientKey) => {
+            Object.keys(parsed.products[clientKey] || {}).forEach((familyKey) => {
+              const products = parsed.products[clientKey][familyKey];
+              if (Array.isArray(products)) {
+                products.forEach((p) => {
+                  if (p && p.documents && Array.isArray(p.documents)) {
+                    totalDocuments += p.documents.length;
+                  }
+                });
+              }
+            });
+          });
+        }
+        console.log(`📊 Total documents dans le contenu chargé: ${totalDocuments}`);
+      } catch (parseError) {
+        console.warn('⚠️  Erreur parsing contenu pour logs:', parseError.message);
+      }
+      
       res.json(result[0]);
     } else {
       res.json({
@@ -167,29 +198,67 @@ router.get('/gamme-produits', auth, async (req, res) => {
 router.put('/gamme-produits', auth, async (req, res) => {
   try {
     const { content } = req.body;
+    
+    // Log pour déboguer
+    const contentLength = typeof content === 'string' ? content.length : JSON.stringify(content).length;
+    console.log(`💾 PUT /api/cms/gamme-produits - Taille du contenu: ${(contentLength / 1024).toFixed(2)} KB`);
+    
+    // Essayer de parser le contenu pour vérifier les documents
+    try {
+      let parsed = typeof content === 'string' ? JSON.parse(content) : content;
+      if (typeof parsed === 'string') {
+        parsed = JSON.parse(parsed);
+      }
+      
+      // Compter les documents
+      let totalDocuments = 0;
+      if (parsed && parsed.products) {
+        Object.keys(parsed.products).forEach((clientKey) => {
+          Object.keys(parsed.products[clientKey] || {}).forEach((familyKey) => {
+            const products = parsed.products[clientKey][familyKey];
+            if (Array.isArray(products)) {
+              products.forEach((p) => {
+                if (p && p.documents && Array.isArray(p.documents)) {
+                  totalDocuments += p.documents.length;
+                  console.log(`📄 Produit "${p.name}" (${clientKey}/${familyKey}): ${p.documents.length} document(s)`);
+                }
+              });
+            }
+          });
+        });
+      }
+      console.log(`📊 Total documents à sauvegarder: ${totalDocuments}`);
+    } catch (parseError) {
+      console.warn('⚠️  Erreur parsing contenu pour logs:', parseError.message);
+    }
 
     const existing = await query(
       'SELECT id FROM cms_content WHERE page = ?',
       ['gamme-produits']
     );
 
+    const contentString = typeof content === 'string' ? content : JSON.stringify(content);
+
     if (existing.length > 0) {
       await query(
         'UPDATE cms_content SET content = ?, updated_at = NOW() WHERE page = ?',
-        [content, 'gamme-produits']
+        [contentString, 'gamme-produits']
       );
+      console.log('✅ Contenu CMS (gamme-produits) mis à jour avec succès');
       res.json({ message: 'Contenu CMS (gamme-produits) mis à jour avec succès' });
     } else {
       await query(
         'INSERT INTO cms_content (page, content, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
-        ['gamme-produits', content]
+        ['gamme-produits', contentString]
       );
+      console.log('✅ Contenu CMS (gamme-produits) créé avec succès');
       res.json({ message: 'Contenu CMS (gamme-produits) créé avec succès' });
     }
   } catch (error) {
-    console.error('Erreur update CMS content (gamme-produits):', error);
+    console.error('❌ Erreur update CMS content (gamme-produits):', error);
     res.status(500).json({
-      error: 'Erreur serveur lors de la mise à jour du contenu CMS (gamme-produits)'
+      error: 'Erreur serveur lors de la mise à jour du contenu CMS (gamme-produits)',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });

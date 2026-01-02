@@ -108,12 +108,16 @@ export default function GammeProduitsPage() {
     };
     const matrix = cmsProducts?.products || fallback;
     const products = (matrix[selectedClientType] && matrix[selectedClientType][selectedProductType]) || [];
-    // Convertir les anciens produits (strings) en objets si nécessaire
+    // Convertir les anciens produits (strings) en objets si nécessaire, en préservant les documents
     return products.map((p: any) => {
       if (typeof p === 'string') {
-        return { name: p, description: 'Solution adaptée aux besoins spécifiques' };
+        return { name: p, description: 'Solution adaptée aux besoins spécifiques', documents: [] };
       }
-      return { name: p.name || '', description: p.description || 'Solution adaptée aux besoins spécifiques' };
+      return { 
+        name: p.name || '', 
+        description: p.description || 'Solution adaptée aux besoins spécifiques',
+        documents: p.documents && Array.isArray(p.documents) ? p.documents : []
+      };
     });
   };
 
@@ -172,13 +176,38 @@ export default function GammeProduitsPage() {
           )}
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {getProducts().map((product: { name: string; description: string }, index: number) => (
+          {getProducts().map((product: { name: string; description: string; documents?: any[] }, index: number) => (
             <div key={index} className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200 hover:shadow-md transition-shadow">
               <h3 className="font-medium text-gray-800 mb-2">{product.name}</h3>
               {product.description && (
-                <p className="text-sm text-gray-600 mt-1">
+                <p className="text-sm text-gray-600 mt-1 mb-3">
                   {product.description}
                 </p>
+              )}
+              
+              {/* Section Documents */}
+              {product.documents && Array.isArray(product.documents) && product.documents.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-gray-300">
+                  <h4 className="text-xs font-semibold text-gray-700 mb-2">📄 Documents associés</h4>
+                  <div className="space-y-2">
+                    {product.documents.map((doc: any) => (
+                      <div key={doc.id || doc.file_name} className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-200 hover:bg-gray-50 transition-colors">
+                        <span className="text-xs text-gray-700 truncate flex-1 mr-2">
+                          {doc.title || doc.file_name || 'Document'}
+                        </span>
+                        <a
+                          href={`data:${doc.file_type || 'application/octet-stream'};base64,${doc.file_content}`}
+                          download={doc.file_name}
+                          className="px-2 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors flex items-center space-x-1"
+                          title="Télécharger"
+                        >
+                          <span>📥</span>
+                          <span>Télécharger</span>
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           ))}

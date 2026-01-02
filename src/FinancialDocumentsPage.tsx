@@ -202,13 +202,13 @@ function FinancialDocumentsPage() {
   const years = [...new Set(documents.map(d => d.year).filter(Boolean))].sort((a, b) => b - a);
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      {/* En-tête - Premium Style */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="h-full flex flex-col space-y-3">
+      {/* En-tête - Compact */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex-shrink-0">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Documents Financiers</h1>
-            <p className="text-gray-600 text-sm">
+            <h1 className="text-xl font-bold text-gray-900 mb-1">Documents Financiers</h1>
+            <p className="text-gray-500 text-xs">
               Gérez les documents pour la gamme financière
             </p>
           </div>
@@ -222,14 +222,23 @@ function FinancialDocumentsPage() {
         </div>
       </div>
 
-      {/* Formulaire d'upload - Premium Style */}
+      {/* Formulaire d'upload - Modal */}
       {showUploadForm && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center space-x-2 mb-6">
-            <UploadIcon className="w-6 h-6 text-gray-600" />
-            <h2 className="text-xl font-semibold text-gray-900">Uploader un nouveau document</h2>
-          </div>
-          <form onSubmit={handleFileUpload} className="space-y-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl border border-gray-200 max-w-2xl w-full max-h-[95vh] min-h-0 min-w-0 overflow-y-auto my-auto">
+            <div className="flex items-center justify-between mb-4 p-6 border-b border-gray-200">
+              <div className="flex items-center space-x-2">
+                <UploadIcon className="w-5 h-5 text-gray-600" />
+                <h2 className="text-xl font-semibold text-gray-900">Uploader un nouveau document</h2>
+              </div>
+              <button
+                onClick={() => setShowUploadForm(false)}
+                className="text-gray-400 hover:text-gray-600 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+            <form onSubmit={handleFileUpload} className="space-y-4 p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Titre</label>
@@ -331,12 +340,13 @@ function FinancialDocumentsPage() {
               </button>
             </div>
           </form>
+          </div>
         </div>
       )}
 
-      {/* Category Tabs - Premium Style */}
+      {/* Category Tabs - Compact */}
       {categories.length > 0 && (
-        <div className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-40 mb-6">
+        <div className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-40 rounded-lg flex-shrink-0">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex space-x-1.5 overflow-x-auto scrollbar-hide py-2">
               <button
@@ -394,9 +404,9 @@ function FinancialDocumentsPage() {
         </div>
       )}
 
-      {/* Filtres et recherche - Premium Style */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Filtres et recherche - Compact */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex-shrink-0">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="relative">
             <label className="block text-sm font-medium text-gray-700 mb-2">Rechercher</label>
             <div className="relative">
@@ -435,30 +445,36 @@ function FinancialDocumentsPage() {
         </div>
       </div>
 
-      {/* Liste des documents - Premium Style */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center space-x-2 mb-6">
-          <DocumentIcon className="w-6 h-6 text-gray-600" />
-          <h2 className="text-xl font-semibold text-gray-900">
-            Documents ({filteredDocuments.length})
-          </h2>
+      {/* Liste des documents - Full height with internal scroll */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex-1 flex flex-col min-h-0">
+        <div className="p-4 border-b border-gray-200 flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <DocumentIcon className="w-5 h-5 text-gray-600" />
+              <h2 className="text-lg font-semibold text-gray-900">
+                Documents ({filteredDocuments.length})
+              </h2>
+            </div>
+          </div>
         </div>
 
-        {loading ? (
-          <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="text-gray-600 mt-4">Chargement...</p>
-          </div>
-        ) : filteredDocuments.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <DocumentIcon className="w-8 h-8 text-gray-400" />
+        {/* Content with internal scroll */}
+        <div className="flex-1 overflow-auto min-h-0 p-4">
+          {loading ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+              <p className="text-gray-600 mt-4">Chargement...</p>
             </div>
-            <p className="text-gray-600 text-lg font-medium">Aucun document trouvé</p>
-            <p className="text-gray-500 text-sm mt-2">Commencez par ajouter votre premier document</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
+          ) : filteredDocuments.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <DocumentIcon className="w-8 h-8 text-gray-400" />
+              </div>
+              <p className="text-gray-600 text-lg font-medium">Aucun document trouvé</p>
+              <p className="text-gray-500 text-sm mt-2">Commencez par ajouter votre premier document</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
             {filteredDocuments.map((doc) => (
               <div key={doc.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 border border-gray-200 hover:border-gray-300 transition-all duration-200">
                 <div className="flex items-center space-x-4 flex-1 min-w-0">
@@ -568,8 +584,9 @@ function FinancialDocumentsPage() {
                 </div>
               </div>
             ))}
-          </div>
-        )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

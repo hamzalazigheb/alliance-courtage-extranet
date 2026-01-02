@@ -175,55 +175,55 @@ const ManagePage: React.FC = () => {
     {
       id: 'dashboard',
       label: 'Dashboard',
-      icon: <DashboardIcon />,
+      icon: <DashboardIcon className="w-4 h-4" />,
       adminOnly: false
     },
     {
       id: 'archives',
       label: 'Archives',
-      icon: <ArchiveIcon />,
+      icon: <ArchiveIcon className="w-4 h-4" />,
       adminOnly: false
     },
     {
       id: 'partenaires',
       label: 'Partenaires',
-      icon: <PartnerIcon />,
+      icon: <PartnerIcon className="w-4 h-4" />,
       adminOnly: false
     },
     {
       id: 'documents',
       label: 'Documents Financiers',
-      icon: <DocumentIcon />,
+      icon: <DocumentIcon className="w-4 h-4" />,
       adminOnly: false
     },
     {
       id: 'utilisateurs',
       label: 'Utilisateurs',
-      icon: <UserIcon />,
+      icon: <UserIcon className="w-4 h-4" />,
       adminOnly: true
     },
     {
       id: 'cms',
       label: 'CMS',
-      icon: <CMSIcon />,
+      icon: <CMSIcon className="w-4 h-4" />,
       adminOnly: false
     },
     {
       id: 'produits-structures',
       label: 'Produits Structurés',
-      icon: <StructuredProductsIcon />,
+      icon: <StructuredProductsIcon className="w-4 h-4" />,
       adminOnly: false
     },
     {
       id: 'reservations',
       label: 'Produits Réservés',
-      icon: <CartIcon />,
+      icon: <CartIcon className="w-4 h-4" />,
       adminOnly: true
     },
     {
       id: 'simulateurs',
-      label: 'Statistiques Simulateurs',
-      icon: null,
+      label: 'Simulateurs',
+      icon: <ChartIcon className="w-4 h-4" />,
       adminOnly: true
     }
   ], []);
@@ -239,10 +239,10 @@ const ManagePage: React.FC = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 transition-colors duration-200">
-      {/* Header */}
-      <header className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 shadow-sm transition-colors duration-200 relative z-[100]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+    <div className="h-screen overflow-hidden flex flex-col bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 transition-colors duration-200">
+      {/* Header - Fixed */}
+      <header className="flex-shrink-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 shadow-sm transition-colors duration-200 relative z-[100]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex items-center justify-between gap-4">
             {/* Logo */}
             <div className="flex items-center space-x-3 flex-shrink-0" data-tour="logo">
@@ -330,30 +330,34 @@ const ManagePage: React.FC = () => {
         </div>
       </header>
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Professional Navigation Bar - Sticky */}
-        <AdminNavbar
-          activeTab={activeTab}
-          onTabChange={handleTabChange}
-          userRole={currentUser?.role}
-          items={navItems}
-          className="mb-6"
-        />
+      {/* Main Content - Full page without scroll */}
+      <div className="flex-1 overflow-hidden flex flex-col max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+        {/* Professional Navigation Bar - Fixed */}
+        <div className="flex-shrink-0 mb-3">
+          <AdminNavbar
+            activeTab={activeTab}
+            onTabChange={handleTabChange}
+            userRole={currentUser?.role}
+            items={navItems}
+            className="mb-0"
+          />
+        </div>
 
-        {/* Breadcrumb */}
-        <Breadcrumb
-          items={[
-            { label: 'Administration', onClick: () => setActiveTab('dashboard') },
-            { 
-              label: navItems.find(item => item.id === activeTab)?.label || activeTab,
-              icon: navItems.find(item => item.id === activeTab)?.icon
-            }
-          ]}
-        />
+        {/* Breadcrumb - Compact */}
+        <div className="flex-shrink-0 mb-3">
+          <Breadcrumb
+            items={[
+              { label: 'Administration', onClick: () => setActiveTab('dashboard') },
+              { 
+                label: navItems.find(item => item.id === activeTab)?.label || activeTab,
+                icon: navItems.find(item => item.id === activeTab)?.icon
+              }
+            ]}
+          />
+        </div>
 
-        {/* Tab Content */}
-        <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl shadow-lg p-6 transition-colors duration-200">
+        {/* Tab Content - Scrollable */}
+        <div className="flex-1 overflow-auto min-h-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl shadow-lg p-6 transition-colors duration-200">
           {activeTab === 'dashboard' && <DashboardPage onNavigate={(tab) => setActiveTab(tab as typeof activeTab)} />}
           {activeTab === 'archives' && <FileManagementPage />}
           {activeTab === 'partenaires' && <PartnerManagementPage />}
@@ -401,8 +405,8 @@ const ManagePage: React.FC = () => {
 
       {/* Profile Modal */}
       {showProfileModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto transition-colors duration-200">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-4 sm:p-8 max-w-2xl w-full max-h-[95vh] min-h-0 min-w-0 overflow-y-auto my-auto transition-colors duration-200">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Gérer mon profil</h2>
               <button

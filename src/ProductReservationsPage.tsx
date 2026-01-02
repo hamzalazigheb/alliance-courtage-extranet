@@ -122,22 +122,25 @@ const ProductReservationsPage: React.FC = () => {
   const filteredReservations = reservations;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Produits Réservés</h2>
-          <p className="text-gray-600 mt-1">Gérer les réservations de produits structurés</p>
+    <div className="h-full flex flex-col space-y-3">
+      {/* Header - Compact */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex-shrink-0">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Produits Réservés</h2>
+            <p className="text-gray-500 text-xs mt-1">Gérer les réservations de produits structurés</p>
+          </div>
+          <button
+            onClick={loadReservations}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+          >
+            🔄 Actualiser
+          </button>
         </div>
-        <button
-          onClick={loadReservations}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          🔄 Actualiser
-        </button>
       </div>
 
-      {/* Filtres */}
-      <div className="bg-white rounded-lg shadow p-4">
+      {/* Filtres - Compact */}
+      <div className="bg-white rounded-lg shadow p-4 flex-shrink-0">
         <div className="flex items-center space-x-2">
           <span className="text-sm font-medium text-gray-700">Filtrer par statut:</span>
           <button
@@ -183,19 +186,22 @@ const ProductReservationsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Liste des réservations */}
-      {loading ? (
-        <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-          <p className="mt-4 text-gray-600">Chargement des réservations...</p>
-        </div>
-      ) : filteredReservations.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-lg shadow">
-          <p className="text-gray-600">Aucune réservation trouvée.</p>
-        </div>
-      ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
+      {/* Liste des réservations - Full height with internal scroll */}
+      <div className="bg-white rounded-lg shadow overflow-hidden flex-1 flex flex-col min-h-0">
+        {loading ? (
+          <div className="text-center py-12 flex-1 flex items-center justify-center">
+            <div>
+              <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+              <p className="mt-4 text-gray-600">Chargement des réservations...</p>
+            </div>
+          </div>
+        ) : filteredReservations.length === 0 ? (
+          <div className="text-center py-12 flex-1 flex items-center justify-center">
+            <p className="text-gray-600">Aucune réservation trouvée.</p>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-auto min-h-0">
+            <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -278,14 +284,15 @@ const ProductReservationsPage: React.FC = () => {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Modal de rejet */}
       {rejectModalOpen && selectedReservation && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-4 sm:p-6 max-h-[95vh] min-h-0 min-w-0 overflow-y-auto my-auto">
             <h3 className="text-lg font-bold text-gray-900 mb-4">Rejeter la réservation</h3>
             <p className="text-sm text-gray-600 mb-4">
               Souhaitez-vous ajouter une raison pour le rejet de cette réservation ?

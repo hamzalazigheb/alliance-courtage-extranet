@@ -436,17 +436,17 @@ function UserManagementPage() {
   const pendingCount = pendingRequests.length;
 
   return (
-    <div className="space-y-6">
-      {/* Header - Premium Alliance Courtage Blue */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="h-full flex flex-col space-y-3 overflow-hidden">
+      {/* Header - Compact */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex-shrink-0">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div className="flex items-center space-x-3">
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <UserIcon className="w-6 h-6 text-blue-600" />
+            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+              <UserIcon className="w-5 h-5 text-blue-600" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">Gestion des Utilisateurs</h2>
-              <p className="text-gray-600 text-sm">Créer et gérer les comptes utilisateurs</p>
+              <h2 className="text-xl font-bold text-gray-900">Gestion des Utilisateurs</h2>
+              <p className="text-gray-500 text-xs">Créer et gérer les comptes utilisateurs</p>
             </div>
           </div>
           <div className="flex items-center space-x-3">
@@ -506,9 +506,9 @@ function UserManagementPage() {
         </div>
       </div>
 
-      {/* Password Reset Requests Section - Premium Style */}
+      {/* Password Reset Requests Section - Compact */}
       {pendingRequests.length > 0 && !selectedRequest && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 shadow-sm">
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 shadow-sm flex-shrink-0">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-3">
               <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center">
@@ -555,8 +555,8 @@ function UserManagementPage() {
 
       {/* Reset Password Modal - Premium Style */}
       {selectedRequest && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl p-6 shadow-2xl border border-gray-200 max-w-md w-full">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl p-4 sm:p-6 shadow-2xl border border-gray-200 max-w-md w-full max-h-[95vh] min-h-0 min-w-0 overflow-y-auto my-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold text-gray-900">Réinitialiser le mot de passe</h3>
               <button
@@ -624,11 +624,20 @@ function UserManagementPage() {
         </div>
       )}
 
-      {/* Add User Form - Premium Style */}
+      {/* Add User Form - Modal Style */}
       {showAddForm && (
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-          <h3 className="text-xl font-bold text-gray-900 mb-4">Créer un nouvel utilisateur</h3>
-          <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl p-4 sm:p-6 shadow-2xl border border-gray-200 max-w-2xl w-full max-h-[95vh] min-h-0 min-w-0 overflow-y-auto my-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-gray-900">Créer un nouvel utilisateur</h3>
+              <button
+                onClick={() => setShowAddForm(false)}
+                className="text-gray-400 hover:text-gray-600 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+            <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Email *</label>
               <input
@@ -752,14 +761,15 @@ function UserManagementPage() {
                 Annuler
               </button>
             </div>
-          </form>
+            </form>
+          </div>
         </div>
       )}
 
-      {/* Category Tabs - Premium Style Alliance Courtage Blue */}
-      <div className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-40 mb-6 rounded-lg">
+      {/* Category Tabs - Compact */}
+      <div className="bg-white border-b border-gray-200 shadow-sm rounded-lg flex-shrink-0">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex space-x-1.5 overflow-x-auto scrollbar-hide py-2">
+          <div className="flex space-x-1.5 py-2">
             <button
               onClick={() => setActiveFilter('all')}
               className={`
@@ -832,22 +842,26 @@ function UserManagementPage() {
         </div>
       </div>
 
-      {/* Users List - Premium Style */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center space-x-2">
-            <UserIcon className="w-6 h-6 text-blue-600" />
-            <h3 className="text-xl font-bold text-gray-900">Liste des utilisateurs ({users.length})</h3>
+      {/* Users List - Full height with internal scroll */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex-1 flex flex-col min-h-0">
+        <div className="p-4 border-b border-gray-200 flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <UserIcon className="w-5 h-5 text-blue-600" />
+              <h3 className="text-lg font-bold text-gray-900">Liste des utilisateurs ({users.length})</h3>
+            </div>
           </div>
         </div>
 
-        {loading ? (
-          <div className="p-8 text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-500">Chargement...</p>
-          </div>
-        ) : users.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
+        {/* Table Container with fixed height and internal scroll */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
+          {loading ? (
+            <div className="p-8 text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-500">Chargement...</p>
+            </div>
+          ) : users.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -862,20 +876,19 @@ function UserManagementPage() {
             </p>
           </div>
         ) : (
-          <div>
-            
-            <div className="overflow-x-auto overflow-y-visible" style={{ minWidth: '100%' }}>
-            <table className="w-full" style={{ minWidth: '1200px' }}>
+          <div className="w-full">
+            <div className="w-full">
+            <table className="w-full table-auto" style={{ tableLayout: 'auto' }}>
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Utilisateur</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dénomination sociale</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '200px', width: '200px' }}>Téléphone</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '80px', width: '80px' }}>Code postal</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rôle</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '280px', width: '280px' }}>Actions</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Utilisateur</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dénomination sociale</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Téléphone</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code postal</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rôle</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -884,32 +897,32 @@ function UserManagementPage() {
                     key={user.id} 
                     className={`${!user.is_active || (user.validite_date && new Date(user.validite_date) < new Date()) ? 'bg-gray-100 opacity-75' : 'hover:bg-gray-50'} transition-colors`}
                   >
-                    <td className="px-4 py-4">
-                      <div className="text-sm font-medium text-gray-900">{user.nom} {user.prenom}</div>
+                    <td className="px-3 py-4">
+                      <div className="text-sm font-medium text-gray-900 truncate">{user.nom} {user.prenom}</div>
                       <div className="text-xs text-gray-500 mt-1">{new Date(user.created_at).toLocaleDateString('fr-FR')}</div>
                     </td>
-                    <td className="px-4 py-4">
-                      <div className="text-sm text-gray-700">
+                    <td className="px-3 py-4">
+                      <div className="text-sm text-gray-700 truncate">
                         {user.denomination_sociale && user.denomination_sociale.trim() !== '' 
                           ? user.denomination_sociale 
                           : <span className="text-gray-400 italic">-</span>}
                       </div>
                     </td>
-                    <td className="px-4 py-4">
-                      <div className="text-sm text-gray-700">{user.email}</div>
+                    <td className="px-3 py-4">
+                      <div className="text-sm text-gray-700 truncate">{user.email}</div>
                     </td>
-                    <td className="px-4 py-4 text-sm text-gray-700" style={{ minWidth: '200px', width: '200px', whiteSpace: 'nowrap' }}>
+                    <td className="px-3 py-4 text-sm text-gray-700 truncate">
                       {user.telephone && user.telephone.trim() !== '' 
                         ? user.telephone 
                         : <span className="text-gray-400 italic">-</span>}
                     </td>
-                    <td className="px-4 py-4 text-sm text-gray-700" style={{ minWidth: '80px', width: '80px' }}>
+                    <td className="px-3 py-4 text-sm text-gray-700 truncate">
                       {user.code_postal && user.code_postal.trim() !== '' 
                         ? user.code_postal 
                         : <span className="text-gray-400 italic">-</span>}
                     </td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center space-x-2">
+                    <td className="px-3 py-4">
+                      <div className="flex items-center space-x-2 flex-wrap gap-1">
                         <select
                           value={user.role}
                           onChange={async (e) => {
@@ -946,11 +959,11 @@ function UserManagementPage() {
                         </span>
                       </div>
                     </td>
-                    <td className="px-4 py-4">
+                    <td className="px-3 py-4">
                       <div className="flex flex-col gap-1">
                         <button
                           onClick={() => handleToggleActive(user.id, user.is_active)}
-                          className={`inline-flex px-3 py-1 text-xs font-medium rounded-full ${
+                          className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
                             user.is_active
                               ? 'bg-green-100 text-green-800 hover:bg-green-200'
                               : 'bg-red-100 text-red-800 hover:bg-red-200'
@@ -964,14 +977,14 @@ function UserManagementPage() {
                           </span>
                         )}
                         {user.validite_date && new Date(user.validite_date) >= new Date() && (
-                          <span className="text-xs text-gray-500">
+                          <span className="text-xs text-gray-500 truncate">
                             Expire: {new Date(user.validite_date).toLocaleDateString('fr-FR')}
                           </span>
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-4 text-sm font-medium whitespace-nowrap" style={{ minWidth: '280px', width: '280px' }}>
-                      <div className="flex items-center space-x-2 flex-wrap gap-2">
+                    <td className="px-3 py-4 text-sm font-medium">
+                      <div className="flex items-center space-x-1 flex-wrap gap-1">
                       <button
                         onClick={() => {
                           setEditingUser(user);
@@ -984,23 +997,21 @@ function UserManagementPage() {
                             validite_date: user.validite_date ? user.validite_date.split('T')[0] : ''
                           });
                         }}
-                          className="text-blue-600 hover:text-blue-700 transition-colors flex-shrink-0 flex items-center"
+                          className="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors flex-shrink-0"
                         title="Modifier"
                       >
-                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                         </svg>
-                          <span className="whitespace-nowrap">Modifier</span>
                       </button>
                       <button
                         onClick={() => handleDelete(user.id)}
-                          className="text-red-600 hover:text-red-700 transition-colors flex-shrink-0 flex items-center"
+                          className="p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors flex-shrink-0"
                         title="Supprimer"
                       >
-                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
-                          <span className="whitespace-nowrap">Supprimer</span>
                       </button>
                       </div>
                     </td>
@@ -1008,22 +1019,27 @@ function UserManagementPage() {
                 ))}
               </tbody>
             </table>
-            {pagination.totalPages > 1 && (
-              <PaginationControls
-                pagination={pagination}
-                onPageChange={goToPage}
-                onItemsPerPageChange={setItemsPerPage}
-              />
-            )}
             </div>
+          </div>
+        )}
+        </div>
+        
+        {/* Pagination - Fixed at bottom */}
+        {users.length > 0 && pagination.totalPages > 1 && (
+          <div className="p-4 border-t border-gray-200 flex-shrink-0 bg-white">
+            <PaginationControls
+              pagination={pagination}
+              onPageChange={goToPage}
+              onItemsPerPageChange={setItemsPerPage}
+            />
           </div>
         )}
       </div>
 
       {/* Edit User Modal - Premium Style */}
       {editingUser && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl p-6 shadow-2xl border border-gray-200 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl p-4 sm:p-6 shadow-2xl border border-gray-200 max-w-2xl w-full max-h-[95vh] min-h-0 min-w-0 overflow-y-auto my-auto">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold text-gray-900">Modifier l'utilisateur</h3>
               <button

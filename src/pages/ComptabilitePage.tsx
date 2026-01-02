@@ -8,54 +8,64 @@ function ComptabilitePage({ currentUser, bordereaux }: { currentUser: User | nul
   const [userFiles, setUserFiles] = useState<any[]>([]);
   const [availableYears, setAvailableYears] = useState<string[]>([]);
   const [allUserBordereaux, setAllUserBordereaux] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const isAdmin = currentUser?.role === 'admin';
   
-  // Load bordereaux from database for current user
+  // Load bordereaux from database
   useEffect(() => {
     const loadUserBordereaux = async () => {
       if (!currentUser?.id) return;
       try {
-        // Load bordereaux from new API
-        // IMPORTANT: In ComptabilitePage, even admins should see only their own files
-        const response = await fetch(buildAPIURL(`/bordereaux?user_id=${currentUser.id}`), {
+        setLoading(true);
+        
+        // Si admin : charger tous les bordereaux (sauf ceux des admins)
+        // Si user : charger seulement ses propres bordereaux
+        const apiUrl = isAdmin 
+          ? buildAPIURL(`/bordereaux?year=${selectedYear}`)
+          : buildAPIURL(`/bordereaux?user_id=${currentUser.id}`);
+        
+        const response = await fetch(apiUrl, {
           headers: {
             'x-auth-token': localStorage.getItem('token') || ''
           }
         });
+        
         if (response.ok) {
           const data = await response.json();
           
-          // Filtrer seulement par user_id (sans filtrer par année pour obtenir toutes les années)
-          const allData = data.filter((b: any) => {
-            const fileUserId = typeof b.userId === 'string' ? parseInt(b.userId) : b.userId;
-            const currentUserId = typeof currentUser.id === 'string' ? parseInt(currentUser.id) : currentUser.id;
-            return fileUserId === currentUserId;
-          });
+          // Si admin, les données sont déjà filtrées (pas de bordereaux d'admins)
+          // Si user, filtrer seulement par user_id
+          const allData = isAdmin 
+            ? data 
+            : data.filter((b: any) => {
+                const fileUserId = typeof b.userId === 'string' ? parseInt(b.userId) : b.userId;
+                const currentUserId = typeof currentUser.id === 'string' ? parseInt(currentUser.id) : currentUser.id;
+                return fileUserId === currentUserId;
+              });
           
           setAllUserBordereaux(allData);
           
           // Extraire toutes les années disponibles depuis les bordereaux
           const years = new Set<string>();
           allData.forEach((b: any) => {
-            // Utiliser periodYear si disponible, sinon YEAR(createdAt) comme fallback
             const year = b.periodYear 
               ? b.periodYear.toString() 
               : (b.createdAt ? new Date(b.createdAt).getFullYear().toString() : null);
-            
             if (year) {
               years.add(year);
             }
           });
           
-          // Trier les années par ordre décroissant et convertir en tableau
+          // Trier les années par ordre décroissant
           const sortedYears = Array.from(years).sort((a, b) => parseInt(b) - parseInt(a));
           
           // Si aucune année trouvée, utiliser les années par défaut
           if (sortedYears.length === 0) {
             sortedYears.push('2026', '2025', '2024');
           } else {
-            // S'assurer que 2026 est présent si on est en 2026 ou après
+            // S'assurer que 2026 est présent si on est en 2025 ou après
             const currentYear = new Date().getFullYear();
-            if (currentYear >= 2026 && !sortedYears.includes('2026')) {
+            if (currentYear >= 2025 && !sortedYears.includes('2026')) {
               sortedYears.unshift('2026');
             }
           }
@@ -67,65 +77,52 @@ function ComptabilitePage({ currentUser, bordereaux }: { currentUser: User | nul
             setSelectedYear(sortedYears[0]);
           }
           
-          // Filter by selected year - utiliser periodYear si disponible, sinon YEAR(createdAt)
+          // Filter by selected year
           const filteredData = allData.filter((b: any) => {
             if (selectedYear) {
-              // Utiliser periodYear si disponible, sinon YEAR(createdAt)
               const bordereauYear = b.periodYear 
                 ? b.periodYear.toString() 
                 : (b.createdAt ? new Date(b.createdAt).getFullYear().toString() : null);
-              
               if (!bordereauYear || bordereauYear !== selectedYear) {
-              return false;
+                return false;
               }
             }
             return true;
           });
+          
           setUserFiles(filteredData);
         }
       } catch (error) {
         console.error('Error loading user bordereaux:', error);
+      } finally {
+        setLoading(false);
       }
     };
     loadUserBordereaux();
-  }, [currentUser?.id, selectedYear]);
-  
-  // Debug simple pour vérifier le chargement
-  console.log('ComptabilitePage loaded for user:', currentUser?.name);
+  }, [currentUser?.id, selectedYear, isAdmin]);
 
   // Fonction pour télécharger/ouvrir un fichier
   const handleDownload = async (fileUrl: string, fileName: string) => {
     console.log('📥 Tentative de téléchargement de:', fileName);
     
-    // Si l'URL est une route API qui nécessite l'authentification, utiliser fetch
     if (fileUrl.includes('/bordereaux/') && fileUrl.includes('/download')) {
       try {
         const token = localStorage.getItem('token');
-        
-        // Extraire le chemin de l'URL complète ou utiliser directement
         let apiPath: string;
         if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
-          // URL complète - extraire le chemin après le domaine
           const urlObj = new URL(fileUrl);
-          apiPath = urlObj.pathname; // Ex: /api/bordereaux/29/download
-          // Retirer /api si présent pour que buildAPIURL puisse l'ajouter
+          apiPath = urlObj.pathname;
           if (apiPath.startsWith('/api/')) {
-            apiPath = apiPath.replace('/api', ''); // Ex: /bordereaux/29/download
+            apiPath = apiPath.replace('/api', '');
           }
         } else {
-          // Chemin relatif
           apiPath = fileUrl.startsWith('/') ? fileUrl : `/${fileUrl}`;
-          // Retirer /api si présent
           if (apiPath.startsWith('/api/')) {
             apiPath = apiPath.replace('/api', '');
           }
         }
         
-        // buildAPIURL attend un chemin relatif (sans /api au début)
         const apiUrl = buildAPIURL(apiPath);
-        
-        console.log('Downloading from:', apiUrl);
-        
         const response = await fetch(apiUrl, {
           headers: {
             'x-auth-token': token || ''
@@ -142,7 +139,7 @@ function ComptabilitePage({ currentUser, bordereaux }: { currentUser: User | nul
           a.click();
           document.body.removeChild(a);
           window.URL.revokeObjectURL(url);
-      } else {
+        } else {
           const errorText = await response.text();
           console.error('Download error:', errorText);
           alert('Erreur lors du téléchargement du fichier');
@@ -152,11 +149,81 @@ function ComptabilitePage({ currentUser, bordereaux }: { currentUser: User | nul
         alert('Erreur lors du téléchargement du fichier');
       }
     } else {
-      // Pour les anciens fichiers (file_path direct) ou autres URLs
       window.open(fileUrl, '_blank');
     }
   };
 
+  // Fonction pour obtenir l'icône selon le type de fichier
+  const getFileIcon = (fileName: string) => {
+    const extension = fileName.toLowerCase().split('.').pop() || '';
+    
+    if (extension === 'pdf') {
+      return (
+        <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" />
+          <path d="M8,10H16V12H8V10M8,14H13V16H8V14Z" />
+        </svg>
+      );
+    }
+    if (extension === 'doc' || extension === 'docx') {
+      return (
+        <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" />
+          <path d="M8,10H16V12H8V10M8,14H13V16H8V14Z" />
+        </svg>
+      );
+    }
+    if (extension === 'xls' || extension === 'xlsx') {
+      return (
+        <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" />
+          <path d="M8,10H12V12H8V10M8,14H12V16H8V14M14,10H16V12H14V10M14,14H16V16H14V14Z" />
+        </svg>
+      );
+    }
+    if (extension === 'ppt' || extension === 'pptx') {
+      return (
+        <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" />
+          <circle cx="12" cy="13" r="2" />
+          <path d="M8,10H16V12H8V10Z" />
+        </svg>
+      );
+    }
+    if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp'].includes(extension)) {
+      return (
+        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      );
+    }
+    return (
+      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    );
+  };
+
+  // Fonction pour obtenir la couleur du badge selon le type de fichier
+  const getFileIconBg = (fileName: string) => {
+    const extension = fileName.toLowerCase().split('.').pop() || '';
+    if (extension === 'pdf') {
+      return 'bg-gradient-to-br from-red-500 to-red-600';
+    }
+    if (extension === 'doc' || extension === 'docx') {
+      return 'bg-gradient-to-br from-blue-600 to-blue-700';
+    }
+    if (extension === 'xls' || extension === 'xlsx') {
+      return 'bg-gradient-to-br from-green-600 to-green-700';
+    }
+    if (extension === 'ppt' || extension === 'pptx') {
+      return 'bg-gradient-to-br from-orange-500 to-orange-600';
+    }
+    if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp'].includes(extension)) {
+      return 'bg-gradient-to-br from-purple-500 to-purple-600';
+    }
+    return 'bg-gradient-to-br from-[#0B1220] to-[#1D4ED8]';
+  };
 
   // Transform bordereaux data for display
   const displayFiles = userFiles.map(file => ({
@@ -164,75 +231,30 @@ function ComptabilitePage({ currentUser, bordereaux }: { currentUser: User | nul
     fileName: file.title || file.filePath?.split('/').pop() || 'Unknown',
     title: file.title,
     uploadDate: file.createdAt,
-    month: file.periodMonth ? new Date(2000, file.periodMonth - 1).toLocaleString('fr-FR', { month: 'long' }) : 
-            file.createdAt ? new Date(file.createdAt).toLocaleString('fr-FR', { month: 'long' }) : 'Unknown',
+    month: file.periodMonth || (file.createdAt ? new Date(file.createdAt).getMonth() + 1 : null),
+    monthName: file.periodMonth 
+      ? new Date(2000, file.periodMonth - 1).toLocaleString('fr-FR', { month: 'long' })
+      : (file.createdAt ? new Date(file.createdAt).toLocaleString('fr-FR', { month: 'long' }) : 'Unknown'),
     year: file.periodYear?.toString() || new Date(file.createdAt).getFullYear().toString(),
     userId: file.userId?.toString() || '',
+    userLabel: file.userLabel || 'Utilisateur',
     uploadedBy: file.uploadedByLabel || 'Admin',
-    file_path: file.filePath, // Keep for backward compatibility
-    fileUrl: file.fileUrl // New: URL for base64 files stored in DB
+    file_path: file.filePath,
+    fileUrl: file.fileUrl
   }));
-  
-  // Only use bordereaux from API (no longer combining with old bordereaux state)
-  const allUserFiles = displayFiles;
 
-  // Grouper par mois (including files from database)
-  const bordereauxByMonth = allUserFiles.reduce((acc, file) => {
-    if (!acc[file.month]) {
-      acc[file.month] = [];
+  // Grouper par mois (pour l'affichage admin)
+  const bordereauxByMonth = displayFiles.reduce((acc, file) => {
+    const monthKey = file.month || 'unknown';
+    if (!acc[monthKey]) {
+      acc[monthKey] = [];
     }
-    acc[file.month].push(file);
+    acc[monthKey].push(file);
     return acc;
-  }, {} as Record<string, any[]>);
+  }, {} as Record<number | string, any[]>);
 
-  // Debug: Afficher les données dans la console
-  console.log('🔍 Debug Comptabilité pour', currentUser?.name, ':', {
-    currentUser: currentUser,
-    selectedYear: selectedYear,
-    allBordereaux: bordereaux,
-    userFiles: userFiles,
-    displayFiles: displayFiles,
-    bordereauxByMonth: bordereauxByMonth,
-    // Debug supplémentaire
-    totalUserFiles: userFiles.length,
-    totalDisplayFiles: displayFiles.length
-  });
-
-  // Données des dossiers annuels
-  const yearlyFolders = {
-    "2025": {
-      months: [
-        { name: "Janvier", files: 12, lastUpdate: "15/01/2025" },
-        { name: "Février", files: 8, lastUpdate: "14/02/2025" },
-        { name: "Mars", files: 15, lastUpdate: "20/03/2025" },
-        { name: "Avril", files: 0, lastUpdate: "En attente" },
-        { name: "Mai", files: 0, lastUpdate: "En attente" },
-        { name: "Juin", files: 0, lastUpdate: "En attente" },
-        { name: "Juillet", files: 0, lastUpdate: "En attente" },
-        { name: "Août", files: 0, lastUpdate: "En attente" },
-        { name: "Septembre", files: 0, lastUpdate: "En attente" },
-        { name: "Octobre", files: 0, lastUpdate: "En attente" },
-        { name: "Novembre", files: 0, lastUpdate: "En attente" },
-        { name: "Décembre", files: 0, lastUpdate: "En attente" }
-      ]
-    },
-    "2024": {
-      months: [
-        { name: "Janvier", files: 18, lastUpdate: "15/01/2024" },
-        { name: "Février", files: 14, lastUpdate: "14/02/2024" },
-        { name: "Mars", files: 16, lastUpdate: "20/03/2024" },
-        { name: "Avril", files: 12, lastUpdate: "18/04/2024" },
-        { name: "Mai", files: 15, lastUpdate: "22/05/2024" },
-        { name: "Juin", files: 13, lastUpdate: "19/06/2024" },
-        { name: "Juillet", files: 11, lastUpdate: "17/07/2024" },
-        { name: "Août", files: 9, lastUpdate: "14/08/2024" },
-        { name: "Septembre", files: 17, lastUpdate: "21/09/2024" },
-        { name: "Octobre", files: 14, lastUpdate: "18/10/2024" },
-        { name: "Novembre", files: 16, lastUpdate: "20/11/2024" },
-        { name: "Décembre", files: 19, lastUpdate: "23/12/2024" }
-      ]
-    }
-  };
+  // Liste des mois pour l'affichage
+  const monthNames = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
   return (
     <div className="max-w-7xl mx-auto space-y-8">
@@ -242,7 +264,10 @@ function ComptabilitePage({ currentUser, bordereaux }: { currentUser: User | nul
           <div>
             <h1 className="text-3xl font-bold text-gray-800 mb-4">COMPTABILITÉ</h1>
             <p className="text-gray-600 text-lg">
-              Gestion des bordereaux comptables par année
+              {isAdmin 
+                ? "Vue d'ensemble des bordereaux comptables par année et par mois (tous les utilisateurs)"
+                : "Gestion des bordereaux comptables par année"
+              }
             </p>
           </div>
         </div>
@@ -267,8 +292,17 @@ function ComptabilitePage({ currentUser, bordereaux }: { currentUser: User | nul
               </button>
             ))
           ) : (
-            // Fallback si aucune année n'est disponible
             <>
+              <button
+                onClick={() => setSelectedYear("2026")}
+                className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+                  selectedYear === "2026"
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                2026
+              </button>
               <button
                 onClick={() => setSelectedYear("2025")}
                 className={`px-6 py-3 rounded-lg font-medium transition-colors ${
@@ -294,64 +328,88 @@ function ComptabilitePage({ currentUser, bordereaux }: { currentUser: User | nul
         </div>
       </div>
 
-      {/* Monthly Folders */}
+      {/* Monthly Folders - Design Premium */}
       <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
         <h2 className="text-xl font-semibold text-gray-800 mb-6">
-          Bordereaux {selectedYear} - {currentUser?.name}
+          {isAdmin 
+            ? `Bordereaux ${selectedYear} - Tous les utilisateurs`
+            : `Bordereaux ${selectedYear} - ${currentUser?.name}`
+          }
         </h2>
         
-        {Object.keys(bordereauxByMonth).length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Object.entries(bordereauxByMonth).map(([month, files]) => (
-              <div key={month} className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 hover:shadow-xl transition-all duration-300">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold text-gray-800">{month}</h3>
-                  <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    files.length > 0 
-                      ? "bg-green-100 text-green-800" 
-                      : "bg-gray-100 text-gray-600"
-                  }`}>
-                    {files.length} fichier{files.length > 1 ? 's' : ''}
+        {loading ? (
+          <div className="text-center py-8">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <p className="text-gray-500 mt-2">Chargement...</p>
+          </div>
+        ) : Object.keys(bordereauxByMonth).length > 0 ? (
+          <div className="space-y-6">
+            {/* Afficher les mois dans l'ordre (1-12) */}
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((monthNum) => {
+              const monthKey = monthNum;
+              const files = bordereauxByMonth[monthKey] || [];
+              if (files.length === 0) return null;
+              
+              return (
+                <div key={monthNum} className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all duration-300">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xl font-bold text-gray-800">{monthNames[monthNum - 1]} {selectedYear}</h3>
+                    <div className="px-3 py-1 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 text-white text-sm font-semibold shadow-md">
+                      {files.length} fichier{files.length > 1 ? 's' : ''}
+                    </div>
                   </div>
-                </div>
-                
-                <div className="space-y-3">
-                  {files.map((file) => (
-                    <div key={file.id} className="bg-gray-50 rounded-lg p-3 overflow-hidden">
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
-                        <div className="flex items-center space-x-2 min-w-0 flex-1">
-                          <span className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></span>
-                          <span className="truncate font-medium text-sm" title={file.fileName}>{file.fileName}</span>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {files.map((file) => (
+                      <div key={file.id} className="bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition-all duration-200 border border-gray-200">
+                        <div className="flex items-start gap-3 mb-3">
+                          {/* Icône avec couleur selon le type */}
+                          <div className={`${getFileIconBg(file.fileName)} rounded-lg p-2.5 flex-shrink-0 shadow-md`}>
+                            {getFileIcon(file.fileName)}
+                          </div>
+                          
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-gray-800 truncate mb-1" title={file.fileName}>
+                              {file.fileName}
+                            </p>
+                            {isAdmin && (
+                              <p className="text-xs text-gray-500 truncate mb-1">
+                                👤 {file.userLabel}
+                              </p>
+                            )}
+                            <p className="text-xs text-gray-400">
+                              📅 {new Date(file.uploadDate).toLocaleDateString('fr-FR')}
+                            </p>
+                          </div>
                         </div>
-                        <div className="text-xs text-gray-500 flex-shrink-0">
-                          Uploadé le: {new Date(file.uploadDate).toLocaleDateString('fr-FR')} par {file.uploadedBy}
-                        </div>
-                      </div>
-                      
-                      <div className="flex space-x-2">
+                        
                         <button 
                           onClick={(e) => {
                             e.preventDefault();
-                            // Use fileUrl if available (for base64 files), otherwise use file_path
                             const downloadUrl = file.fileUrl || (file.file_path ? buildFileURL(file.file_path) : '');
                             handleDownload(downloadUrl, file.fileName || file.title);
                           }}
-                          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-3 rounded-lg transition-colors text-sm font-medium"
+                          className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white py-2 px-4 rounded-lg transition-all duration-200 text-sm font-medium shadow-md hover:shadow-lg"
                         >
-                          Télécharger
+                          📥 Ouvrir
                         </button>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="text-center p-8 text-gray-500">
             <div className="text-4xl mb-4">📁</div>
             <p className="text-lg font-medium">Aucun bordereau disponible</p>
-            <p className="text-sm">Aucun fichier n'a été uploadé pour {currentUser?.name} en {selectedYear}</p>
+            <p className="text-sm">
+              {isAdmin 
+                ? `Aucun fichier n'a été uploadé pour les utilisateurs en ${selectedYear}`
+                : `Aucun fichier n'a été uploadé pour ${currentUser?.name} en ${selectedYear}`
+              }
+            </p>
           </div>
         )}
       </div>
@@ -362,7 +420,7 @@ function ComptabilitePage({ currentUser, bordereaux }: { currentUser: User | nul
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="text-center p-4 bg-blue-50 rounded-lg">
             <div className="text-2xl font-bold text-blue-600">
-              {allUserFiles.length}
+              {displayFiles.length}
             </div>
             <div className="text-sm text-gray-600">Total bordereaux</div>
           </div>
@@ -385,4 +443,3 @@ function ComptabilitePage({ currentUser, bordereaux }: { currentUser: User | nul
 }
 
 export default ComptabilitePage;
-

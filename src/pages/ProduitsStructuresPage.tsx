@@ -7,6 +7,7 @@ interface StructuredProduct {
   title: string;
   description: string;
   assurance: string;
+  montant_enveloppe?: number; // Enveloppe spécifique à ce produit
   category: string;
   file_path?: string;
   fileUrl?: string;
@@ -150,10 +151,12 @@ export default function ProduitsStructuresPage() {
   };
 
   const formatCurrency = (amount: number) => {
+    // Gérer les cas NaN, null, undefined
+    const safeAmount = isNaN(amount) || amount == null ? 0 : amount;
     return new Intl.NumberFormat('fr-FR', {
       style: 'currency',
       currency: 'EUR'
-    }).format(amount);
+    }).format(safeAmount);
   };
 
   // Grouper les produits par assurance
@@ -277,16 +280,35 @@ export default function ProduitsStructuresPage() {
                     
                     {/* Financial Stats */}
                     <div className="flex flex-wrap items-center gap-4">
-                      <div className="bg-white/10 rounded-lg px-4 py-2">
-                        <p className="text-xs text-blue-200">Enveloppe</p>
+                      <div className="bg-white/10 rounded-lg px-4 py-2 border border-white/20">
+                        <p className="text-xs text-blue-200 font-medium">Enveloppe globale assureur</p>
                         <p className="text-lg font-bold">{formatCurrency(montant.montant_enveloppe)}</p>
+                        <p className="text-xs text-blue-300 mt-1">(Total disponible pour tous les produits)</p>
                       </div>
-                      <div className="bg-yellow-500/20 rounded-lg px-4 py-2">
-                        <p className="text-xs text-yellow-200">Réservé</p>
+                      {/* Calculer la somme des enveloppes des produits */}
+                      <div className="bg-purple-500/20 rounded-lg px-4 py-2 border border-purple-300/30">
+                        <p className="text-xs text-purple-200 font-medium">Enveloppes produits</p>
+                        <p className="text-lg font-bold text-purple-300">
+                          {formatCurrency(assuranceProducts.reduce((sum, p) => {
+                            // Gérer tous les cas : null, undefined, string, number
+                            let montant = 0;
+                            if (p.montant_enveloppe != null && p.montant_enveloppe !== '') {
+                              const parsed = typeof p.montant_enveloppe === 'string' 
+                                ? parseFloat(p.montant_enveloppe) 
+                                : Number(p.montant_enveloppe);
+                              montant = isNaN(parsed) || parsed < 0 ? 0 : parsed;
+                            }
+                            return sum + montant;
+                          }, 0))}
+                        </p>
+                        <p className="text-xs text-purple-300 mt-1">(Somme des enveloppes de chaque produit)</p>
+                      </div>
+                      <div className="bg-yellow-500/20 rounded-lg px-4 py-2 border border-yellow-300/30">
+                        <p className="text-xs text-yellow-200 font-medium">Réservé</p>
                         <p className="text-lg font-bold text-yellow-300">{formatCurrency(montant.montant_reserve)}</p>
                       </div>
-                      <div className="bg-green-500/20 rounded-lg px-4 py-2">
-                        <p className="text-xs text-green-200">Disponible</p>
+                      <div className="bg-green-500/20 rounded-lg px-4 py-2 border border-green-300/30">
+                        <p className="text-xs text-green-200 font-medium">Disponible</p>
                         <p className="text-lg font-bold text-green-300">{formatCurrency(montant.montant_restant)}</p>
                       </div>
                     </div>
@@ -341,6 +363,33 @@ export default function ProduitsStructuresPage() {
                             <p className="text-sm text-gray-600 mb-4 line-clamp-2">{product.description}</p>
                           )}
                           
+                          {/* Enveloppe spécifique du produit - Section mise en évidence */}
+                          {product.montant_enveloppe && product.montant_enveloppe > 0 ? (
+                            <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg p-4 mb-4">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-1">
+                                    💰 Enveloppe de ce produit
+                                  </p>
+                                  <p className="text-2xl font-bold text-green-700">
+                                    {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(product.montant_enveloppe)}
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">
+                                    Spécifique à ce produit
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-4">
+                              <p className="text-xs text-gray-500 italic">
+                                ⚠️ Aucune enveloppe spécifique définie pour ce produit
+                              </p>
+                            </div>
+                          )}
+                          
                           {/* Metadata */}
                           <div className="flex items-center justify-between text-xs text-gray-500 mb-4 pb-4 border-b border-gray-100">
                             <div className="flex items-center gap-1">
@@ -388,7 +437,7 @@ export default function ProduitsStructuresPage() {
 
       {/* Reservation Modal */}
       {showReservationModal && selectedProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full">
             {/* Modal Header */}
             <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white px-6 py-4 rounded-t-xl">
