@@ -853,8 +853,8 @@ function UserManagementPage() {
           </div>
         </div>
 
-        {/* Table Container with fixed height and internal scroll */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
+        {/* Table Container - Full height without internal scroll */}
+        <div className="flex-1 overflow-x-auto min-h-0">
           {loading ? (
             <div className="p-8 text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
