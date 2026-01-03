@@ -78,7 +78,7 @@ app.use(limiter);
 app.use(metricsMiddleware);
 
 // Middleware pour parser JSON
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '100mb' })); // Augmenté pour supporter les gros contenus CMS
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
 // Middleware pour servir les fichiers statiques avec cache optimisé
