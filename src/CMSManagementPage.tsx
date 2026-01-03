@@ -2107,26 +2107,25 @@ const CMSManagementPage: React.FC = () => {
                                           }
                                           try {
                                             const next = JSON.parse(JSON.stringify(gpContent));
-                                            ['particulier', 'professionnel', 'entreprise'].forEach((c) => {
-                                              if (next.products[c as ClientId] && next.products[c as ClientId][fam as ProdId] && Array.isArray(next.products[c as ClientId][fam as ProdId])) {
-                                                const products = next.products[c as ClientId][fam as ProdId];
-                                                if (idx >= 0 && idx < products.length) {
-                                                  const productAtIdx = products[idx];
-                                                  if (productAtIdx && productAtIdx.name === p.name && 
-                                                      (productAtIdx.description || '') === (p.description || '')) {
-                                                    products.splice(idx, 1);
-                                                  } else {
-                                                    const foundIndex = products.findIndex(
-                                                      (prod: Product) => prod.name === p.name && 
-                                                      (prod.description || '') === (p.description || '')
-                                                    );
-                                                    if (foundIndex !== -1) {
-                                                      products.splice(foundIndex, 1);
-                                                    }
+                                            // Supprimer uniquement du client actuellement affiché
+                                            if (next.products[client as ClientId] && next.products[client as ClientId][fam as ProdId] && Array.isArray(next.products[client as ClientId][fam as ProdId])) {
+                                              const products = next.products[client as ClientId][fam as ProdId];
+                                              if (idx >= 0 && idx < products.length) {
+                                                const productAtIdx = products[idx];
+                                                if (productAtIdx && productAtIdx.name === p.name && 
+                                                    (productAtIdx.description || '') === (p.description || '')) {
+                                                  products.splice(idx, 1);
+                                                } else {
+                                                  const foundIndex = products.findIndex(
+                                                    (prod: Product) => prod.name === p.name && 
+                                                    (prod.description || '') === (p.description || '')
+                                                  );
+                                                  if (foundIndex !== -1) {
+                                                    products.splice(foundIndex, 1);
                                                   }
                                                 }
                                               }
-                                            });
+                                            }
                                             setGpContent(next);
                                             showSuccess('Produit supprimé avec succès');
                                           } catch (error) {
