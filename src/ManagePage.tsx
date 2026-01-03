@@ -405,10 +405,10 @@ const ManagePage: React.FC = () => {
 
       {/* Profile Modal */}
       {showProfileModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-4 sm:p-8 max-w-2xl w-full max-h-[95vh] min-h-0 min-w-0 overflow-y-auto my-auto transition-colors duration-200">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Gérer mon profil</h2>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start justify-center z-50 p-3 sm:p-4 overflow-y-auto pt-20 sm:pt-24">
+          <div className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-2xl p-4 sm:p-6 md:p-8 max-w-md sm:max-w-xl md:max-w-2xl w-full max-h-[calc(100vh-6rem)] sm:max-h-[calc(100vh-7rem)] min-h-0 min-w-0 overflow-y-auto mx-auto mt-0 transition-colors duration-200">
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-white">Gérer mon profil</h2>
               <button
                 onClick={() => {
                   setShowProfileModal(false);
@@ -418,73 +418,74 @@ const ManagePage: React.FC = () => {
                     confirmPassword: ''
                   });
                 }}
-                className="text-gray-500 hover:text-gray-700 text-2xl"
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-2xl sm:text-3xl leading-none w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                aria-label="Fermer"
               >
                 ×
               </button>
             </div>
 
             {currentUser && (
-              <div className="space-y-6">
+              <div className="space-y-4 sm:space-y-6">
                 {/* Informations du profil */}
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">Informations personnelles</h3>
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
-                    <p className="text-sm text-yellow-800">
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-white mb-3 sm:mb-4">Informations personnelles</h3>
+                  <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-2.5 sm:p-3 mb-3 sm:mb-4">
+                    <p className="text-xs sm:text-sm text-yellow-800 dark:text-yellow-200 leading-relaxed">
                       <strong>ℹ️ Information :</strong> Le nom et le prénom ne peuvent être modifiés que par un administrateur. 
                       Contactez votre administrateur si vous devez les modifier.
                     </p>
                   </div>
-                  <div className="space-y-4">
+                  <div className="space-y-3 sm:space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2">
                         Nom
                       </label>
                       <input
                         type="text"
                         value={profileData.nom}
                         disabled
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
+                        className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed"
                       />
-                      <p className="text-xs text-gray-500 mt-1">Le nom ne peut pas être modifié</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Le nom ne peut pas être modifié</p>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2">
                         Prénom
                       </label>
                       <input
                         type="text"
                         value={profileData.prenom}
                         disabled
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
+                        className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed"
                       />
-                      <p className="text-xs text-gray-500 mt-1">Le prénom ne peut pas être modifié</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Le prénom ne peut pas être modifié</p>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2">
                         Email
                       </label>
                       <input
                         type="email"
                         value={profileData.email}
                         disabled
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
+                        className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed"
                       />
-                      <p className="text-xs text-gray-500 mt-1">L'email ne peut pas être modifié</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">L'email ne peut pas être modifié</p>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2">
                         Rôle
                       </label>
                       <input
                         type="text"
                         value={currentUser.role}
                         disabled
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600"
+                        className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
                       />
                     </div>
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                      <p className="text-sm text-blue-800">
+                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-2.5 sm:p-3">
+                      <p className="text-xs sm:text-sm text-blue-800 dark:text-blue-200 leading-relaxed">
                         <strong>💡 Astuce :</strong> Vous pouvez modifier votre mot de passe ci-dessous.
                       </p>
                     </div>
@@ -492,52 +493,52 @@ const ManagePage: React.FC = () => {
                 </div>
 
                 {/* Séparateur */}
-                <div className="border-t border-gray-200 pt-6">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Changer le mot de passe</h3>
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-                    <p className="text-sm text-blue-800">
+                <div className="border-t border-gray-200 dark:border-gray-700 pt-4 sm:pt-6">
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-white mb-3 sm:mb-4">Changer le mot de passe</h3>
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-2.5 sm:p-3 mb-3 sm:mb-4">
+                    <p className="text-xs sm:text-sm text-blue-800 dark:text-blue-200 leading-relaxed">
                       <strong>ℹ️ Sécurité :</strong> Vous pouvez uniquement modifier votre propre mot de passe. 
                       Le système vérifie automatiquement votre identité.
                     </p>
                   </div>
-                  <div className="space-y-4">
+                  <div className="space-y-3 sm:space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2">
                         Mot de passe actuel *
                       </label>
                       <input
                         type="password"
                         value={passwordData.currentPassword}
                         onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                         placeholder="Entrez votre mot de passe actuel"
                         required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2">
                         Nouveau mot de passe *
                       </label>
                       <input
                         type="password"
                         value={passwordData.newPassword}
                         onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                         placeholder="Minimum 6 caractères"
                         minLength={6}
                         required
                       />
-                      <p className="text-xs text-gray-500 mt-1">Minimum 6 caractères</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Minimum 6 caractères</p>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2">
                         Confirmer le nouveau mot de passe *
                       </label>
                       <input
                         type="password"
                         value={passwordData.confirmPassword}
                         onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                         placeholder="Répétez le nouveau mot de passe"
                         minLength={6}
                         required
@@ -546,7 +547,7 @@ const ManagePage: React.FC = () => {
                     <button
                       onClick={handleChangePassword}
                       disabled={loading}
-                      className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-medium transition-colors disabled:opacity-50"
+                      className="w-full bg-green-600 hover:bg-green-700 text-white py-2.5 sm:py-3 px-4 rounded-lg text-sm sm:text-base font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {loading ? 'Changement...' : 'Changer le mot de passe'}
                     </button>

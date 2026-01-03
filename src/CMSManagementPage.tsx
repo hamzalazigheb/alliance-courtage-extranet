@@ -123,11 +123,14 @@ const CMSManagementPage: React.FC = () => {
   const [newProductDescription, setNewProductDescription] = useState('');
   const [newFamilyName, setNewFamilyName] = useState('');
   const [showDocumentModal, setShowDocumentModal] = useState(false);
-  const [editingProductDocument, setEditingProductDocument] = useState<{productName: string, family: string} | null>(null);
+  const [editingProductDocument, setEditingProductDocument] = useState<{productName: string, family: string, client?: string} | null>(null);
   const [documentForm, setDocumentForm] = useState({
     title: '',
     file: null as File | null
   });
+  // Workflow states for better UX
+  const [workflowStep, setWorkflowStep] = useState<'select' | 'add-product' | 'manage-documents'>('select');
+  const [newlyAddedProduct, setNewlyAddedProduct] = useState<{name: string, family: string, clients: string[]} | null>(null);
 
   useEffect(() => {
     loadContent();
@@ -136,6 +139,12 @@ const CMSManagementPage: React.FC = () => {
     }
     loadNotifications();
     loadUnreadCount();
+    
+    // Réinitialiser le workflow quand on change de page
+    if (activePage === 'gamme-produits') {
+      setWorkflowStep('select');
+      setNewlyAddedProduct(null);
+    }
     
     // Refresh notifications every 30 seconds
     const interval = setInterval(() => {
@@ -700,9 +709,54 @@ const CMSManagementPage: React.FC = () => {
       <div className="bg-slate-800 rounded-xl p-6 shadow-lg">
         {activePage === 'gamme-produits' && (
           <div className="space-y-6">
-            <h3 className="text-xl font-bold text-white mb-2">Gamme Produits</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-white">Gamme Produits</h3>
+              <button
+                onClick={() => {
+                  setWorkflowStep('select');
+                  setNewlyAddedProduct(null);
+                }}
+                className="px-4 py-2 text-sm bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-medium"
+              >
+                + Ajouter un produit
+              </button>
+            </div>
             
-            {/* Choix client / type de produit */}
+            {/* Indicateur d'étapes - seulement visible quand on ajoute un produit */}
+            {workflowStep !== 'select' && (
+              <div className="flex items-center justify-center space-x-4 mb-6 bg-slate-800 rounded-lg p-4">
+                <div className={`flex items-center ${workflowStep === 'select' ? 'text-emerald-400' : workflowStep === 'add-product' || workflowStep === 'manage-documents' ? 'text-blue-400' : 'text-gray-500'}`}>
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${workflowStep === 'select' ? 'bg-emerald-500 text-white' : 'bg-gray-600 text-gray-400'}`}>
+                    1
+                  </div>
+                  <span className="ml-2 font-medium">Sélection</span>
+                </div>
+                <div className="w-16 h-0.5 bg-gray-600"></div>
+                <div className={`flex items-center ${workflowStep === 'add-product' ? 'text-emerald-400' : workflowStep === 'manage-documents' ? 'text-blue-400' : 'text-gray-500'}`}>
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${workflowStep === 'add-product' ? 'bg-emerald-500 text-white' : workflowStep === 'manage-documents' ? 'bg-blue-500 text-white' : 'bg-gray-600 text-gray-400'}`}>
+                    2
+                  </div>
+                  <span className="ml-2 font-medium">Produit</span>
+                </div>
+                <div className="w-16 h-0.5 bg-gray-600"></div>
+                <div className={`flex items-center ${workflowStep === 'manage-documents' ? 'text-emerald-400' : 'text-gray-500'}`}>
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${workflowStep === 'manage-documents' ? 'bg-emerald-500 text-white' : 'bg-gray-600 text-gray-400'}`}>
+                    3
+                  </div>
+                  <span className="ml-2 font-medium">Documents</span>
+                </div>
+              </div>
+            )}
+
+            {/* ÉTAPE 1: Sélection */}
+            {workflowStep === 'select' && (
+              <div className="bg-slate-800 rounded-xl p-6 space-y-6">
+                <div className="text-center mb-6">
+                  <h4 className="text-xl font-semibold text-white mb-2">Ajouter un nouveau produit</h4>
+                  <p className="text-sm text-slate-400">Sélectionnez pour qui et dans quelle catégorie vous voulez ajouter ce produit</p>
+                </div>
+                
+                {/* Choix client / type de produit */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -878,8 +932,8 @@ const CMSManagementPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Ajouter / supprimer une famille */}
-            <div className="bg-slate-700/40 rounded-lg p-4">
+                {/* Ajouter / supprimer une famille */}
+                <div className="bg-slate-700/40 rounded-lg p-4">
               <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-3 items-end">
                 <div>
                   <label className="block text-sm font-semibold text-slate-300 mb-2">Nouvelle famille</label>
@@ -950,94 +1004,210 @@ const CMSManagementPage: React.FC = () => {
                 >
                   Supprimer la famille sélectionnée
                 </button>
-              </div>
-            </div>
-
-            {/* Liste des produits */}
-            <div className="bg-slate-700/40 rounded-lg p-4">
-              <div className="space-y-3 mb-4">
-                <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-300 mb-2">Nom du produit *</label>
-                      <input
-                        type="text"
-                        value={newProductName}
-                        onChange={(e) => setNewProductName(e.target.value)}
-                        className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500"
-                        placeholder="Ex: Assurance vie, PERP..."
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-300 mb-2">Description</label>
-                      <textarea
-                        value={newProductDescription}
-                        onChange={(e) => setNewProductDescription(e.target.value)}
-                        rows={3}
-                        className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500 resize-none"
-                        placeholder="Décrivez le produit, ses avantages, caractéristiques..."
-                      />
-                    </div>
-                  </div>
-                  <div className="flex items-end">
-                    <button
-                      onClick={() => {
-                        const name = newProductName.trim();
-                        if (!name) {
-                          showWarning('Le nom du produit est obligatoire');
-                          return;
-                        }
-                        if (selectedClients.length === 0) {
-                          showWarning('Veuillez sélectionner au moins un type de client');
-                          return;
-                        }
-                        if (selectedFamilies.length === 0) {
-                          showWarning('Veuillez sélectionner au moins une famille de produit');
-                          return;
-                        }
-                        const next = { ...gpContent };
-                        const newProduct: Product = {
-                          name: name,
-                          description: newProductDescription.trim()
-                        };
-                        // Ajouter le produit à tous les clients sélectionnés et toutes les familles sélectionnées
-                        selectedClients.forEach((client) => {
-                          selectedFamilies.forEach((fam) => {
-                            if (!next.products[client][fam as ProdId]) {
-                              (next.products[client] as any)[fam] = [];
-                            }
-                            // Vérifier si le produit existe déjà (par nom)
-                            const existingIndex = next.products[client][fam as ProdId].findIndex(
-                              (p: Product) => p.name === name
-                            );
-                            if (existingIndex === -1) {
-                              next.products[client][fam as ProdId] = [...next.products[client][fam as ProdId], newProduct];
-                            } else {
-                              // Mettre à jour le produit existant
-                              next.products[client][fam as ProdId][existingIndex] = newProduct;
-                            }
-                          });
-                        });
-                        setGpContent(next);
-                        setNewProductName('');
-                        setNewProductDescription('');
-                      }}
-                      disabled={selectedClients.length === 0 || selectedFamilies.length === 0 || !newProductName.trim()}
-                      className="px-4 py-3 bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-500 disabled:cursor-not-allowed text-white rounded-lg font-medium whitespace-nowrap"
-                    >
-                      + Ajouter à {selectedClients.length} client{selectedClients.length > 1 ? 's' : ''} / {selectedFamilies.length} famille{selectedFamilies.length > 1 ? 's' : ''}
-                    </button>
-                  </div>
                 </div>
               </div>
 
-              <div className="space-y-4">
-                {selectedClients.length === 0 ? (
-                  <div className="text-slate-300 text-sm">⚠️ Sélectionnez au moins un type de client pour voir les produits</div>
-                ) : selectedFamilies.length === 0 ? (
-                  <div className="text-slate-300 text-sm">⚠️ Sélectionnez au moins une famille pour voir les produits</div>
-                ) : (
-                  selectedFamilies.map((fam) => {
+                {/* Bouton continuer */}
+                <div className="flex justify-end pt-4">
+                  <button
+                    onClick={() => {
+                      if (selectedClients.length === 0) {
+                        showWarning('Veuillez sélectionner au moins un type de client');
+                        return;
+                      }
+                      if (selectedFamilies.length === 0) {
+                        showWarning('Veuillez sélectionner au moins une famille');
+                        return;
+                      }
+                      setWorkflowStep('add-product');
+                    }}
+                    disabled={selectedClients.length === 0 || selectedFamilies.length === 0}
+                    className="px-6 py-3 bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-500 disabled:cursor-not-allowed text-white rounded-lg font-medium"
+                  >
+                    Continuer → Ajouter le produit
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ÉTAPE 2: Ajouter le produit */}
+            {workflowStep === 'add-product' && (
+              <div className="bg-slate-800 rounded-xl p-6 space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-lg font-semibold text-white">Informations du produit</h4>
+                    <p className="text-sm text-slate-400 mt-1">Remplissez les détails du produit à ajouter</p>
+                  </div>
+                  <button
+                    onClick={() => setWorkflowStep('select')}
+                    className="px-4 py-2 text-sm bg-slate-700 hover:bg-slate-600 text-white rounded-lg"
+                  >
+                    ← Retour
+                  </button>
+                </div>
+
+                {/* Afficher les sélections */}
+                <div className="bg-slate-700/50 rounded-lg p-4">
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    <span className="text-sm text-slate-300 font-medium">Type(s) de client:</span>
+                    {selectedClients.map(c => (
+                      <span key={c} className="px-3 py-1 bg-blue-500/20 text-blue-300 text-sm rounded capitalize">{c}</span>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="text-sm text-slate-300 font-medium">Famille(s):</span>
+                    {selectedFamilies.map(f => (
+                      <span key={f} className="px-3 py-1 bg-emerald-500/20 text-emerald-300 text-sm rounded">{f}</span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Formulaire produit */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-300 mb-2">Nom du produit *</label>
+                    <input
+                      type="text"
+                      value={newProductName}
+                      onChange={(e) => setNewProductName(e.target.value)}
+                      className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500"
+                      placeholder="Ex: Assurance vie, PERP..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-300 mb-2">Description</label>
+                    <textarea
+                      value={newProductDescription}
+                      onChange={(e) => setNewProductDescription(e.target.value)}
+                      rows={4}
+                      className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500 resize-none"
+                      placeholder="Décrivez le produit, ses avantages, caractéristiques..."
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      const name = newProductName.trim();
+                      if (!name) {
+                        showWarning('Le nom du produit est obligatoire');
+                        return;
+                      }
+                      if (selectedClients.length === 0) {
+                        showWarning('Veuillez sélectionner au moins un type de client');
+                        return;
+                      }
+                      if (selectedFamilies.length === 0) {
+                        showWarning('Veuillez sélectionner au moins une famille de produit');
+                        return;
+                      }
+                      const next = { ...gpContent };
+                      const newProduct: Product = {
+                        name: name,
+                        description: newProductDescription.trim()
+                      };
+                      // Ajouter le produit à tous les clients sélectionnés et toutes les familles sélectionnées
+                      selectedClients.forEach((client) => {
+                        selectedFamilies.forEach((fam) => {
+                          if (!next.products[client][fam as ProdId]) {
+                            (next.products[client] as any)[fam] = [];
+                          }
+                          // Vérifier si le produit existe déjà (par nom)
+                          const existingIndex = next.products[client][fam as ProdId].findIndex(
+                            (p: Product) => p.name === name
+                          );
+                          if (existingIndex === -1) {
+                            next.products[client][fam as ProdId] = [...next.products[client][fam as ProdId], newProduct];
+                          } else {
+                            // Mettre à jour le produit existant
+                            next.products[client][fam as ProdId][existingIndex] = newProduct;
+                          }
+                        });
+                      });
+                      setGpContent(next);
+                      // Après ajout réussi
+                      setNewlyAddedProduct({
+                        name: name,
+                        family: selectedFamilies[0], // Prendre la première famille
+                        clients: selectedClients
+                      });
+                      setNewProductName('');
+                      setNewProductDescription('');
+                      setWorkflowStep('manage-documents'); // Passer à l'étape 3
+                      showSuccess('Produit ajouté ! Vous pouvez maintenant ajouter des documents.');
+                    }}
+                    disabled={!newProductName.trim()}
+                    className="w-full px-6 py-3 bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-500 text-white rounded-lg font-medium"
+                  >
+                    ✓ Ajouter le produit
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ÉTAPE 3: Gérer les documents */}
+            {workflowStep === 'manage-documents' && (
+              <div className="bg-slate-800 rounded-xl p-6 space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-lg font-semibold text-white">Ajouter des documents</h4>
+                    <p className="text-sm text-slate-400 mt-1">Gérez les documents associés à vos produits</p>
+                  </div>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => {
+                        setNewlyAddedProduct(null);
+                        setWorkflowStep('select');
+                      }}
+                      className="px-4 py-2 text-sm bg-slate-700 hover:bg-slate-600 text-white rounded-lg"
+                    >
+                      ← Nouveau produit
+                    </button>
+                    <button
+                      onClick={() => setWorkflowStep('add-product')}
+                      className="px-4 py-2 text-sm bg-slate-700 hover:bg-slate-600 text-white rounded-lg"
+                    >
+                      ← Retour
+                    </button>
+                  </div>
+                </div>
+
+                {/* Si un produit vient d'être ajouté, le mettre en évidence */}
+                {newlyAddedProduct && (
+                  <div className="bg-emerald-500/20 border border-emerald-500 rounded-lg p-4">
+                    <p className="text-emerald-300 font-medium mb-2">✓ Produit "{newlyAddedProduct.name}" ajouté avec succès !</p>
+                    <p className="text-sm text-slate-300">Vous pouvez maintenant ajouter des documents à ce produit.</p>
+                  </div>
+                )}
+
+                {/* Résumé des sélections */}
+                <div className="bg-slate-700/50 rounded-lg p-4">
+                  <div className="flex flex-wrap gap-4">
+                    <div>
+                      <span className="text-sm text-slate-400">Type(s) de client:</span>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {selectedClients.map(c => (
+                          <span key={c} className="px-2 py-1 bg-blue-500/20 text-blue-300 text-sm rounded capitalize">{c}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-sm text-slate-400">Famille(s):</span>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {selectedFamilies.map(f => (
+                          <span key={f} className="px-2 py-1 bg-emerald-500/20 text-emerald-300 text-sm rounded">{f}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Liste des produits avec gestion de documents */}
+                <div className="space-y-4">
+                  {selectedClients.length === 0 ? (
+                    <div className="text-slate-300 text-sm">⚠️ Sélectionnez au moins un type de client pour voir les produits</div>
+                  ) : selectedFamilies.length === 0 ? (
+                    <div className="text-slate-300 text-sm">⚠️ Sélectionnez au moins une famille pour voir les produits</div>
+                  ) : (
+                    selectedFamilies.map((fam) => {
                     const products = selectedClients.length > 0 
                       ? gpContent.products[selectedClients[0]][fam as ProdId] || []
                       : [];
@@ -1087,81 +1257,122 @@ const CMSManagementPage: React.FC = () => {
                                 documentsCount: p.documents && Array.isArray(p.documents) ? p.documents.length : 0
                               });
                               return (
-                              <div key={`${p.name}-${fam}-${idx}`} className="bg-slate-600/30 rounded-lg p-3 space-y-2">
-                                <div className="flex items-center space-x-2">
-                                  <input
-                                    type="text"
-                                    value={p.name}
-                                    onChange={(e) => {
-                                      const next = JSON.parse(JSON.stringify(gpContent)); // Deep copy
-                                      const newName = e.target.value;
-                                      // Mettre à jour le produit dans tous les clients sélectionnés
-                                      selectedClients.forEach((client) => {
-                                        if (!next.products[client][fam as ProdId]) {
-                                          (next.products[client] as any)[fam] = [];
+                              <div key={`${p.name}-${fam}-${idx}`} data-product={`${p.name}-${fam}`} className="bg-slate-700/50 rounded-lg p-4 border border-slate-600">
+                                {/* En-tête du produit avec actions */}
+                                <div className="flex items-start justify-between mb-3">
+                                  <div className="flex-1">
+                                    <h5 className="text-white font-semibold text-base mb-1">{p.name}</h5>
+                                    {p.description && (
+                                      <p className="text-sm text-slate-400 mb-2">{p.description}</p>
+                                    )}
+                                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                                      <span>Famille: <span className="text-emerald-400">{fam}</span></span>
+                                      <span>•</span>
+                                      <span>{p.documents && Array.isArray(p.documents) ? p.documents.length : 0} document{p.documents && Array.isArray(p.documents) && p.documents.length !== 1 ? 's' : ''}</span>
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-col gap-2 ml-4">
+                                    <button
+                                      onClick={() => {
+                                        console.log('🔍 Ouvrir modal pour produit:', p.name, 'Famille:', fam, 'Documents actuels:', p.documents);
+                                        setEditingProductDocument({ 
+                                          productName: p.name, 
+                                          family: fam,
+                                          client: selectedClients[0]
+                                        });
+                                        setShowDocumentModal(true);
+                                      }}
+                                      className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium whitespace-nowrap"
+                                    >
+                                      📄 Gérer documents ({p.documents?.length || 0})
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        if (!confirm('Êtes-vous sûr de vouloir supprimer ce produit ?')) {
+                                          return;
                                         }
-                                        if (next.products[client][fam as ProdId][idx]) {
-                                          next.products[client][fam as ProdId][idx] = {
-                                            ...next.products[client][fam as ProdId][idx],
-                                            name: newName
-                                          };
-                                        }
-                                      });
-                                      setGpContent(next);
-                                    }}
-                                    className="flex-1 px-3 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500 text-sm font-medium"
-                                    placeholder="Nom du produit"
-                                  />
-                                  <button
-                                    onClick={() => {
-                                      if (!confirm('Êtes-vous sûr de vouloir supprimer ce produit ?')) {
-                                        return;
-                                      }
-                                      const next = JSON.parse(JSON.stringify(gpContent)); // Deep copy
-                                      const productName = p.name;
-                                      // Supprimer le produit de tous les clients sélectionnés
-                                      selectedClients.forEach((client) => {
-                                        if (next.products[client][fam as ProdId]) {
-                                          next.products[client][fam as ProdId] = next.products[client][fam as ProdId].filter(
-                                            (prod) => prod.name !== productName
-                                          );
-                                        }
-                                      });
-                                      setGpContent(next);
-                                    }}
-                                    className="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded text-sm whitespace-nowrap"
-                                  >
-                                    Supprimer
-                                  </button>
+                                        const next = JSON.parse(JSON.stringify(gpContent)); // Deep copy
+                                        const productName = p.name;
+                                        // Supprimer le produit de tous les clients sélectionnés
+                                        selectedClients.forEach((client) => {
+                                          if (next.products[client][fam as ProdId]) {
+                                            next.products[client][fam as ProdId] = next.products[client][fam as ProdId].filter(
+                                              (prod) => prod.name !== productName
+                                            );
+                                          }
+                                        });
+                                        setGpContent(next);
+                                        showSuccess('Produit supprimé avec succès');
+                                      }}
+                                      className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium whitespace-nowrap"
+                                    >
+                                      🗑️ Supprimer
+                                    </button>
+                                  </div>
                                 </div>
-                                <textarea
-                                  value={p.description}
-                                    onChange={(e) => {
-                                      const next = JSON.parse(JSON.stringify(gpContent)); // Deep copy
-                                      const newDescription = e.target.value;
-                                      // Mettre à jour le produit dans tous les clients sélectionnés
-                                      selectedClients.forEach((client) => {
-                                        if (!next.products[client][fam as ProdId]) {
-                                          (next.products[client] as any)[fam] = [];
-                                        }
-                                        if (next.products[client][fam as ProdId][idx]) {
-                                          next.products[client][fam as ProdId][idx] = {
-                                            ...next.products[client][fam as ProdId][idx],
-                                            description: newDescription
-                                          };
-                                        }
-                                      });
-                                      setGpContent(next);
-                                    }}
-                                  rows={2}
-                                  className="w-full px-3 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500 text-sm resize-none"
-                                  placeholder="Description du produit..."
-                                />
+
+                                {/* Section édition (collapsible ou toujours visible) */}
+                                <div className="mt-4 pt-4 border-t border-slate-600">
+                                  <div className="space-y-3">
+                                    <div>
+                                      <label className="block text-xs font-semibold text-slate-300 mb-1">Modifier le nom</label>
+                                      <input
+                                        type="text"
+                                        value={p.name}
+                                        onChange={(e) => {
+                                          const next = JSON.parse(JSON.stringify(gpContent)); // Deep copy
+                                          const newName = e.target.value;
+                                          // Mettre à jour le produit dans tous les clients sélectionnés
+                                          selectedClients.forEach((client) => {
+                                            if (!next.products[client][fam as ProdId]) {
+                                              (next.products[client] as any)[fam] = [];
+                                            }
+                                            if (next.products[client][fam as ProdId][idx]) {
+                                              next.products[client][fam as ProdId][idx] = {
+                                                ...next.products[client][fam as ProdId][idx],
+                                                name: newName
+                                              };
+                                            }
+                                          });
+                                          setGpContent(next);
+                                        }}
+                                        className="w-full px-3 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500 text-sm"
+                                        placeholder="Nom du produit"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-xs font-semibold text-slate-300 mb-1">Modifier la description</label>
+                                      <textarea
+                                        value={p.description}
+                                        onChange={(e) => {
+                                          const next = JSON.parse(JSON.stringify(gpContent)); // Deep copy
+                                          const newDescription = e.target.value;
+                                          // Mettre à jour le produit dans tous les clients sélectionnés
+                                          selectedClients.forEach((client) => {
+                                            if (!next.products[client][fam as ProdId]) {
+                                              (next.products[client] as any)[fam] = [];
+                                            }
+                                            if (next.products[client][fam as ProdId][idx]) {
+                                              next.products[client][fam as ProdId][idx] = {
+                                                ...next.products[client][fam as ProdId][idx],
+                                                description: newDescription
+                                              };
+                                            }
+                                          });
+                                          setGpContent(next);
+                                        }}
+                                        rows={3}
+                                        className="w-full px-3 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500 text-sm resize-none"
+                                        placeholder="Description du produit..."
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
                                 
                                 {/* Section Documents */}
-                                <div className="mt-3 pt-3 border-t border-slate-600">
-                                  <div className="flex items-center justify-between mb-2">
-                                    <label className="text-xs font-semibold text-slate-300">
+                                <div className="mt-4 pt-4 border-t border-slate-600">
+                                  <div className="flex items-center justify-between mb-3">
+                                    <label className="text-sm font-semibold text-slate-300">
                                       Documents associés
                                       {p.documents && (
                                         <span className="ml-2 text-xs text-slate-400">
@@ -1169,61 +1380,46 @@ const CMSManagementPage: React.FC = () => {
                                         </span>
                                       )}
                                     </label>
-                                    <button
-                                      onClick={() => {
-                                        console.log('🔍 Ouvrir modal pour produit:', p.name, 'Famille:', fam, 'Documents actuels:', p.documents);
-                                        setEditingProductDocument({ productName: p.name, family: fam });
-                                        setShowDocumentModal(true);
-                                      }}
-                                      className="px-2 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
-                                    >
-                                      + Ajouter document
-                                    </button>
-                                  </div>
-                                  {/* Debug info - toujours visible pour diagnostic */}
-                                  <div className="text-xs text-slate-500 mb-1 italic">
-                                    {p.documents ? (
-                                      Array.isArray(p.documents) ? (
-                                        `📄 ${p.documents.length} document(s) trouvé(s)`
-                                      ) : (
-                                        `⚠️ Type: ${typeof p.documents} (attendu: array)`
-                                      )
-                                    ) : (
-                                      '📄 Aucun document (undefined)'
-                                    )}
                                   </div>
                                   {(() => {
                                     // Vérifier et afficher les documents
-                                    if (!p.documents) {
-                                      return <p className="text-xs text-slate-500 italic">Aucun document (undefined)</p>;
-                                    }
-                                    if (!Array.isArray(p.documents)) {
-                                      return <p className="text-xs text-yellow-500 italic">⚠️ Documents n'est pas un tableau: {typeof p.documents}</p>;
-                                    }
-                                    if (p.documents.length === 0) {
-                                      return <p className="text-xs text-slate-500 italic">Aucun document (tableau vide)</p>;
+                                    if (!p.documents || !Array.isArray(p.documents) || p.documents.length === 0) {
+                                      return (
+                                        <div className="bg-slate-600/20 rounded-lg p-3 text-center">
+                                          <p className="text-sm text-slate-400">Aucun document associé</p>
+                                          <p className="text-xs text-slate-500 mt-1">Cliquez sur "Gérer documents" pour en ajouter</p>
+                                        </div>
+                                      );
                                     }
                                     return (
-                                      <div className="space-y-1">
+                                      <div className="space-y-2">
                                         {p.documents.map((doc: ProductDocument) => {
                                           if (!doc || !doc.id) {
                                             console.error('Document invalide:', doc);
                                             return null;
                                           }
                                           return (
-                                            <div key={doc.id} className="flex items-center justify-between bg-slate-600/20 rounded p-2">
-                                              <span className="text-xs text-slate-300 truncate flex-1">{doc.title || doc.file_name || 'Document sans nom'}</span>
-                                              <div className="flex space-x-2 ml-2">
+                                            <div key={doc.id} className="flex items-center justify-between bg-slate-600/30 rounded-lg p-3 border border-slate-600">
+                                              <div className="flex-1 min-w-0">
+                                                <p className="text-sm text-white font-medium truncate">{doc.title || doc.file_name || 'Document sans nom'}</p>
+                                                <p className="text-xs text-slate-400 mt-1">
+                                                  {(doc.file_size / 1024).toFixed(1)} KB • {doc.file_type || 'Type inconnu'}
+                                                </p>
+                                              </div>
+                                              <div className="flex items-center gap-2 ml-3">
                                                 <a
                                                   href={`data:${doc.file_type || 'application/octet-stream'};base64,${doc.file_content}`}
                                                   download={doc.file_name}
-                                                  className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                                                  className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs font-medium transition-colors"
                                                   title="Télécharger"
                                                 >
-                                                  📥
+                                                  📥 Télécharger
                                                 </a>
                                                 <button
                                                   onClick={() => {
+                                                    if (!confirm('Êtes-vous sûr de vouloir supprimer ce document ?')) {
+                                                      return;
+                                                    }
                                                     const next = JSON.parse(JSON.stringify(gpContent)); // Deep copy
                                                     selectedClients.forEach((client) => {
                                                       const productIndex = next.products[client][fam as ProdId].findIndex(
@@ -1240,11 +1436,12 @@ const CMSManagementPage: React.FC = () => {
                                                       }
                                                     });
                                                     setGpContent(next);
+                                                    showSuccess('Document supprimé avec succès');
                                                   }}
-                                                  className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                                                  className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded text-xs font-medium transition-colors"
                                                   title="Supprimer"
                                                 >
-                                                  🗑️
+                                                  🗑️ Supprimer
                                                 </button>
                                               </div>
                                             </div>
@@ -1262,8 +1459,196 @@ const CMSManagementPage: React.FC = () => {
                       </div>
                     );
                   })
-                )}
+                  )}
+                </div>
               </div>
+            )}
+
+            {/* LISTE DE TOUS LES PRODUITS - Toujours visible */}
+            <div className="bg-slate-800 rounded-xl p-6 space-y-6 mt-8">
+              <div className="flex items-center justify-between">
+                <h4 className="text-lg font-semibold text-white">📦 Tous les produits</h4>
+                <div className="text-sm text-slate-400">
+                  {(() => {
+                    let totalProducts = 0;
+                    ['particulier', 'professionnel', 'entreprise'].forEach((client) => {
+                      Object.keys(gpContent.products[client as ClientId] || {}).forEach((fam) => {
+                        const products = gpContent.products[client as ClientId][fam as ProdId] || [];
+                        totalProducts += products.length;
+                      });
+                    });
+                    return `${totalProducts} produit${totalProducts > 1 ? 's' : ''} au total`;
+                  })()}
+                </div>
+              </div>
+
+              {/* Filtres rapides */}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => {
+                    setSelectedClients(['particulier']);
+                    setSelectedFamilies([]);
+                    setWorkflowStep('select');
+                  }}
+                  className="px-3 py-1.5 text-xs bg-slate-700 hover:bg-slate-600 text-white rounded-lg"
+                >
+                  Particulier
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedClients(['professionnel']);
+                    setSelectedFamilies([]);
+                    setWorkflowStep('select');
+                  }}
+                  className="px-3 py-1.5 text-xs bg-slate-700 hover:bg-slate-600 text-white rounded-lg"
+                >
+                  Professionnel
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedClients(['entreprise']);
+                    setSelectedFamilies([]);
+                    setWorkflowStep('select');
+                  }}
+                  className="px-3 py-1.5 text-xs bg-slate-700 hover:bg-slate-600 text-white rounded-lg"
+                >
+                  Entreprise
+                </button>
+              </div>
+
+              {/* Liste de tous les produits par client et famille */}
+              <div className="space-y-6">
+                {['particulier', 'professionnel', 'entreprise'].map((client) => {
+                  const clientProducts = gpContent.products[client as ClientId] || {};
+                  const families = Object.keys(clientProducts);
+                  const hasProducts = families.some(fam => {
+                    const products = clientProducts[fam as ProdId] || [];
+                    return products.length > 0;
+                  });
+
+                  if (!hasProducts) return null;
+
+                  return (
+                    <div key={client} className="bg-slate-700/30 rounded-lg p-4 border border-slate-600">
+                      <h5 className="text-white font-semibold mb-4 capitalize flex items-center">
+                        <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                        {client}
+                      </h5>
+                      <div className="space-y-4">
+                        {families.map((fam) => {
+                          const products = clientProducts[fam as ProdId] || [];
+                          if (products.length === 0) return null;
+
+                          return (
+                            <div key={fam} className="bg-slate-600/20 rounded-lg p-3">
+                              <div className="flex items-center justify-between mb-3">
+                                <h6 className="text-emerald-400 font-medium text-sm">Famille: {fam}</h6>
+                                <span className="text-xs text-slate-400">{products.length} produit{products.length > 1 ? 's' : ''}</span>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {products.map((p: Product, idx: number) => (
+                                  <div key={`${client}-${fam}-${idx}`} className="bg-slate-700/50 rounded-lg p-4 border border-slate-600 hover:border-slate-500 transition-colors">
+                                    <div className="mb-3">
+                                      <h6 className="text-white font-semibold text-base mb-1">{p.name}</h6>
+                                      {p.description && (
+                                        <p className="text-xs text-slate-400 line-clamp-2">{p.description}</p>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-2 mb-3 text-xs text-slate-500">
+                                      <span>📄 {p.documents && Array.isArray(p.documents) ? p.documents.length : 0} document{p.documents && Array.isArray(p.documents) && p.documents.length !== 1 ? 's' : ''}</span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-600">
+                                      <button
+                                        onClick={() => {
+                                          setSelectedClients([client as ClientId]);
+                                          setSelectedFamilies([fam]);
+                                          setEditingProductDocument({ 
+                                            productName: p.name, 
+                                            family: fam,
+                                            client: client
+                                          });
+                                          setShowDocumentModal(true);
+                                        }}
+                                        className="flex-1 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs font-medium text-center"
+                                      >
+                                        📄 Documents
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setSelectedClients([client as ClientId]);
+                                          setSelectedFamilies([fam]);
+                                          setWorkflowStep('manage-documents');
+                                          // Scroll vers le produit dans l'étape 3
+                                          setTimeout(() => {
+                                            const element = document.querySelector(`[data-product="${p.name}-${fam}"]`);
+                                            if (element) {
+                                              element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                            }
+                                          }, 100);
+                                        }}
+                                        className="flex-1 px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded text-xs font-medium text-center"
+                                      >
+                                        ✏️ Modifier
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          if (!confirm(`Êtes-vous sûr de vouloir supprimer le produit "${p.name}" ?`)) {
+                                            return;
+                                          }
+                                          const next = JSON.parse(JSON.stringify(gpContent));
+                                          const productName = p.name;
+                                          // Supprimer le produit de tous les clients
+                                          ['particulier', 'professionnel', 'entreprise'].forEach((c) => {
+                                            if (next.products[c as ClientId][fam as ProdId]) {
+                                              next.products[c as ClientId][fam as ProdId] = next.products[c as ClientId][fam as ProdId].filter(
+                                                (prod: Product) => prod.name !== productName
+                                              );
+                                            }
+                                          });
+                                          setGpContent(next);
+                                          showSuccess('Produit supprimé avec succès');
+                                        }}
+                                        className="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded text-xs font-medium"
+                                      >
+                                        🗑️
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Message si aucun produit */}
+              {(() => {
+                let totalProducts = 0;
+                ['particulier', 'professionnel', 'entreprise'].forEach((client) => {
+                  Object.keys(gpContent.products[client as ClientId] || {}).forEach((fam) => {
+                    const products = gpContent.products[client as ClientId][fam as ProdId] || [];
+                    totalProducts += products.length;
+                  });
+                });
+                if (totalProducts === 0) {
+                  return (
+                    <div className="text-center py-8 bg-slate-700/30 rounded-lg">
+                      <p className="text-slate-400 mb-2">Aucun produit pour le moment</p>
+                      <button
+                        onClick={() => setWorkflowStep('select')}
+                        className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-medium"
+                      >
+                        + Ajouter votre premier produit
+                      </button>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
             
             {/* Modal pour ajouter un document */}
