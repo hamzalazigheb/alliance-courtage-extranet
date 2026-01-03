@@ -376,18 +376,18 @@ const PartnerManagementPage: React.FC = () => {
       {showUploadForm && (
         <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-200">
           <div className="flex items-center space-x-2 mb-6">
-            {editingPartner ? (
-              <>
+                {editingPartner ? (
+                  <>
                 <EditIcon className="w-6 h-6 text-gray-600" />
-                <h2 className="text-xl font-semibold text-gray-900">Modifier le Partenaire</h2>
-              </>
-            ) : (
-              <>
+                    <h2 className="text-xl font-semibold text-gray-900">Modifier le Partenaire</h2>
+                  </>
+                ) : (
+                  <>
                 <UploadIcon className="w-6 h-6 text-gray-600" />
-                <h2 className="text-xl font-semibold text-gray-900">Ajouter un Nouveau Partenaire</h2>
-              </>
-            )}
-          </div>
+                    <h2 className="text-xl font-semibold text-gray-900">Ajouter un Nouveau Partenaire</h2>
+                  </>
+                )}
+              </div>
           <form onSubmit={editingPartner ? handleUpdate : handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -612,24 +612,24 @@ const PartnerManagementPage: React.FC = () => {
         <div className="flex items-center space-x-2 mb-6">
           <PartnerIcon className="w-6 h-6 text-gray-600" />
           <h2 className="text-xl font-semibold text-gray-900">
-            Partenaires ({filteredPartners.length})
-          </h2>
+                Partenaires ({filteredPartners.length})
+              </h2>
         </div>
 
-        {loading ? (
-          <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="text-gray-600 mt-4">Chargement des partenaires...</p>
-          </div>
-        ) : filteredPartners.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <PartnerIcon className="w-8 h-8 text-gray-400" />
+          {loading ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+              <p className="text-gray-600 mt-4">Chargement des partenaires...</p>
             </div>
-            <p className="text-gray-600 text-lg font-medium">Aucun partenaire trouvé</p>
-            <p className="text-gray-500 text-sm mt-2">Commencez par ajouter votre premier partenaire</p>
-          </div>
-        ) : (
+          ) : filteredPartners.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <PartnerIcon className="w-8 h-8 text-gray-400" />
+              </div>
+              <p className="text-gray-600 text-lg font-medium">Aucun partenaire trouvé</p>
+              <p className="text-gray-500 text-sm mt-2">Commencez par ajouter votre premier partenaire</p>
+            </div>
+          ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredPartners.map((partner) => (
               <div key={partner.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-lg transition-shadow">
@@ -757,8 +757,8 @@ const PartnerManagementPage: React.FC = () => {
                 </div>
               </div>
             ))}
-          </div>
-        )}
+            </div>
+          )}
       </div>
 
       {/* Modal de gestion des contacts */}

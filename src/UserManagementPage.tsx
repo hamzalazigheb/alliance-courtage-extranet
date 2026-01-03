@@ -922,47 +922,47 @@ function UserManagementPage() {
                         : <span className="text-gray-400 italic">-</span>}
                     </td>
                     <td className="px-1.5 py-1 overflow-hidden">
-                      <select
-                        value={user.role}
-                        onChange={async (e) => {
-                          const newRole = e.target.value;
-                          try {
-                            const response = await fetch(buildAPIURL(`/users/${user.id}`), {
-                              method: 'PUT',
-                              headers: {
-                                'Content-Type': 'application/json',
-                                'x-auth-token': localStorage.getItem('token') || ''
-                              },
-                              body: JSON.stringify({ role: newRole })
-                            });
-                            if (response.ok) {
-                              loadUsers();
-                            } else {
-                              const err = await response.json().catch(() => ({}));
-                              alert(err.error || 'Erreur lors de la mise à jour du rôle');
+                        <select
+                          value={user.role}
+                          onChange={async (e) => {
+                            const newRole = e.target.value;
+                            try {
+                              const response = await fetch(buildAPIURL(`/users/${user.id}`), {
+                                method: 'PUT',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                  'x-auth-token': localStorage.getItem('token') || ''
+                                },
+                                body: JSON.stringify({ role: newRole })
+                              });
+                              if (response.ok) {
+                                loadUsers();
+                              } else {
+                                const err = await response.json().catch(() => ({}));
+                                alert(err.error || 'Erreur lors de la mise à jour du rôle');
+                              }
+                            } catch (err) {
+                              console.error('Error updating role:', err);
+                              alert('Erreur lors de la mise à jour du rôle');
                             }
-                          } catch (err) {
-                            console.error('Error updating role:', err);
-                            alert('Erreur lors de la mise à jour du rôle');
-                          }
-                        }}
+                          }}
                         className="w-full px-1 py-0.5 rounded border border-gray-300 bg-white text-gray-700 text-xs"
-                      >
+                        >
                         <option value="user">User</option>
                         <option value="admin">Admin</option>
-                      </select>
+                        </select>
                     </td>
                     <td className="px-1.5 py-1 overflow-hidden">
-                      <button
-                        onClick={() => handleToggleActive(user.id, user.is_active)}
+                        <button
+                          onClick={() => handleToggleActive(user.id, user.is_active)}
                         className={`w-full px-1 py-0.5 text-xs font-medium rounded ${
-                          user.is_active
-                            ? 'bg-green-100 text-green-800 hover:bg-green-200'
-                            : 'bg-red-100 text-red-800 hover:bg-red-200'
-                        }`}
-                      >
+                            user.is_active
+                              ? 'bg-green-100 text-green-800 hover:bg-green-200'
+                              : 'bg-red-100 text-red-800 hover:bg-red-200'
+                          }`}
+                        >
                         {user.is_active ? '✓' : '✗'}
-                      </button>
+                        </button>
                     </td>
                     <td className="px-1.5 py-1 text-xs font-medium overflow-hidden">
                       <div className="flex items-center gap-0.5">
