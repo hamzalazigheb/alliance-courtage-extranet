@@ -426,6 +426,7 @@ const CMSManagementPage: React.FC = () => {
     let safetyTimeoutId: NodeJS.Timeout | null = null;
     
     try {
+      // Démarrer immédiatement l'UI de chargement
       setSaving(true);
       setSuccessMessage('');
       
@@ -438,37 +439,14 @@ const CMSManagementPage: React.FC = () => {
       
       const endpoint = activePage === 'home' ? 'home' : 'gamme-produits';
       
-      if (activePage === 'gamme-produits') {
-        // Vérifier que les documents sont présents avant sauvegarde
-        console.log('💾 Début sauvegarde Gamme Produits');
-        console.log('📦 gpContent avant sauvegarde:', JSON.stringify(gpContent, null, 2).substring(0, 1000));
-        
-        // Compter les documents
-        let totalDocuments = 0;
-        Object.keys(gpContent.products).forEach((clientKey) => {
-          Object.keys(gpContent.products[clientKey as ClientId]).forEach((familyKey) => {
-            const products = gpContent.products[clientKey as ClientId][familyKey as ProdId];
-            if (Array.isArray(products)) {
-              products.forEach((p: Product) => {
-                if (p.documents && Array.isArray(p.documents)) {
-                  totalDocuments += p.documents.length;
-                  console.log(`📄 Produit "${p.name}" (${clientKey}/${familyKey}): ${p.documents.length} document(s)`);
-                }
-              });
-            }
-          });
-        });
-        console.log(`📊 Total documents à sauvegarder: ${totalDocuments}`);
-      }
-      
+      // Préparer le payload de manière optimisée (sans logs lourds avant la requête)
       const payload = activePage === 'home'
         ? JSON.stringify({ content: JSON.stringify(content) })
         : JSON.stringify({ content: JSON.stringify(gpContent) });
 
-      // Vérifier la taille du payload
+      // Vérifier la taille du payload rapidement
       const payloadSize = new Blob([payload]).size;
       const payloadSizeMB = payloadSize / 1024 / 1024;
-      console.log(`📦 Taille du payload: ${payloadSizeMB.toFixed(2)} MB`);
       
       if (payloadSize > 100 * 1024 * 1024) { // 100MB
         throw new Error(`Le contenu est trop volumineux (${payloadSizeMB.toFixed(2)} MB, max 100MB)`);
@@ -481,10 +459,34 @@ const CMSManagementPage: React.FC = () => {
         console.warn('⏱️ Timeout de requête atteint');
         controller?.abort();
       }, timeoutDuration);
+      
+      // Logs en arrière-plan (non bloquants)
+      if (activePage === 'gamme-produits') {
+        // Faire les logs de manière asynchrone pour ne pas bloquer
+        setTimeout(() => {
+          console.log('💾 Sauvegarde Gamme Produits en cours...');
+          console.log(`📦 Taille du payload: ${payloadSizeMB.toFixed(2)} MB`);
+          
+          // Compter les documents en arrière-plan
+          let totalDocuments = 0;
+          Object.keys(gpContent.products).forEach((clientKey) => {
+            Object.keys(gpContent.products[clientKey as ClientId]).forEach((familyKey) => {
+              const products = gpContent.products[clientKey as ClientId][familyKey as ProdId];
+              if (Array.isArray(products)) {
+                products.forEach((p: Product) => {
+                  if (p.documents && Array.isArray(p.documents)) {
+                    totalDocuments += p.documents.length;
+                  }
+                });
+              }
+            });
+          });
+          console.log(`📊 Total documents à sauvegarder: ${totalDocuments}`);
+        }, 0);
+      }
 
+      // Lancer la requête IMMÉDIATEMENT après la préparation
       try {
-        console.log(`⏳ Envoi de la requête (timeout: ${timeoutDuration / 1000}s)...`);
-        
         const response = await fetch(buildAPIURL(`/cms/${endpoint}`), {
           method: 'PUT',
           headers: {
