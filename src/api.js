@@ -78,21 +78,25 @@ async function apiRequest(endpoint, options = {}) {
       if (!retryResponse.ok) {
         let errorData;
         try {
-          errorData = await retryResponse.json();
+          const errorText = await retryResponse.text();
+          errorData = errorText ? JSON.parse(errorText) : { error: `Erreur HTTP ${retryResponse.status}` };
         } catch (e) {
           errorData = { error: `Erreur HTTP ${retryResponse.status}: ${retryResponse.statusText}` };
         }
         throw new Error(errorData.error || 'Erreur de serveur');
       }
       
-      const retryData = await retryResponse.json();
+      // Lire le texte UNE SEULE FOIS
+      const retryText = await retryResponse.text();
+      const retryData = retryText ? JSON.parse(retryText) : {};
       return retryData;
     }
     
     // Vérifier si la réponse est OK avant de parser JSON
+    // Lire le texte UNE SEULE FOIS pour éviter "body stream already read"
+    const text = await response.text();
     let data;
     try {
-      const text = await response.text();
       if (text) {
         data = JSON.parse(text);
       } else {
@@ -100,7 +104,11 @@ async function apiRequest(endpoint, options = {}) {
       }
     } catch (parseError) {
       console.error('Erreur de parsing JSON:', parseError);
-      console.error('Réponse texte:', await response.text());
+      console.error('Réponse texte (déjà lue):', text.substring(0, 500)); // Limiter l'affichage
+      // Si la réponse n'est pas du JSON (ex: HTML d'erreur 502), retourner un objet d'erreur
+      if (text.trim().startsWith('<html>') || text.trim().startsWith('<!DOCTYPE')) {
+        throw new Error(`Erreur serveur (${response.status}): Le backend n'est pas accessible. Vérifiez que le serveur backend est démarré.`);
+      }
       throw new Error(`Erreur de format de réponse (${response.status}): ${response.statusText}`);
     }
 
