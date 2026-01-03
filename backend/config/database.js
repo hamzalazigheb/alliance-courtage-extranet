@@ -18,14 +18,18 @@ const dbConfig = {
   timezone: '+00:00'
 };
 
-// Créer le pool de connexions optimisé
+// Créer le pool de connexions optimisé avec timeouts
 const pool = mysql.createPool({
   ...dbConfig,
   waitForConnections: true,
   connectionLimit: 20,
   queueLimit: 0,
   enableKeepAlive: true,
-  keepAliveInitialDelay: 0
+  keepAliveInitialDelay: 0,
+  // Timeouts pour éviter les blocages
+  connectTimeout: 10000, // 10 secondes pour établir la connexion
+  acquireTimeout: 60000, // 60 secondes pour acquérir une connexion du pool
+  timeout: 60000 // 60 secondes pour exécuter une requête
 });
 
 // Variable globale pour la connexion simple (créée lors du connect)

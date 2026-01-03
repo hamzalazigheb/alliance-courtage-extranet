@@ -186,12 +186,17 @@ db.connect((err) => {
   
   console.log('✅ Connexion à la base de données MySQL réussie');
   
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`🚀 Serveur Alliance Courtage démarré sur le port ${PORT}`);
     console.log(`📊 Environnement: ${process.env.NODE_ENV}`);
     console.log(`🌐 API disponible sur: http://localhost:${PORT}/api`);
     console.log(`📈 Metrics disponible sur: http://localhost:${PORT}/metrics`);
   });
+  
+  // Configurer les timeouts pour éviter les blocages
+  server.keepAliveTimeout = 65000; // 65 secondes (supérieur à la plupart des load balancers)
+  server.headersTimeout = 66000; // 66 secondes (doit être > keepAliveTimeout)
+  server.requestTimeout = 300000; // 5 minutes pour les requêtes longues (sauvegarde CMS)
 });
 
 module.exports = app;

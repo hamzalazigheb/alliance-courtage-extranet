@@ -196,66 +196,86 @@ router.get('/gamme-produits', auth, async (req, res) => {
 // @desc    Update CMS content for Gamme Produits page
 // @access  Private
 router.put('/gamme-produits', auth, async (req, res) => {
+  const startTime = Date.now();
   try {
     const { content } = req.body;
     
-    // Log pour déboguer
-    const contentLength = typeof content === 'string' ? content.length : JSON.stringify(content).length;
-    console.log(`💾 PUT /api/cms/gamme-produits - Taille du contenu: ${(contentLength / 1024).toFixed(2)} KB`);
+    // Préparer le contenu rapidement (sans parsing lourd)
+    const contentString = typeof content === 'string' ? content : JSON.stringify(content);
+    const contentLength = contentString.length;
+    const contentSizeMB = contentLength / 1024 / 1024;
     
-    // Essayer de parser le contenu pour vérifier les documents
-    try {
-      let parsed = typeof content === 'string' ? JSON.parse(content) : content;
-      if (typeof parsed === 'string') {
-        parsed = JSON.parse(parsed);
-      }
-      
-      // Compter les documents
-      let totalDocuments = 0;
-      if (parsed && parsed.products) {
-        Object.keys(parsed.products).forEach((clientKey) => {
-          Object.keys(parsed.products[clientKey] || {}).forEach((familyKey) => {
-            const products = parsed.products[clientKey][familyKey];
-            if (Array.isArray(products)) {
-              products.forEach((p) => {
-                if (p && p.documents && Array.isArray(p.documents)) {
-                  totalDocuments += p.documents.length;
-                  console.log(`📄 Produit "${p.name}" (${clientKey}/${familyKey}): ${p.documents.length} document(s)`);
-                }
-              });
-            }
-          });
-        });
-      }
-      console.log(`📊 Total documents à sauvegarder: ${totalDocuments}`);
-    } catch (parseError) {
-      console.warn('⚠️  Erreur parsing contenu pour logs:', parseError.message);
+    // Log minimal (non bloquant)
+    console.log(`💾 PUT /api/cms/gamme-produits - Taille: ${contentSizeMB.toFixed(2)} MB`);
+    
+    // Vérifier la taille avant de continuer
+    if (contentSizeMB > 100) {
+      return res.status(400).json({
+        error: `Le contenu est trop volumineux (${contentSizeMB.toFixed(2)} MB, max 100MB)`
+      });
     }
 
+    // Vérifier si l'entrée existe (requête rapide)
     const existing = await query(
       'SELECT id FROM cms_content WHERE page = ?',
       ['gamme-produits']
     );
 
-    const contentString = typeof content === 'string' ? content : JSON.stringify(content);
-
+    // Sauvegarder immédiatement (sans parsing supplémentaire)
     if (existing.length > 0) {
       await query(
         'UPDATE cms_content SET content = ?, updated_at = NOW() WHERE page = ?',
         [contentString, 'gamme-produits']
       );
-      console.log('✅ Contenu CMS (gamme-produits) mis à jour avec succès');
-      res.json({ message: 'Contenu CMS (gamme-produits) mis à jour avec succès' });
     } else {
       await query(
         'INSERT INTO cms_content (page, content, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
         ['gamme-produits', contentString]
       );
-      console.log('✅ Contenu CMS (gamme-produits) créé avec succès');
-      res.json({ message: 'Contenu CMS (gamme-produits) créé avec succès' });
     }
+    
+    const duration = Date.now() - startTime;
+    console.log(`✅ Contenu CMS (gamme-produits) sauvegardé en ${duration}ms`);
+    
+    // Répondre immédiatement
+    res.json({ 
+      message: 'Contenu CMS (gamme-produits) mis à jour avec succès',
+      duration: `${duration}ms`,
+      size: `${contentSizeMB.toFixed(2)} MB`
+    });
+    
+    // Logs détaillés en arrière-plan (non bloquants)
+    setImmediate(() => {
+      try {
+        let parsed = typeof content === 'string' ? JSON.parse(content) : content;
+        if (typeof parsed === 'string') {
+          parsed = JSON.parse(parsed);
+        }
+        
+        let totalDocuments = 0;
+        if (parsed && parsed.products) {
+          Object.keys(parsed.products).forEach((clientKey) => {
+            Object.keys(parsed.products[clientKey] || {}).forEach((familyKey) => {
+              const products = parsed.products[clientKey][familyKey];
+              if (Array.isArray(products)) {
+                products.forEach((p) => {
+                  if (p && p.documents && Array.isArray(p.documents)) {
+                    totalDocuments += p.documents.length;
+                  }
+                });
+              }
+            });
+          });
+        }
+        console.log(`📊 Total documents sauvegardés: ${totalDocuments}`);
+      } catch (parseError) {
+        // Ignorer les erreurs de parsing pour les logs
+      }
+    });
+    
   } catch (error) {
-    console.error('❌ Erreur update CMS content (gamme-produits):', error);
+    const duration = Date.now() - startTime;
+    console.error(`❌ Erreur update CMS content (gamme-produits) après ${duration}ms:`, error);
     res.status(500).json({
       error: 'Erreur serveur lors de la mise à jour du contenu CMS (gamme-produits)',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
