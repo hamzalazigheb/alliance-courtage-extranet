@@ -128,6 +128,12 @@ const CMSManagementPage: React.FC = () => {
     title: '',
     file: null as File | null
   });
+  // État pour gérer l'expansion des cartes de produits dans la liste globale
+  const [expandedProducts, setExpandedProducts] = useState<Record<string, boolean>>({});
+  // État pour le filtrage dans la vue "Tous les produits"
+  const [clientFilter, setClientFilter] = useState<ClientId | 'all'>('all');
+  // État pour gérer l'édition des produits dans la liste globale
+  const [editingGlobalProduct, setEditingGlobalProduct] = useState<string | null>(null);
   // Workflow states for better UX
   const [workflowStep, setWorkflowStep] = useState<'select' | 'add-product' | 'manage-documents'>('select');
   const [newlyAddedProduct, setNewlyAddedProduct] = useState<{name: string, family: string, clients: string[]} | null>(null);
@@ -447,28 +453,64 @@ const CMSManagementPage: React.FC = () => {
         ? JSON.stringify({ content: JSON.stringify(content) })
         : JSON.stringify({ content: JSON.stringify(gpContent) });
 
-      const response = await fetch(buildAPIURL(`/cms/${endpoint}`), {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-auth-token': localStorage.getItem('token') || ''
-        },
-        body: payload
-      });
+      // Vérifier la taille du payload
+      const payloadSize = new Blob([payload]).size;
+      const payloadSizeMB = payloadSize / 1024 / 1024;
+      console.log(`📦 Taille du payload: ${payloadSizeMB.toFixed(2)} MB`);
       
-      if (response.ok) {
+      if (payloadSize > 100 * 1024 * 1024) { // 100MB
+        throw new Error(`Le contenu est trop volumineux (${payloadSizeMB.toFixed(2)} MB, max 100MB)`);
+      }
+
+      // Créer un AbortController pour le timeout (5 minutes pour les gros contenus)
+      const controller = new AbortController();
+      const timeoutDuration = payloadSizeMB > 10 ? 300000 : 120000; // 5 min si > 10MB, sinon 2 min
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, timeoutDuration);
+
+      try {
+        console.log(`⏳ Envoi de la requête (timeout: ${timeoutDuration / 1000}s)...`);
+        
+        const response = await fetch(buildAPIURL(`/cms/${endpoint}`), {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-auth-token': localStorage.getItem('token') || ''
+          },
+          body: payload,
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Erreur inconnue' }));
+          console.error('❌ Erreur sauvegarde:', errorData);
+          throw new Error(errorData.error || `Erreur ${response.status}: ${response.statusText}`);
+        }
+        
         const responseData = await response.json();
         console.log('✅ Sauvegarde réussie. Réponse serveur:', responseData);
         setSuccessMessage('✅ Contenu sauvegardé avec succès!');
-        setTimeout(() => setSuccessMessage(''), 3000);
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('❌ Erreur sauvegarde:', errorData);
-        throw new Error(errorData.error || 'Failed to save');
+        setTimeout(() => setSuccessMessage(''), 5000);
+        
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        
+        if (fetchError.name === 'AbortError') {
+          throw new Error(`La sauvegarde a pris trop de temps (timeout après ${timeoutDuration / 1000}s). Le contenu est peut-être trop volumineux.`);
+        }
+        
+        if (fetchError.message) {
+          throw fetchError;
+        }
+        
+        throw new Error('Erreur de connexion lors de la sauvegarde. Vérifiez votre connexion internet.');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving CMS content:', error);
-      showError('Erreur lors de la sauvegarde');
+      showError(error.message || 'Erreur lors de la sauvegarde');
     } finally {
       setSaving(false);
     }
@@ -1086,53 +1128,88 @@ const CMSManagementPage: React.FC = () => {
                   </div>
                   <button
                     onClick={() => {
-                      const name = newProductName.trim();
-                      if (!name) {
-                        showWarning('Le nom du produit est obligatoire');
-                        return;
-                      }
-                      if (selectedClients.length === 0) {
-                        showWarning('Veuillez sélectionner au moins un type de client');
-                        return;
-                      }
-                      if (selectedFamilies.length === 0) {
-                        showWarning('Veuillez sélectionner au moins une famille de produit');
-                        return;
-                      }
-                      const next = { ...gpContent };
-                      const newProduct: Product = {
-                        name: name,
-                        description: newProductDescription.trim()
-                      };
-                      // Ajouter le produit à tous les clients sélectionnés et toutes les familles sélectionnées
-                      selectedClients.forEach((client) => {
-                        selectedFamilies.forEach((fam) => {
-                          if (!next.products[client][fam as ProdId]) {
-                            (next.products[client] as any)[fam] = [];
+                      try {
+                        const name = newProductName.trim();
+                        if (!name) {
+                          showWarning('Le nom du produit est obligatoire');
+                          return;
+                        }
+                        if (selectedClients.length === 0) {
+                          showWarning('Veuillez sélectionner au moins un type de client');
+                          return;
+                        }
+                        if (selectedFamilies.length === 0) {
+                          showWarning('Veuillez sélectionner au moins une famille de produit');
+                          return;
+                        }
+                        
+                        // Créer une copie profonde pour éviter les mutations
+                        const next = JSON.parse(JSON.stringify(gpContent));
+                        const newProduct: Product = {
+                          name: name,
+                          description: newProductDescription.trim(),
+                          documents: [] // Initialiser les documents comme tableau vide
+                        };
+                        
+                        let productAdded = false;
+                        let productUpdated = false;
+                        
+                        // Ajouter le produit à tous les clients sélectionnés et toutes les familles sélectionnées
+                        selectedClients.forEach((client) => {
+                          if (!next.products[client]) {
+                            next.products[client] = {} as any;
                           }
-                          // Vérifier si le produit existe déjà (par nom)
-                          const existingIndex = next.products[client][fam as ProdId].findIndex(
-                            (p: Product) => p.name === name
-                          );
-                          if (existingIndex === -1) {
-                            next.products[client][fam as ProdId] = [...next.products[client][fam as ProdId], newProduct];
-                          } else {
-                            // Mettre à jour le produit existant
-                            next.products[client][fam as ProdId][existingIndex] = newProduct;
-                          }
+                          selectedFamilies.forEach((fam) => {
+                            if (!next.products[client][fam as ProdId]) {
+                              next.products[client][fam as ProdId] = [];
+                            }
+                            
+                            // Vérifier si le produit existe déjà (par nom et description)
+                            const existingIndex = next.products[client][fam as ProdId].findIndex(
+                              (p: Product) => p.name === name && (p.description || '') === (newProduct.description || '')
+                            );
+                            
+                            if (existingIndex === -1) {
+                              // Ajouter un nouveau produit (créer une copie pour éviter les références partagées)
+                              next.products[client][fam as ProdId] = [
+                                ...next.products[client][fam as ProdId], 
+                                { ...newProduct }
+                              ];
+                              productAdded = true;
+                            } else {
+                              // Mettre à jour le produit existant
+                              next.products[client][fam as ProdId][existingIndex] = {
+                                ...next.products[client][fam as ProdId][existingIndex],
+                                ...newProduct,
+                                // Préserver les documents existants
+                                documents: next.products[client][fam as ProdId][existingIndex].documents || []
+                              };
+                              productUpdated = true;
+                            }
+                          });
                         });
-                      });
-                      setGpContent(next);
-                      // Après ajout réussi
-                      setNewlyAddedProduct({
-                        name: name,
-                        family: selectedFamilies[0], // Prendre la première famille
-                        clients: selectedClients
-                      });
-                      setNewProductName('');
-                      setNewProductDescription('');
-                      setWorkflowStep('manage-documents'); // Passer à l'étape 3
-                      showSuccess('Produit ajouté ! Vous pouvez maintenant ajouter des documents.');
+                        
+                        setGpContent(next);
+                        
+                        // Après ajout réussi
+                        setNewlyAddedProduct({
+                          name: name,
+                          family: selectedFamilies[0], // Prendre la première famille
+                          clients: selectedClients
+                        });
+                        setNewProductName('');
+                        setNewProductDescription('');
+                        setWorkflowStep('manage-documents'); // Passer à l'étape 3
+                        
+                        if (productUpdated && !productAdded) {
+                          showSuccess('Produit mis à jour ! Vous pouvez maintenant gérer ses documents.');
+                        } else {
+                          showSuccess('Produit ajouté ! Vous pouvez maintenant ajouter des documents.');
+                        }
+                      } catch (error) {
+                        console.error('Erreur lors de l\'ajout du produit:', error);
+                        showError('Erreur lors de l\'ajout du produit');
+                      }
                     }}
                     disabled={!newProductName.trim()}
                     className="w-full px-6 py-3 bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-500 text-white rounded-lg font-medium"
@@ -1282,27 +1359,38 @@ const CMSManagementPage: React.FC = () => {
                                         });
                                         setShowDocumentModal(true);
                                       }}
-                                      className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium whitespace-nowrap"
+                                      className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium whitespace-nowrap flex items-center gap-2"
+                                      title="Attacher/Détacher des documents"
                                     >
-                                      📄 Gérer documents ({p.documents?.length || 0})
+                                      <span>📎 Attacher Documents</span>
+                                      <span className="bg-blue-400 text-white px-2 py-0.5 rounded-full text-xs font-bold">{p.documents?.length || 0}</span>
                                     </button>
                                     <button
                                       onClick={() => {
                                         if (!confirm('Êtes-vous sûr de vouloir supprimer ce produit ?')) {
                                           return;
                                         }
-                                        const next = JSON.parse(JSON.stringify(gpContent)); // Deep copy
-                                        const productName = p.name;
-                                        // Supprimer le produit de tous les clients sélectionnés
-                                        selectedClients.forEach((client) => {
-                                          if (next.products[client][fam as ProdId]) {
-                                            next.products[client][fam as ProdId] = next.products[client][fam as ProdId].filter(
-                                              (prod) => prod.name !== productName
-                                            );
-                                          }
-                                        });
-                                        setGpContent(next);
-                                        showSuccess('Produit supprimé avec succès');
+                                        try {
+                                          const next = JSON.parse(JSON.stringify(gpContent)); // Deep copy
+                                          // Supprimer uniquement le produit à l'index idx dans les clients sélectionnés
+                                          selectedClients.forEach((client) => {
+                                            if (next.products[client] && next.products[client][fam as ProdId] && Array.isArray(next.products[client][fam as ProdId])) {
+                                              // Vérifier que l'index existe et correspond au produit
+                                              if (idx >= 0 && idx < next.products[client][fam as ProdId].length) {
+                                                const productAtIdx = next.products[client][fam as ProdId][idx];
+                                                // Double vérification : s'assurer que c'est le bon produit
+                                                if (productAtIdx && productAtIdx.name === p.name) {
+                                                  next.products[client][fam as ProdId].splice(idx, 1);
+                                                }
+                                              }
+                                            }
+                                          });
+                                          setGpContent(next);
+                                          showSuccess('Produit supprimé avec succès');
+                                        } catch (error) {
+                                          console.error('Erreur lors de la suppression:', error);
+                                          showError('Erreur lors de la suppression du produit');
+                                        }
                                       }}
                                       className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium whitespace-nowrap"
                                     >
@@ -1313,28 +1401,56 @@ const CMSManagementPage: React.FC = () => {
 
                                 {/* Section édition (collapsible ou toujours visible) */}
                                 <div className="mt-4 pt-4 border-t border-slate-600">
+                                  <div className="flex items-center justify-between mb-3">
+                                    <h6 className="text-sm font-semibold text-slate-300">✏️ Modifier le produit</h6>
+                                    <button
+                                      onClick={() => {
+                                        setWorkflowStep('select');
+                                        showSuccess('Modifications enregistrées ! N\'oubliez pas de sauvegarder le contenu.');
+                                      }}
+                                      className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-medium transition-colors"
+                                    >
+                                      ✓ Terminé
+                                    </button>
+                                  </div>
                                   <div className="space-y-3">
                                     <div>
                                       <label className="block text-xs font-semibold text-slate-300 mb-1">Modifier le nom</label>
                                       <input
                                         type="text"
-                                        value={p.name}
-                                        onChange={(e) => {
-                                          const next = JSON.parse(JSON.stringify(gpContent)); // Deep copy
-                                          const newName = e.target.value;
-                                          // Mettre à jour le produit dans tous les clients sélectionnés
-                                          selectedClients.forEach((client) => {
-                                            if (!next.products[client][fam as ProdId]) {
-                                              (next.products[client] as any)[fam] = [];
+                                        defaultValue={p.name}
+                                        onBlur={(e) => {
+                                          try {
+                                            const newName = e.target.value.trim();
+                                            if (!newName) {
+                                              showWarning('Le nom du produit ne peut pas être vide');
+                                              e.target.value = p.name;
+                                              return;
                                             }
-                                            if (next.products[client][fam as ProdId][idx]) {
-                                              next.products[client][fam as ProdId][idx] = {
-                                                ...next.products[client][fam as ProdId][idx],
-                                                name: newName
-                                              };
+                                            if (newName === p.name) {
+                                              return; // Pas de changement
                                             }
-                                          });
-                                          setGpContent(next);
+                                            const next = JSON.parse(JSON.stringify(gpContent)); // Deep copy
+                                            // Mettre à jour le produit dans TOUS les clients
+                                            ['particulier', 'professionnel', 'entreprise'].forEach((client) => {
+                                              if (next.products[client] && next.products[client][fam as ProdId] && Array.isArray(next.products[client][fam as ProdId])) {
+                                                if (idx >= 0 && idx < next.products[client][fam as ProdId].length) {
+                                                  const productAtIdx = next.products[client][fam as ProdId][idx];
+                                                  if (productAtIdx && productAtIdx.name === p.name) {
+                                                    next.products[client][fam as ProdId][idx] = {
+                                                      ...productAtIdx,
+                                                      name: newName
+                                                    };
+                                                  }
+                                                }
+                                              }
+                                            });
+                                            setGpContent(next);
+                                            showSuccess('Nom du produit modifié');
+                                          } catch (error) {
+                                            console.error('Erreur lors de la mise à jour du nom:', error);
+                                            showError('Erreur lors de la mise à jour du nom');
+                                          }
                                         }}
                                         className="w-full px-3 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500 text-sm"
                                         placeholder="Nom du produit"
@@ -1343,28 +1459,139 @@ const CMSManagementPage: React.FC = () => {
                                     <div>
                                       <label className="block text-xs font-semibold text-slate-300 mb-1">Modifier la description</label>
                                       <textarea
-                                        value={p.description}
-                                        onChange={(e) => {
-                                          const next = JSON.parse(JSON.stringify(gpContent)); // Deep copy
-                                          const newDescription = e.target.value;
-                                          // Mettre à jour le produit dans tous les clients sélectionnés
-                                          selectedClients.forEach((client) => {
-                                            if (!next.products[client][fam as ProdId]) {
-                                              (next.products[client] as any)[fam] = [];
+                                        defaultValue={p.description}
+                                        onBlur={(e) => {
+                                          try {
+                                            const newDescription = e.target.value.trim();
+                                            if (newDescription === p.description) {
+                                              return; // Pas de changement
                                             }
-                                            if (next.products[client][fam as ProdId][idx]) {
-                                              next.products[client][fam as ProdId][idx] = {
-                                                ...next.products[client][fam as ProdId][idx],
-                                                description: newDescription
-                                              };
-                                            }
-                                          });
-                                          setGpContent(next);
+                                            const next = JSON.parse(JSON.stringify(gpContent)); // Deep copy
+                                            // Mettre à jour le produit dans TOUS les clients
+                                            ['particulier', 'professionnel', 'entreprise'].forEach((client) => {
+                                              if (next.products[client] && next.products[client][fam as ProdId] && Array.isArray(next.products[client][fam as ProdId])) {
+                                                if (idx >= 0 && idx < next.products[client][fam as ProdId].length) {
+                                                  const productAtIdx = next.products[client][fam as ProdId][idx];
+                                                  if (productAtIdx && productAtIdx.name === p.name) {
+                                                    next.products[client][fam as ProdId][idx] = {
+                                                      ...productAtIdx,
+                                                      description: newDescription
+                                                    };
+                                                  }
+                                                }
+                                              }
+                                            });
+                                            setGpContent(next);
+                                            showSuccess('Description du produit modifiée');
+                                          } catch (error) {
+                                            console.error('Erreur lors de la mise à jour de la description:', error);
+                                            showError('Erreur lors de la mise à jour de la description');
+                                          }
                                         }}
                                         rows={3}
                                         className="w-full px-3 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500 text-sm resize-none"
                                         placeholder="Description du produit..."
                                       />
+                                    </div>
+                                    <div className="bg-blue-500/5 rounded-lg p-3 border border-blue-500/20">
+                                      <label className="flex items-center gap-2 text-sm font-semibold text-blue-300 mb-3">
+                                        <span className="text-lg">👥</span>
+                                        <span>Types de clients associés</span>
+                                      </label>
+                                      <div className="grid grid-cols-1 gap-2">
+                                        {[
+                                          { id: 'particulier', label: 'Particulier', icon: '👤', color: 'blue' },
+                                          { id: 'professionnel', label: 'Professionnel', icon: '💼', color: 'purple' },
+                                          { id: 'entreprise', label: 'Entreprise', icon: '🏢', color: 'orange' }
+                                        ].map(({ id: clientType, label, icon, color }) => {
+                                          // Vérifier si le produit existe pour ce type de client
+                                          const existsInClient = gpContent.products[clientType as ClientId]?.[fam as ProdId]?.some(
+                                            (prod: Product) => {
+                                              return prod.name === p.name && 
+                                                     (prod.description || '') === (p.description || '');
+                                            }
+                                          );
+                                          
+                                          const bgColor = existsInClient 
+                                            ? `bg-${color}-500/20 border-${color}-500/40` 
+                                            : 'bg-slate-700/50 border-slate-600/50';
+                                          
+                                          return (
+                                            <label 
+                                              key={clientType} 
+                                              className={`flex items-center justify-between p-3 rounded-lg border-2 cursor-pointer transition-all hover:shadow-md ${bgColor} ${existsInClient ? 'hover:bg-' + color + '-500/30' : 'hover:bg-slate-600/50'}`}
+                                            >
+                                              <div className="flex items-center space-x-3">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={existsInClient || false}
+                                                  onChange={(e) => {
+                                                    try {
+                                                      const next = JSON.parse(JSON.stringify(gpContent));
+                                                      const currentClientProducts = next.products[selectedClients[0] as ClientId]?.[fam as ProdId] || [];
+                                                      
+                                                      if (idx >= 0 && idx < currentClientProducts.length) {
+                                                        const productToModify = { ...currentClientProducts[idx] };
+                                                        
+                                                        if (e.target.checked) {
+                                                          if (!next.products[clientType as ClientId]) {
+                                                            next.products[clientType as ClientId] = {} as any;
+                                                          }
+                                                          if (!next.products[clientType as ClientId][fam as ProdId]) {
+                                                            next.products[clientType as ClientId][fam as ProdId] = [];
+                                                          }
+                                                          
+                                                          const existingIndex = next.products[clientType as ClientId][fam as ProdId].findIndex(
+                                                            (prod: Product) => prod.name === productToModify.name && 
+                                                            (prod.description || '') === (productToModify.description || '')
+                                                          );
+                                                          
+                                                          if (existingIndex === -1) {
+                                                            next.products[clientType as ClientId][fam as ProdId].push({
+                                                              ...productToModify,
+                                                              documents: productToModify.documents ? [...productToModify.documents] : []
+                                                            });
+                                                          }
+                                                        } else {
+                                                          if (next.products[clientType as ClientId]?.[fam as ProdId]) {
+                                                            const productIndex = next.products[clientType as ClientId][fam as ProdId].findIndex(
+                                                              (prod: Product) => prod.name === productToModify.name && 
+                                                              (prod.description || '') === (productToModify.description || '')
+                                                            );
+                                                            
+                                                            if (productIndex !== -1) {
+                                                              next.products[clientType as ClientId][fam as ProdId].splice(productIndex, 1);
+                                                            }
+                                                          }
+                                                        }
+                                                        
+                                                        setGpContent(next);
+                                                      }
+                                                    } catch (error) {
+                                                      console.error('Erreur lors de la modification du type de client:', error);
+                                                      showError('❌ Erreur lors de la modification');
+                                                    }
+                                                  }}
+                                                  className="w-5 h-5 text-emerald-500 bg-slate-700 border-slate-600 rounded focus:ring-emerald-500 focus:ring-2"
+                                                />
+                                                <span className="text-xl">{icon}</span>
+                                                <span className="text-sm font-medium text-white">{label}</span>
+                                              </div>
+                                              {existsInClient && (
+                                                <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/20 px-2 py-1 rounded">
+                                                  ✓ Actif
+                                                </span>
+                                              )}
+                                            </label>
+                                          );
+                                        })}
+                                      </div>
+                                      <div className="mt-3 p-2 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                                        <p className="text-xs text-blue-200 flex items-start gap-2">
+                                          <span className="text-sm">💡</span>
+                                          <span>Cochez pour rendre ce produit disponible aux différents types de clients. Les documents seront copiés automatiquement.</span>
+                                        </p>
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
@@ -1387,7 +1614,7 @@ const CMSManagementPage: React.FC = () => {
                                       return (
                                         <div className="bg-slate-600/20 rounded-lg p-3 text-center">
                                           <p className="text-sm text-slate-400">Aucun document associé</p>
-                                          <p className="text-xs text-slate-500 mt-1">Cliquez sur "Gérer documents" pour en ajouter</p>
+                                          <p className="text-xs text-slate-500 mt-1">Cliquez sur "📎 Attacher Documents" pour en ajouter</p>
                                         </div>
                                       );
                                     }
@@ -1420,23 +1647,33 @@ const CMSManagementPage: React.FC = () => {
                                                     if (!confirm('Êtes-vous sûr de vouloir supprimer ce document ?')) {
                                                       return;
                                                     }
-                                                    const next = JSON.parse(JSON.stringify(gpContent)); // Deep copy
-                                                    selectedClients.forEach((client) => {
-                                                      const productIndex = next.products[client][fam as ProdId].findIndex(
-                                                        (prod: Product) => prod.name === p.name
-                                                      );
-                                                      if (productIndex !== -1) {
-                                                        if (!next.products[client][fam as ProdId][productIndex].documents) {
-                                                          next.products[client][fam as ProdId][productIndex].documents = [];
+                                                    try {
+                                                      const next = JSON.parse(JSON.stringify(gpContent)); // Deep copy
+                                                      // Supprimer le document dans tous les clients sélectionnés en utilisant l'index
+                                                      selectedClients.forEach((client) => {
+                                                        if (next.products[client] && next.products[client][fam as ProdId] && Array.isArray(next.products[client][fam as ProdId])) {
+                                                          // Utiliser l'index idx pour trouver le produit exact
+                                                          if (idx >= 0 && idx < next.products[client][fam as ProdId].length) {
+                                                            const productAtIdx = next.products[client][fam as ProdId][idx];
+                                                            // Double vérification : s'assurer que c'est le bon produit
+                                                            if (productAtIdx && productAtIdx.name === p.name) {
+                                                              if (!productAtIdx.documents) {
+                                                                productAtIdx.documents = [];
+                                                              }
+                                                              // Supprimer le document par son ID
+                                                              productAtIdx.documents = productAtIdx.documents.filter(
+                                                                (d: ProductDocument) => d.id !== doc.id
+                                                              );
+                                                            }
+                                                          }
                                                         }
-                                                        next.products[client][fam as ProdId][productIndex].documents = 
-                                                          next.products[client][fam as ProdId][productIndex].documents?.filter(
-                                                            (d: ProductDocument) => d.id !== doc.id
-                                                          ) || [];
-                                                      }
-                                                    });
-                                                    setGpContent(next);
-                                                    showSuccess('Document supprimé avec succès');
+                                                      });
+                                                      setGpContent(next);
+                                                      showSuccess('Document supprimé avec succès');
+                                                    } catch (error) {
+                                                      console.error('Erreur lors de la suppression du document:', error);
+                                                      showError('Erreur lors de la suppression du document');
+                                                    }
                                                   }}
                                                   className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded text-xs font-medium transition-colors"
                                                   title="Supprimer"
@@ -1485,40 +1722,52 @@ const CMSManagementPage: React.FC = () => {
               {/* Filtres rapides */}
               <div className="flex flex-wrap gap-2">
                 <button
-                  onClick={() => {
-                    setSelectedClients(['particulier']);
-                    setSelectedFamilies([]);
-                    setWorkflowStep('select');
-                  }}
-                  className="px-3 py-1.5 text-xs bg-slate-700 hover:bg-slate-600 text-white rounded-lg"
+                  onClick={() => setClientFilter('all')}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                    clientFilter === 'all'
+                      ? 'bg-emerald-500 text-white shadow-lg'
+                      : 'bg-slate-700 hover:bg-slate-600 text-white'
+                  }`}
                 >
-                  Particulier
+                  📦 Tous les types
                 </button>
                 <button
-                  onClick={() => {
-                    setSelectedClients(['professionnel']);
-                    setSelectedFamilies([]);
-                    setWorkflowStep('select');
-                  }}
-                  className="px-3 py-1.5 text-xs bg-slate-700 hover:bg-slate-600 text-white rounded-lg"
+                  onClick={() => setClientFilter('particulier')}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                    clientFilter === 'particulier'
+                      ? 'bg-blue-500 text-white shadow-lg'
+                      : 'bg-slate-700 hover:bg-slate-600 text-white'
+                  }`}
                 >
-                  Professionnel
+                  👤 Particulier
                 </button>
                 <button
-                  onClick={() => {
-                    setSelectedClients(['entreprise']);
-                    setSelectedFamilies([]);
-                    setWorkflowStep('select');
-                  }}
-                  className="px-3 py-1.5 text-xs bg-slate-700 hover:bg-slate-600 text-white rounded-lg"
+                  onClick={() => setClientFilter('professionnel')}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                    clientFilter === 'professionnel'
+                      ? 'bg-purple-500 text-white shadow-lg'
+                      : 'bg-slate-700 hover:bg-slate-600 text-white'
+                  }`}
                 >
-                  Entreprise
+                  💼 Professionnel
+                </button>
+                <button
+                  onClick={() => setClientFilter('entreprise')}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                    clientFilter === 'entreprise'
+                      ? 'bg-orange-500 text-white shadow-lg'
+                      : 'bg-slate-700 hover:bg-slate-600 text-white'
+                  }`}
+                >
+                  🏢 Entreprise
                 </button>
               </div>
 
               {/* Liste de tous les produits par client et famille */}
               <div className="space-y-6">
-                {['particulier', 'professionnel', 'entreprise'].map((client) => {
+                {['particulier', 'professionnel', 'entreprise']
+                  .filter(client => clientFilter === 'all' || clientFilter === client)
+                  .map((client) => {
                   const clientProducts = gpContent.products[client as ClientId] || {};
                   const families = Object.keys(clientProducts);
                   const hasProducts = families.some(fam => {
@@ -1527,11 +1776,19 @@ const CMSManagementPage: React.FC = () => {
                   });
 
                   if (!hasProducts) return null;
+                  
+                  // Icône et couleur selon le type de client
+                  const clientConfig = {
+                    particulier: { icon: '👤', color: 'bg-blue-500' },
+                    professionnel: { icon: '💼', color: 'bg-purple-500' },
+                    entreprise: { icon: '🏢', color: 'bg-orange-500' }
+                  }[client] || { icon: '📦', color: 'bg-blue-500' };
 
                   return (
                     <div key={client} className="bg-slate-700/30 rounded-lg p-4 border border-slate-600">
                       <h5 className="text-white font-semibold mb-4 capitalize flex items-center">
-                        <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                        <span className={`w-2 h-2 ${clientConfig.color} rounded-full mr-2`}></span>
+                        <span className="text-lg mr-2">{clientConfig.icon}</span>
                         {client}
                       </h5>
                       <div className="space-y-4">
@@ -1546,8 +1803,13 @@ const CMSManagementPage: React.FC = () => {
                                 <span className="text-xs text-slate-400">{products.length} produit{products.length > 1 ? 's' : ''}</span>
                               </div>
                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                {products.map((p: Product, idx: number) => (
-                                  <div key={`${client}-${fam}-${idx}`} className="bg-slate-700/50 rounded-lg p-4 border border-slate-600 hover:border-slate-500 transition-colors">
+                                {products.map((p: Product, idx: number) => {
+                                  // Créer un identifiant unique pour ce produit dans ce contexte
+                                  const productKey = `${client}-${fam}-${idx}`;
+                                  const isExpanded = expandedProducts[productKey] || false;
+                                  
+                                  return (
+                                  <div key={productKey} className="bg-slate-700/50 rounded-lg p-4 border border-slate-600 hover:border-slate-500 transition-colors">
                                     <div className="mb-3">
                                       <h6 className="text-white font-semibold text-base mb-1">{p.name}</h6>
                                       {p.description && (
@@ -1557,7 +1819,189 @@ const CMSManagementPage: React.FC = () => {
                                     <div className="flex items-center gap-2 mb-3 text-xs text-slate-500">
                                       <span>📄 {p.documents && Array.isArray(p.documents) ? p.documents.length : 0} document{p.documents && Array.isArray(p.documents) && p.documents.length !== 1 ? 's' : ''}</span>
                                     </div>
+                                    
+                                    {/* Section d'édition pour la liste globale */}
+                                    {editingGlobalProduct === productKey && (
+                                      <div className="mb-3 p-3 bg-slate-800/50 rounded-lg border border-emerald-500/30 space-y-3">
+                                        <div>
+                                          <label className="block text-xs font-semibold text-slate-300 mb-1">Nom du produit</label>
+                                          <input
+                                            type="text"
+                                            defaultValue={p.name}
+                                            onBlur={(e) => {
+                                              try {
+                                                const newName = e.target.value.trim();
+                                                if (!newName) {
+                                                  showWarning('Le nom du produit ne peut pas être vide');
+                                                  e.target.value = p.name;
+                                                  return;
+                                                }
+                                                if (newName === p.name) return;
+                                                
+                                                const next = JSON.parse(JSON.stringify(gpContent));
+                                                ['particulier', 'professionnel', 'entreprise'].forEach((c) => {
+                                                  if (next.products[c as ClientId]?.[fam as ProdId]) {
+                                                    const products = next.products[c as ClientId][fam as ProdId];
+                                                    if (idx >= 0 && idx < products.length && products[idx].name === p.name) {
+                                                      products[idx] = { ...products[idx], name: newName };
+                                                    }
+                                                  }
+                                                });
+                                                setGpContent(next);
+                                                showSuccess('Nom modifié');
+                                              } catch (error) {
+                                                console.error('Erreur:', error);
+                                                showError('Erreur lors de la modification');
+                                              }
+                                            }}
+                                            className="w-full px-3 py-2 rounded bg-slate-700 text-white border border-slate-600 focus:border-emerald-500 text-xs"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-xs font-semibold text-slate-300 mb-1">Description</label>
+                                          <textarea
+                                            defaultValue={p.description}
+                                            onBlur={(e) => {
+                                              try {
+                                                const newDesc = e.target.value.trim();
+                                                if (newDesc === p.description) return;
+                                                
+                                                const next = JSON.parse(JSON.stringify(gpContent));
+                                                ['particulier', 'professionnel', 'entreprise'].forEach((c) => {
+                                                  if (next.products[c as ClientId]?.[fam as ProdId]) {
+                                                    const products = next.products[c as ClientId][fam as ProdId];
+                                                    if (idx >= 0 && idx < products.length && products[idx].name === p.name) {
+                                                      products[idx] = { ...products[idx], description: newDesc };
+                                                    }
+                                                  }
+                                                });
+                                                setGpContent(next);
+                                                showSuccess('Description modifiée');
+                                              } catch (error) {
+                                                console.error('Erreur:', error);
+                                                showError('Erreur lors de la modification');
+                                              }
+                                            }}
+                                            rows={2}
+                                            className="w-full px-3 py-2 rounded bg-slate-700 text-white border border-slate-600 focus:border-emerald-500 text-xs resize-none"
+                                          />
+                                        </div>
+                                        <button
+                                          onClick={() => setEditingGlobalProduct(null)}
+                                          className="w-full px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded text-xs font-medium"
+                                        >
+                                          ✓ Terminé
+                                        </button>
+                                      </div>
+                                    )}
+                                    
+                                    {/* Section pliable pour gérer les types de clients */}
+                                    <div className="mb-3">
+                                      <button
+                                        onClick={() => setExpandedProducts(prev => ({
+                                          ...prev,
+                                          [productKey]: !prev[productKey]
+                                        }))}
+                                        className="w-full flex items-center justify-between p-2 bg-blue-500/10 hover:bg-blue-500/20 rounded-lg border border-blue-500/20 transition-colors"
+                                      >
+                                        <span className="text-xs font-medium text-blue-300 flex items-center gap-2">
+                                          <span>👥</span>
+                                          <span>Gérer les types de clients</span>
+                                        </span>
+                                        <span className="text-blue-300 text-sm">{isExpanded ? '▼' : '▶'}</span>
+                                      </button>
+                                      
+                                      {isExpanded && (
+                                        <div className="mt-2 p-3 bg-slate-800/50 rounded-lg border border-slate-600 space-y-2">
+                                          {[
+                                            { id: 'particulier', label: 'Particulier', icon: '👤' },
+                                            { id: 'professionnel', label: 'Professionnel', icon: '💼' },
+                                            { id: 'entreprise', label: 'Entreprise', icon: '🏢' }
+                                          ].map(({ id: clientType, label, icon }) => {
+                                            const existsInClient = gpContent.products[clientType as ClientId]?.[fam as ProdId]?.some(
+                                              (prod: Product) => prod.name === p.name && (prod.description || '') === (p.description || '')
+                                            );
+                                            
+                                            return (
+                                              <label 
+                                                key={clientType}
+                                                className={`flex items-center justify-between p-2 rounded border cursor-pointer transition-all ${existsInClient ? 'bg-emerald-500/20 border-emerald-500/40' : 'bg-slate-700/50 border-slate-600'}`}
+                                              >
+                                                <div className="flex items-center gap-2">
+                                                  <input
+                                                    type="checkbox"
+                                                    checked={existsInClient || false}
+                                                    onChange={(e) => {
+                                                      try {
+                                                        const next = JSON.parse(JSON.stringify(gpContent));
+                                                        const currentClientProducts = next.products[client as ClientId]?.[fam as ProdId] || [];
+                                                        
+                                                        if (idx >= 0 && idx < currentClientProducts.length) {
+                                                          const productToModify = { ...currentClientProducts[idx] };
+                                                          
+                                                          if (e.target.checked) {
+                                                            if (!next.products[clientType as ClientId]) {
+                                                              next.products[clientType as ClientId] = {} as any;
+                                                            }
+                                                            if (!next.products[clientType as ClientId][fam as ProdId]) {
+                                                              next.products[clientType as ClientId][fam as ProdId] = [];
+                                                            }
+                                                            
+                                                            const existingIndex = next.products[clientType as ClientId][fam as ProdId].findIndex(
+                                                              (prod: Product) => prod.name === productToModify.name && 
+                                                              (prod.description || '') === (productToModify.description || '')
+                                                            );
+                                                            
+                                                            if (existingIndex === -1) {
+                                                              next.products[clientType as ClientId][fam as ProdId].push({
+                                                                ...productToModify,
+                                                                documents: productToModify.documents ? [...productToModify.documents] : []
+                                                              });
+                                                            }
+                                                          } else {
+                                                            if (next.products[clientType as ClientId]?.[fam as ProdId]) {
+                                                              const productIndex = next.products[clientType as ClientId][fam as ProdId].findIndex(
+                                                                (prod: Product) => prod.name === productToModify.name && 
+                                                                (prod.description || '') === (productToModify.description || '')
+                                                              );
+                                                              
+                                                              if (productIndex !== -1) {
+                                                                next.products[clientType as ClientId][fam as ProdId].splice(productIndex, 1);
+                                                              }
+                                                            }
+                                                          }
+                                                          
+                                                          setGpContent(next);
+                                                        }
+                                                      } catch (error) {
+                                                        console.error('Erreur:', error);
+                                                        showError('❌ Erreur lors de la modification');
+                                                      }
+                                                    }}
+                                                    className="w-4 h-4 text-emerald-500 bg-slate-700 border-slate-600 rounded"
+                                                  />
+                                                  <span className="text-sm">{icon}</span>
+                                                  <span className="text-xs text-white">{label}</span>
+                                                </div>
+                                                {existsInClient && (
+                                                  <span className="text-xs font-semibold text-emerald-400">✓</span>
+                                                )}
+                                              </label>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+                                    </div>
+                                    
                                     <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-600">
+                                      <button
+                                        onClick={() => {
+                                          setEditingGlobalProduct(editingGlobalProduct === productKey ? null : productKey);
+                                        }}
+                                        className={`flex-1 px-3 py-2 ${editingGlobalProduct === productKey ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-emerald-500 hover:bg-emerald-600'} text-white rounded text-xs font-medium text-center`}
+                                      >
+                                        ✏️ Modifier
+                                      </button>
                                       <button
                                         onClick={() => {
                                           setSelectedClients([client as ClientId]);
@@ -1570,43 +2014,43 @@ const CMSManagementPage: React.FC = () => {
                                           setShowDocumentModal(true);
                                         }}
                                         className="flex-1 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs font-medium text-center"
+                                        title="Attacher/Détacher des documents"
                                       >
-                                        📄 Documents
-                                      </button>
-                                      <button
-                                        onClick={() => {
-                                          setSelectedClients([client as ClientId]);
-                                          setSelectedFamilies([fam]);
-                                          setWorkflowStep('manage-documents');
-                                          // Scroll vers le produit dans l'étape 3
-                                          setTimeout(() => {
-                                            const element = document.querySelector(`[data-product="${p.name}-${fam}"]`);
-                                            if (element) {
-                                              element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                            }
-                                          }, 100);
-                                        }}
-                                        className="flex-1 px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded text-xs font-medium text-center"
-                                      >
-                                        ✏️ Modifier
+                                        📎 Documents ({p.documents?.length || 0})
                                       </button>
                                       <button
                                         onClick={() => {
                                           if (!confirm(`Êtes-vous sûr de vouloir supprimer le produit "${p.name}" ?`)) {
                                             return;
                                           }
-                                          const next = JSON.parse(JSON.stringify(gpContent));
-                                          const productName = p.name;
-                                          // Supprimer le produit de tous les clients
-                                          ['particulier', 'professionnel', 'entreprise'].forEach((c) => {
-                                            if (next.products[c as ClientId][fam as ProdId]) {
-                                              next.products[c as ClientId][fam as ProdId] = next.products[c as ClientId][fam as ProdId].filter(
-                                                (prod: Product) => prod.name !== productName
-                                              );
-                                            }
-                                          });
-                                          setGpContent(next);
-                                          showSuccess('Produit supprimé avec succès');
+                                          try {
+                                            const next = JSON.parse(JSON.stringify(gpContent));
+                                            ['particulier', 'professionnel', 'entreprise'].forEach((c) => {
+                                              if (next.products[c as ClientId] && next.products[c as ClientId][fam as ProdId] && Array.isArray(next.products[c as ClientId][fam as ProdId])) {
+                                                const products = next.products[c as ClientId][fam as ProdId];
+                                                if (idx >= 0 && idx < products.length) {
+                                                  const productAtIdx = products[idx];
+                                                  if (productAtIdx && productAtIdx.name === p.name && 
+                                                      (productAtIdx.description || '') === (p.description || '')) {
+                                                    products.splice(idx, 1);
+                                                  } else {
+                                                    const foundIndex = products.findIndex(
+                                                      (prod: Product) => prod.name === p.name && 
+                                                      (prod.description || '') === (p.description || '')
+                                                    );
+                                                    if (foundIndex !== -1) {
+                                                      products.splice(foundIndex, 1);
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            });
+                                            setGpContent(next);
+                                            showSuccess('Produit supprimé avec succès');
+                                          } catch (error) {
+                                            console.error('Erreur lors de la suppression:', error);
+                                            showError('Erreur lors de la suppression du produit');
+                                          }
                                         }}
                                         className="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded text-xs font-medium"
                                       >
@@ -1614,7 +2058,8 @@ const CMSManagementPage: React.FC = () => {
                                       </button>
                                     </div>
                                   </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             </div>
                           );
@@ -1673,11 +2118,11 @@ const CMSManagementPage: React.FC = () => {
                       });
                     }
                   }}
-                  className="bg-slate-800 rounded-xl shadow-2xl border border-slate-600 max-w-md w-full p-6 max-h-[90vh] overflow-y-auto"
+                  className="bg-slate-800 rounded-xl shadow-2xl border border-slate-600 max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-bold text-white">Ajouter un document</h3>
+                    <h3 className="text-lg font-bold text-white">📎 Gérer les documents - {editingProductDocument.productName}</h3>
                     <button
                       onClick={() => {
                         setShowDocumentModal(false);
@@ -1689,7 +2134,92 @@ const CMSManagementPage: React.FC = () => {
                       ×
                     </button>
                   </div>
-                  <div className="space-y-4">
+                  
+                  {/* Liste des documents existants */}
+                  {(() => {
+                    const clientToUse = editingProductDocument.client || selectedClients[0];
+                    const products = gpContent.products[clientToUse as ClientId]?.[editingProductDocument.family as ProdId] || [];
+                    const product = products.find((p: Product) => p.name === editingProductDocument.productName);
+                    const existingDocuments = product?.documents || [];
+                    
+                    if (existingDocuments.length > 0) {
+                      return (
+                        <div className="mb-6 p-4 bg-slate-700/50 rounded-lg border border-slate-600">
+                          <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                            <span>📄 Documents attachés ({existingDocuments.length})</span>
+                          </h4>
+                          <div className="space-y-2">
+                            {existingDocuments.map((doc: ProductDocument) => (
+                              <div 
+                                key={doc.id} 
+                                className="flex items-center justify-between p-3 bg-slate-600/50 rounded-lg hover:bg-slate-600 transition-colors"
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-white truncate">{doc.title}</p>
+                                  <p className="text-xs text-slate-400">
+                                    {doc.file_name} • {(doc.file_size / 1024).toFixed(2)} KB
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2 ml-3">
+                                  <button
+                                    onClick={() => {
+                                      // Télécharger le document
+                                      const link = document.createElement('a');
+                                      link.href = `data:${doc.file_type};base64,${doc.file_content}`;
+                                      link.download = doc.file_name;
+                                      link.click();
+                                    }}
+                                    className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs font-medium transition-colors"
+                                    title="Télécharger"
+                                  >
+                                    📥
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      if (!confirm(`Êtes-vous sûr de vouloir supprimer "${doc.title}" ?`)) {
+                                        return;
+                                      }
+                                      // Supprimer le document de tous les clients
+                                      const next = JSON.parse(JSON.stringify(gpContent));
+                                      ['particulier', 'professionnel', 'entreprise'].forEach((client) => {
+                                        const products = next.products[client as ClientId]?.[editingProductDocument.family as ProdId];
+                                        if (products && Array.isArray(products)) {
+                                          const productIndex = products.findIndex(
+                                            (p: Product) => p.name === editingProductDocument.productName
+                                          );
+                                          if (productIndex !== -1 && products[productIndex].documents) {
+                                            products[productIndex].documents = products[productIndex].documents.filter(
+                                              (d: ProductDocument) => d.id !== doc.id
+                                            );
+                                          }
+                                        }
+                                      });
+                                      setGpContent(next);
+                                      showSuccess(`Document "${doc.title}" supprimé. N'oubliez pas de sauvegarder !`);
+                                    }}
+                                    className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded text-xs font-medium transition-colors"
+                                    title="Supprimer"
+                                  >
+                                    🗑️
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className="mb-6 p-4 bg-slate-700/30 rounded-lg border border-slate-600/50 text-center">
+                        <p className="text-sm text-slate-400">📄 Aucun document attaché pour le moment</p>
+                      </div>
+                    );
+                  })()}
+                  
+                  {/* Formulaire d'ajout */}
+                  <div className="p-4 bg-emerald-500/10 rounded-lg border border-emerald-500/30">
+                    <h4 className="text-sm font-bold text-emerald-400 mb-3">➕ Ajouter un nouveau document</h4>
+                    <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-semibold text-slate-300 mb-2">Titre du document</label>
                       <input
@@ -1791,9 +2321,10 @@ const CMSManagementPage: React.FC = () => {
                         }}
                         className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors font-medium"
                       >
-                        Ajouter
+                        ➕ Ajouter
                       </button>
                     </div>
+                  </div>
                   </div>
                 </div>
               </div>
