@@ -420,10 +420,22 @@ const CMSManagementPage: React.FC = () => {
   };
 
   const saveContent = async () => {
-    setSaving(true);
-    setSuccessMessage('');
+    // Protection: s'assurer que setSaving(false) est toujours appelé
+    let timeoutId: NodeJS.Timeout | null = null;
+    let controller: AbortController | null = null;
+    let safetyTimeoutId: NodeJS.Timeout | null = null;
     
     try {
+      setSaving(true);
+      setSuccessMessage('');
+      
+      // Timeout de sécurité absolu (10 minutes max) pour éviter que le bouton reste bloqué indéfiniment
+      safetyTimeoutId = setTimeout(() => {
+        console.error('⚠️ Timeout de sécurité atteint - libération du bouton');
+        setSaving(false);
+        showError('La sauvegarde a pris trop de temps. Veuillez réessayer.');
+      }, 600000); // 10 minutes
+      
       const endpoint = activePage === 'home' ? 'home' : 'gamme-produits';
       
       if (activePage === 'gamme-produits') {
@@ -463,10 +475,11 @@ const CMSManagementPage: React.FC = () => {
       }
 
       // Créer un AbortController pour le timeout (5 minutes pour les gros contenus)
-      const controller = new AbortController();
+      controller = new AbortController();
       const timeoutDuration = payloadSizeMB > 10 ? 300000 : 120000; // 5 min si > 10MB, sinon 2 min
-      const timeoutId = setTimeout(() => {
-        controller.abort();
+      timeoutId = setTimeout(() => {
+        console.warn('⏱️ Timeout de requête atteint');
+        controller?.abort();
       }, timeoutDuration);
 
       try {
@@ -482,21 +495,46 @@ const CMSManagementPage: React.FC = () => {
           signal: controller.signal
         });
         
-        clearTimeout(timeoutId);
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
         
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: 'Erreur inconnue' }));
+          let errorData: any = { error: 'Erreur inconnue' };
+          try {
+            const text = await response.text();
+            if (text) {
+              errorData = JSON.parse(text);
+            }
+          } catch (e) {
+            console.warn('Impossible de parser la réponse d\'erreur:', e);
+          }
           console.error('❌ Erreur sauvegarde:', errorData);
           throw new Error(errorData.error || `Erreur ${response.status}: ${response.statusText}`);
         }
         
-        const responseData = await response.json();
+        let responseData: any = {};
+        try {
+          const text = await response.text();
+          if (text) {
+            responseData = JSON.parse(text);
+          }
+        } catch (e) {
+          console.warn('Impossible de parser la réponse:', e);
+        }
+        
         console.log('✅ Sauvegarde réussie. Réponse serveur:', responseData);
         setSuccessMessage('✅ Contenu sauvegardé avec succès!');
         setTimeout(() => setSuccessMessage(''), 5000);
         
       } catch (fetchError: any) {
-        clearTimeout(timeoutId);
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+        
+        console.error('❌ Erreur fetch:', fetchError);
         
         if (fetchError.name === 'AbortError') {
           throw new Error(`La sauvegarde a pris trop de temps (timeout après ${timeoutDuration / 1000}s). Le contenu est peut-être trop volumineux.`);
@@ -506,12 +544,28 @@ const CMSManagementPage: React.FC = () => {
           throw fetchError;
         }
         
+        // Gérer les erreurs réseau
+        if (fetchError instanceof TypeError && fetchError.message.includes('fetch')) {
+          throw new Error('Erreur de connexion. Vérifiez votre connexion internet et que le serveur est accessible.');
+        }
+        
         throw new Error('Erreur de connexion lors de la sauvegarde. Vérifiez votre connexion internet.');
       }
     } catch (error: any) {
-      console.error('Error saving CMS content:', error);
-      showError(error.message || 'Erreur lors de la sauvegarde');
+      console.error('❌ Error saving CMS content:', error);
+      const errorMessage = error?.message || 'Erreur lors de la sauvegarde';
+      showError(errorMessage);
     } finally {
+      // Nettoyer tous les timeouts
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      if (safetyTimeoutId) {
+        clearTimeout(safetyTimeoutId);
+      }
+      
+      // S'assurer que le bouton est toujours libéré
+      console.log('🔓 Libération du bouton sauvegarder');
       setSaving(false);
     }
   };
