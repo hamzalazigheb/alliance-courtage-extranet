@@ -624,6 +624,16 @@ const CMSManagementPage: React.FC = () => {
     });
   };
 
+  // Optimized computation of existing documents for the modal
+  const existingDocumentsForModal = useMemo(() => {
+    if (!editingProductDocument) return [];
+    
+    const clientToUse = editingProductDocument.client || selectedClients[0];
+    const products = gpContent.products[clientToUse as ClientId]?.[editingProductDocument.family as ProdId] || [];
+    const product = products.find((p: Product) => p.name === editingProductDocument.productName);
+    return product?.documents || [];
+  }, [editingProductDocument, gpContent, selectedClients]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -2208,87 +2218,75 @@ const CMSManagementPage: React.FC = () => {
                   </div>
                   
                   {/* Liste des documents existants - Optimisé avec useMemo */}
-                  {useMemo(() => {
-                    if (!editingProductDocument) return null;
-                    
-                    const clientToUse = editingProductDocument.client || selectedClients[0];
-                    const products = gpContent.products[clientToUse as ClientId]?.[editingProductDocument.family as ProdId] || [];
-                    const product = products.find((p: Product) => p.name === editingProductDocument.productName);
-                    const existingDocuments = product?.documents || [];
-                    
-                    if (existingDocuments.length > 0) {
-                      return (
-                        <div className="mb-6 p-4 bg-slate-700/50 rounded-lg border border-slate-600">
-                          <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
-                            <span>📄 Documents attachés ({existingDocuments.length})</span>
-                          </h4>
-                          <div className="space-y-2">
-                            {existingDocuments.map((doc: ProductDocument) => (
-                              <div 
-                                key={doc.id} 
-                                className="flex items-center justify-between p-3 bg-slate-600/50 rounded-lg hover:bg-slate-600 transition-colors"
+                  {existingDocumentsForModal.length > 0 ? (
+                    <div className="mb-6 p-4 bg-slate-700/50 rounded-lg border border-slate-600">
+                      <h4 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                        <span>📄 Documents attachés ({existingDocumentsForModal.length})</span>
+                      </h4>
+                      <div className="space-y-2">
+                        {existingDocumentsForModal.map((doc: ProductDocument) => (
+                          <div 
+                            key={doc.id} 
+                            className="flex items-center justify-between p-3 bg-slate-600/50 rounded-lg hover:bg-slate-600 transition-colors"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-white truncate">{doc.title}</p>
+                              <p className="text-xs text-slate-400">
+                                {doc.file_name} • {(doc.file_size / 1024).toFixed(2)} KB
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2 ml-3">
+                              <button
+                                onClick={() => {
+                                  // Télécharger le document
+                                  const link = document.createElement('a');
+                                  link.href = `data:${doc.file_type};base64,${doc.file_content}`;
+                                  link.download = doc.file_name;
+                                  link.click();
+                                }}
+                                className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs font-medium transition-colors"
+                                title="Télécharger"
                               >
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium text-white truncate">{doc.title}</p>
-                                  <p className="text-xs text-slate-400">
-                                    {doc.file_name} • {(doc.file_size / 1024).toFixed(2)} KB
-                                  </p>
-                                </div>
-                                <div className="flex items-center gap-2 ml-3">
-                                  <button
-                                    onClick={() => {
-                                      // Télécharger le document
-                                      const link = document.createElement('a');
-                                      link.href = `data:${doc.file_type};base64,${doc.file_content}`;
-                                      link.download = doc.file_name;
-                                      link.click();
-                                    }}
-                                    className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs font-medium transition-colors"
-                                    title="Télécharger"
-                                  >
-                                    📥
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      if (!confirm(`Êtes-vous sûr de vouloir supprimer "${doc.title}" ?`)) {
-                                        return;
+                                📥
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (!confirm(`Êtes-vous sûr de vouloir supprimer "${doc.title}" ?`)) {
+                                    return;
+                                  }
+                                  // Supprimer le document de tous les clients
+                                  const next = JSON.parse(JSON.stringify(gpContent));
+                                  ['particulier', 'professionnel', 'entreprise'].forEach((client) => {
+                                    const products = next.products[client as ClientId]?.[editingProductDocument!.family as ProdId];
+                                    if (products && Array.isArray(products)) {
+                                      const productIndex = products.findIndex(
+                                        (p: Product) => p.name === editingProductDocument!.productName
+                                      );
+                                      if (productIndex !== -1 && products[productIndex].documents) {
+                                        products[productIndex].documents = products[productIndex].documents.filter(
+                                          (d: ProductDocument) => d.id !== doc.id
+                                        );
                                       }
-                                      // Supprimer le document de tous les clients
-                                      const next = JSON.parse(JSON.stringify(gpContent));
-                                      ['particulier', 'professionnel', 'entreprise'].forEach((client) => {
-                                        const products = next.products[client as ClientId]?.[editingProductDocument.family as ProdId];
-                                        if (products && Array.isArray(products)) {
-                                          const productIndex = products.findIndex(
-                                            (p: Product) => p.name === editingProductDocument.productName
-                                          );
-                                          if (productIndex !== -1 && products[productIndex].documents) {
-                                            products[productIndex].documents = products[productIndex].documents.filter(
-                                              (d: ProductDocument) => d.id !== doc.id
-                                            );
-                                          }
-                                        }
-                                      });
-                                      setGpContent(next);
-                                      showSuccess(`Document "${doc.title}" supprimé. N'oubliez pas de sauvegarder !`);
-                                    }}
-                                    className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded text-xs font-medium transition-colors"
-                                    title="Supprimer"
-                                  >
-                                    🗑️
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
+                                    }
+                                  });
+                                  setGpContent(next);
+                                  showSuccess(`Document "${doc.title}" supprimé. N'oubliez pas de sauvegarder !`);
+                                }}
+                                className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded text-xs font-medium transition-colors"
+                                title="Supprimer"
+                              >
+                                🗑️
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      );
-                    }
-                    return (
-                      <div className="mb-6 p-4 bg-slate-700/30 rounded-lg border border-slate-600/50 text-center">
-                        <p className="text-sm text-slate-400">📄 Aucun document attaché pour le moment</p>
+                        ))}
                       </div>
-                    );
-                  }, [editingProductDocument, gpContent, selectedClients])}
+                    </div>
+                  ) : (
+                    <div className="mb-6 p-4 bg-slate-700/30 rounded-lg border border-slate-600/50 text-center">
+                      <p className="text-sm text-slate-400">📄 Aucun document attaché pour le moment</p>
+                    </div>
+                  )}
                   
                   {/* Formulaire d'ajout */}
                   <div className="p-4 bg-emerald-500/10 rounded-lg border border-emerald-500/30">
