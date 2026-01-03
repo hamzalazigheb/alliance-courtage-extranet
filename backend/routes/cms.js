@@ -208,10 +208,10 @@ router.put('/gamme-produits', auth, async (req, res) => {
     // Log minimal (non bloquant)
     console.log(`💾 PUT /api/cms/gamme-produits - Taille: ${contentSizeMB.toFixed(2)} MB`);
     
-    // Vérifier la taille avant de continuer
-    if (contentSizeMB > 100) {
+    // Vérifier la taille avant de continuer (5GB = 5120 MB)
+    if (contentSizeMB > 5120) {
       return res.status(400).json({
-        error: `Le contenu est trop volumineux (${contentSizeMB.toFixed(2)} MB, max 100MB)`
+        error: `Le contenu est trop volumineux (${contentSizeMB.toFixed(2)} MB, max 5120MB)`
       });
     }
 

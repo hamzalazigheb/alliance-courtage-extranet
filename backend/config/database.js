@@ -26,10 +26,8 @@ const pool = mysql.createPool({
   queueLimit: 0,
   enableKeepAlive: true,
   keepAliveInitialDelay: 0,
-  // Timeouts pour éviter les blocages
-  connectTimeout: 10000, // 10 secondes pour établir la connexion
-  acquireTimeout: 60000, // 60 secondes pour acquérir une connexion du pool
-  timeout: 60000 // 60 secondes pour exécuter une requête
+  // Timeout pour établir la connexion (seule option valide pour mysql2)
+  connectTimeout: 10000 // 10 secondes pour établir la connexion
 });
 
 // Variable globale pour la connexion simple (créée lors du connect)

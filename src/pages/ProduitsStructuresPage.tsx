@@ -280,11 +280,6 @@ export default function ProduitsStructuresPage() {
                     
                     {/* Financial Stats */}
                     <div className="flex flex-wrap items-center gap-4">
-                      <div className="bg-white/10 rounded-lg px-4 py-2 border border-white/20">
-                        <p className="text-xs text-blue-200 font-medium">Enveloppe globale assureur</p>
-                        <p className="text-lg font-bold">{formatCurrency(montant.montant_enveloppe)}</p>
-                        <p className="text-xs text-blue-300 mt-1">(Total disponible pour tous les produits)</p>
-                      </div>
                       {/* Calculer la somme des enveloppes des produits */}
                       <div className="bg-purple-500/20 rounded-lg px-4 py-2 border border-purple-300/30">
                         <p className="text-xs text-purple-200 font-medium">Enveloppes produits</p>

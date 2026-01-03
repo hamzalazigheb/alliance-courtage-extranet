@@ -51,15 +51,6 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
     if (mode === 'products-only') return 'products';
     return 'content';
   });
-
-  // Définir la section par défaut selon le mode
-  useEffect(() => {
-    if (mode === 'content-only') {
-      setActiveSection('content');
-    } else if (mode === 'products-only') {
-      setActiveSection('products');
-    }
-  }, [mode]);
   const [contentLoading, setContentLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -71,12 +62,20 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
     introText: ''
   });
 
+  // Définir la section par défaut selon le mode
+  useEffect(() => {
+    if (mode === 'content-only') {
+      setActiveSection('content');
+    } else if (mode === 'products-only') {
+      setActiveSection('products');
+    }
+  }, [mode]);
+
   // État du formulaire d'upload
   const [uploadForm, setUploadForm] = useState({
     title: '',
     description: '',
-    assurance: '',
-    montant_enveloppe: '',
+    assurances: [] as Array<{name: string, montant: string}>,
     category: '',
     file: null as File | null
   });
@@ -87,7 +86,6 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
   const [editingAssurance, setEditingAssurance] = useState<any | null>(null);
   const [assuranceForm, setAssuranceForm] = useState({
     name: '',
-    montant_enveloppe: '',
     color: 'blue',
     icon: '🛡️',
     description: '',
@@ -202,50 +200,61 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
       return;
     }
 
-    if (!uploadForm.title || !uploadForm.assurance || !uploadForm.category) {
-      alert('Veuillez remplir tous les champs obligatoires');
+    if (!uploadForm.title || uploadForm.assurances.length === 0 || !uploadForm.category) {
+      alert('Veuillez remplir tous les champs obligatoires et sélectionner au moins une assurance avec un montant');
+      return;
+    }
+
+    // Vérifier que tous les montants sont remplis
+    const missingMontants = uploadForm.assurances.filter(a => !a.montant || parseFloat(a.montant) <= 0);
+    if (missingMontants.length > 0) {
+      alert('Veuillez remplir le montant enveloppe pour toutes les assurances sélectionnées');
       return;
     }
 
     try {
       setUploading(true);
       
-      const formData = new FormData();
-      formData.append('file', uploadForm.file);
-      formData.append('title', uploadForm.title);
-      formData.append('description', uploadForm.description || '');
-      formData.append('assurance', uploadForm.assurance);
-      formData.append('category', uploadForm.category);
-      formData.append('montant_enveloppe', uploadForm.montant_enveloppe || '0');
+      // Créer un produit pour chaque assurance sélectionnée avec son montant spécifique
+      const promises = uploadForm.assurances.map(async (assuranceItem) => {
+        const formData = new FormData();
+        formData.append('file', uploadForm.file!);
+        formData.append('title', uploadForm.title);
+        formData.append('description', uploadForm.description || '');
+        formData.append('assurance', assuranceItem.name);
+        formData.append('category', uploadForm.category);
+        formData.append('montant_enveloppe', assuranceItem.montant);
 
-      // Appel à l'API d'upload
-      const response = await fetch(buildAPIURL('/structured-products'), {
-        method: 'POST',
-        headers: {
-          'x-auth-token': localStorage.getItem('token') || ''
-        },
-        body: formData
+        const response = await fetch(buildAPIURL('/structured-products'), {
+          method: 'POST',
+          headers: {
+            'x-auth-token': localStorage.getItem('token') || ''
+          },
+          body: formData
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Erreur lors de l\'upload');
+        }
+
+        return response.json();
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Erreur lors de l\'upload');
-      }
-
+      await Promise.all(promises);
+      alert(`✅ ${uploadForm.assurances.length} produit(s) créé(s) avec succès !`);
+      
       // Réinitialiser le formulaire
       setUploadForm({
         title: '',
         description: '',
-        assurance: '',
-        montant_enveloppe: '',
+        assurances: [],
         category: '',
         file: null
       });
       
       // Recharger la liste des produits
       await loadProducts();
-      
-      alert('Produit structuré uploadé avec succès !');
     } catch (error: any) {
       console.error('Erreur upload:', error);
       alert(error.message || 'Erreur lors de l\'upload du produit');
@@ -502,14 +511,13 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Assurance *
+                Assurance(s) *
                 <button
                   type="button"
                   onClick={() => {
                     setEditingAssurance(null);
                     setAssuranceForm({
                       name: '',
-                      montant_enveloppe: '',
                       color: 'blue',
                       icon: '🛡️',
                       description: '',
@@ -523,72 +531,80 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                   + Créer une nouvelle assurance
                 </button>
               </label>
-              <div className="flex gap-2">
-                <select
-                  value={uploadForm.assurance}
-                  onChange={(e) => setUploadForm({...uploadForm, assurance: e.target.value})}
-                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                >
-                  <option value="">
-                    {assurances.filter(a => a.is_active).length === 0 
-                      ? "⚠️ Aucune assurance active - Créez-en une d'abord" 
-                      : "Sélectionner une assurance"}
-                  </option>
-                  {assurances.filter(a => a.is_active).map(assurance => (
-                    <option key={assurance.id} value={assurance.name}>
-                      {assurance.icon} {assurance.name} {assurance.montant_enveloppe > 0 && `(${new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(assurance.montant_enveloppe)})`}
-                    </option>
-                  ))}
-                </select>
+              <div className="space-y-3 border border-gray-300 rounded-lg p-4 max-h-64 overflow-y-auto">
+                {assurances.filter(a => a.is_active).length === 0 ? (
+                  <div className="text-sm text-yellow-600 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                    ⚠️ Aucune assurance active. Créez-en une d'abord.
+                  </div>
+                ) : (
+                  assurances.filter(a => a.is_active).map(assurance => {
+                    const isSelected = uploadForm.assurances.some(a => a.name === assurance.name);
+                    const selectedItem = uploadForm.assurances.find(a => a.name === assurance.name);
+                    
+                    return (
+                      <div key={assurance.id} className="border border-gray-200 rounded-lg p-3 hover:bg-gray-50">
+                        <label className="flex items-center space-x-3 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setUploadForm({
+                                  ...uploadForm,
+                                  assurances: [...uploadForm.assurances, { name: assurance.name, montant: '' }]
+                                });
+                              } else {
+                                setUploadForm({
+                                  ...uploadForm,
+                                  assurances: uploadForm.assurances.filter(a => a.name !== assurance.name)
+                                });
+                              }
+                            }}
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <span className="text-sm font-medium text-gray-700 flex-1">
+                            {assurance.icon} {assurance.name}
+                          </span>
+                        </label>
+                        {isSelected && (
+                          <div className="mt-2 ml-7">
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                              Montant enveloppe (€) pour cette assurance *
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={selectedItem?.montant || ''}
+                              onChange={(e) => {
+                                setUploadForm({
+                                  ...uploadForm,
+                                  assurances: uploadForm.assurances.map(a => 
+                                    a.name === assurance.name 
+                                      ? { ...a, montant: e.target.value }
+                                      : a
+                                  )
+                                });
+                              }}
+                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              placeholder="Ex: 1000000"
+                              required
+                            />
+                            <p className="text-xs text-gray-500 mt-1">
+                              Montant spécifique à ce produit pour {assurance.name}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
               </div>
-              {assurances.filter(a => a.is_active).length === 0 && (
-                <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <p className="text-sm text-yellow-800 mb-2">
-                    ⚠️ <strong>Aucune assurance active.</strong> Vous devez créer une assurance avant de pouvoir uploader un produit.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingAssurance(null);
-                      setAssuranceForm({
-                        name: '',
-                        montant_enveloppe: '',
-                        color: 'blue',
-                        icon: '🛡️',
-                        description: '',
-                        is_active: true
-                      });
-                      setShowAssuranceModal(true);
-                    }}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors"
-                  >
-                    + Créer ma première assurance
-                  </button>
-                </div>
+              {uploadForm.assurances.length > 0 && (
+                <p className="text-xs text-gray-500 mt-2">
+                  {uploadForm.assurances.length} assurance(s) sélectionnée(s)
+                </p>
               )}
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Montant enveloppe (€) *
-                <span className="text-xs text-gray-500 ml-2 font-normal">
-                  (Enveloppe spécifique à ce produit)
-                </span>
-              </label>
-              <input
-                type="number"
-                value={uploadForm.montant_enveloppe}
-                onChange={(e) => setUploadForm({...uploadForm, montant_enveloppe: e.target.value})}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Ex: 1000000"
-                min="0"
-                step="0.01"
-                required
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Montant disponible pour ce produit spécifique. Un assureur peut avoir plusieurs produits avec différentes enveloppes.
-              </p>
             </div>
           </div>
           
@@ -732,23 +748,6 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
           </div>
         ) : (
           Object.entries(productsByAssurance).map(([assurance, assuranceProducts]) => {
-            // Trouver l'assurance correspondante pour obtenir l'enveloppe globale
-            const assuranceData = assurances.find(a => a.name === assurance);
-            const assuranceGlobalEnvelope = assuranceData?.montant_enveloppe || 0;
-            
-            // Calculer la somme des enveloppes de tous les produits de cet assureur
-            const totalProductsEnvelope = assuranceProducts.reduce((sum, product) => {
-              // Gérer tous les cas : null, undefined, string, number
-              let montant = 0;
-              if (product.montant_enveloppe != null && product.montant_enveloppe !== '') {
-                const parsed = typeof product.montant_enveloppe === 'string' 
-                  ? parseFloat(product.montant_enveloppe) 
-                  : Number(product.montant_enveloppe);
-                montant = isNaN(parsed) || parsed < 0 ? 0 : parsed;
-              }
-              return sum + montant;
-            }, 0);
-            
             return (
             <div key={assurance} className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden border border-white/20">
               {/* En-tête Assurance */}
@@ -762,21 +761,6 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                       <h2 className="text-2xl font-bold">{assurance}</h2>
                       <p className="text-white/80">{assuranceProducts.length} produit{assuranceProducts.length > 1 ? 's' : ''}</p>
                     </div>
-                  </div>
-                  {/* Enveloppe globale de l'assureur */}
-                  <div className="bg-white/20 rounded-lg px-4 py-3 border border-white/30">
-                    <p className="text-xs text-white/80 mb-1 font-medium">Enveloppe globale assureur</p>
-                    <p className="text-xl font-bold">
-                      {assuranceGlobalEnvelope > 0 ? new Intl.NumberFormat('fr-FR', { 
-                        style: 'currency', 
-                        currency: 'EUR' 
-                      }).format(assuranceGlobalEnvelope) : 'Non définie'}
-                    </p>
-                    {totalProductsEnvelope > 0 && (
-                      <p className="text-xs text-white/70 mt-1">
-                        Utilisé: {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(totalProductsEnvelope)}
-                      </p>
-                    )}
                   </div>
                 </div>
               </div>
@@ -887,7 +871,6 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                 setEditingAssurance(null);
                 setAssuranceForm({
                   name: '',
-                  montant_enveloppe: '',
                   color: 'blue',
                   icon: '🛡️',
                   description: '',
@@ -941,7 +924,6 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                       setEditingAssurance(assurance);
                       setAssuranceForm({
                         name: assurance.name,
-                        montant_enveloppe: assurance.montant_enveloppe.toString(),
                         color: assurance.color,
                         icon: assurance.icon,
                         description: assurance.description || '',
@@ -1016,14 +998,14 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                   if (editingAssurance) {
                     await assurancesAPI.update(editingAssurance.id, {
                       ...assuranceForm,
-                      montant_enveloppe: parseFloat(assuranceForm.montant_enveloppe) || 0
+                      montant_enveloppe: 0 // Le montant n'est plus géré au niveau de l'assurance
                     });
                     alert('Assurance modifiée avec succès !');
                   } else {
                     // Créer la nouvelle assurance
                     createdAssurance = await assurancesAPI.create({
                       ...assuranceForm,
-                      montant_enveloppe: parseFloat(assuranceForm.montant_enveloppe) || 0
+                      montant_enveloppe: 0 // Le montant n'est plus géré au niveau de l'assurance
                     });
                   }
                   
@@ -1031,16 +1013,9 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                   await loadAssurances();
                   
                   // Si c'est une nouvelle assurance créée depuis le formulaire d'upload,
-                  // la sélectionner automatiquement
+                  // informer l'utilisateur qu'il peut maintenant la cocher
                   if (createdAssurance && !editingAssurance) {
-                    // Attendre un peu pour que la liste soit mise à jour
-                    setTimeout(() => {
-                      setUploadForm(prev => ({
-                        ...prev,
-                        assurance: assuranceForm.name // Sélectionner la nouvelle assurance par son nom
-                      }));
-                      alert(`✅ Assurance "${assuranceForm.name}" créée et sélectionnée ! Vous pouvez maintenant uploader votre produit.`);
-                    }, 200);
+                    alert(`✅ Assurance "${assuranceForm.name}" créée avec succès ! Vous pouvez maintenant la sélectionner dans la liste ci-dessous.`);
                   } else if (!editingAssurance) {
                     alert(`✅ Assurance "${assuranceForm.name}" créée avec succès !`);
                   }
@@ -1075,25 +1050,6 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                       Utilisez un emoji pour représenter l'assurance (ex: 🛡️, 🏢, 💼, etc.)
                     </p>
                   </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Montant Enveloppe (€) *
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={assuranceForm.montant_enveloppe}
-                    onChange={(e) => setAssuranceForm({...assuranceForm, montant_enveloppe: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="5000000"
-                    required
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Montant total disponible que les utilisateurs peuvent voir
-                  </p>
                 </div>
 
                 <div>
@@ -1180,7 +1136,6 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                       setEditingAssurance(assurance);
                       setAssuranceForm({
                         name: assurance.name,
-                        montant_enveloppe: assurance.montant_enveloppe.toString(),
                         color: assurance.color || 'blue',
                         icon: assurance.icon || '🛡️',
                         description: assurance.description || '',
