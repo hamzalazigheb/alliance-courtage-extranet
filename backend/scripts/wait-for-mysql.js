@@ -34,16 +34,24 @@ function waitForMySQL(attempt = 1) {
     });
 
     connection.connect((err) => {
-      connection.end();
-      
       if (err) {
+        // Fermer la connexion seulement si elle est ouverte
+        try {
+          if (connection && connection.state !== 'disconnected') {
+            connection.end();
+          }
+        } catch (closeErr) {
+          // Ignorer les erreurs de fermeture
+        }
+        
         if (attempt >= maxAttempts) {
           console.error('❌ Échec: MySQL n\'est pas disponible après', maxAttempts, 'tentatives');
+          console.error('   Erreur:', err.message);
           reject(err);
           return;
         }
         
-        console.log(`⏸️  MySQL pas encore prêt, nouvelle tentative dans ${delayMs/1000}s...`);
+        console.log(`⏸️  MySQL pas encore prêt (${err.message}), nouvelle tentative dans ${delayMs/1000}s...`);
         setTimeout(() => {
           waitForMySQL(attempt + 1).then(resolve).catch(reject);
         }, delayMs);
@@ -51,6 +59,13 @@ function waitForMySQL(attempt = 1) {
       }
       
       console.log('✅ MySQL est prêt!');
+      
+      // Fermer la connexion de test proprement
+      try {
+        connection.end();
+      } catch (closeErr) {
+        // Ignorer les erreurs de fermeture
+      }
       
       // Vérifier que la base de données existe
       const dbConnection = mysql.createConnection({
@@ -62,7 +77,14 @@ function waitForMySQL(attempt = 1) {
       });
       
       dbConnection.query(`USE ${dbConfig.database}`, (dbErr) => {
-        dbConnection.end();
+        // Fermer la connexion proprement
+        try {
+          if (dbConnection && dbConnection.state !== 'disconnected') {
+            dbConnection.end();
+          }
+        } catch (closeErr) {
+          // Ignorer les erreurs de fermeture
+        }
         
         if (dbErr) {
           console.warn(`⚠️  La base de données ${dbConfig.database} n'existe pas encore, mais MySQL est prêt.`);
@@ -73,6 +95,21 @@ function waitForMySQL(attempt = 1) {
         
         resolve();
       });
+      
+      // Gérer les erreurs de connexion pour la vérification de la DB
+      dbConnection.on('error', (dbConnErr) => {
+        console.warn('⚠️  Erreur de connexion DB:', dbConnErr.message);
+        // Ne pas rejeter, juste continuer
+      });
+    });
+    
+    // Gérer les erreurs de connexion
+    connection.on('error', (connErr) => {
+      // Ne pas appeler end() ici car la connexion est déjà fermée
+      if (connErr.fatal) {
+        // La connexion est déjà fermée, ne rien faire
+        return;
+      }
     });
   });
 }
