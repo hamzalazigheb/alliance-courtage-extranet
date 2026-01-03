@@ -78,8 +78,8 @@ app.use(limiter);
 app.use(metricsMiddleware);
 
 // Middleware pour parser JSON
-app.use(express.json({ limit: '100mb' })); // Augmenté pour supporter les gros contenus CMS
-app.use(express.urlencoded({ extended: true, limit: '100mb' }));
+app.use(express.json({ limit: '5gb' })); // Augmenté pour supporter les gros contenus CMS (5GB)
+app.use(express.urlencoded({ extended: true, limit: '5gb' }));
 
 // Middleware pour servir les fichiers statiques avec cache optimisé
 app.use('/uploads', express.static(path.join(__dirname, '../uploads'), { 
