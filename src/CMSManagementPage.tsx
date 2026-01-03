@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { formationsAPI, notificationsAPI, buildAPIURL, buildFileURL } from './api';
 import StructuredProductsCMSPage from './StructuredProductsCMSPage';
 import RencontresCMSPage from './RencontresCMSPage';
@@ -439,10 +439,25 @@ const CMSManagementPage: React.FC = () => {
       
       const endpoint = activePage === 'home' ? 'home' : 'gamme-produits';
       
-      // Préparer le payload de manière optimisée (sans logs lourds avant la requête)
-      const payload = activePage === 'home'
-        ? JSON.stringify({ content: JSON.stringify(content) })
-        : JSON.stringify({ content: JSON.stringify(gpContent) });
+      // Préparer le payload de manière optimisée
+      // Afficher un indicateur de progression pour les gros contenus
+      let payload: string;
+      try {
+        if (activePage === 'home') {
+          payload = JSON.stringify({ content: JSON.stringify(content) });
+        } else {
+          // Pour gamme-produits, vérifier la taille avant de stringify
+          console.log('🔄 Préparation du payload pour gamme-produits...');
+          payload = JSON.stringify({ content: JSON.stringify(gpContent) });
+          console.log('✅ Payload préparé avec succès');
+        }
+      } catch (error: any) {
+        console.error('❌ Erreur lors de la sérialisation:', error);
+        // S'assurer que setSaving(false) est appelé même en cas d'erreur
+        setSaving(false);
+        if (safetyTimeoutId) clearTimeout(safetyTimeoutId);
+        throw new Error(error?.message || 'Erreur lors de la préparation des données. Le contenu est peut-être trop volumineux.');
+      }
 
       // Vérifier la taille du payload rapidement
       const payloadSize = new Blob([payload]).size;
@@ -486,6 +501,7 @@ const CMSManagementPage: React.FC = () => {
       }
 
       // Lancer la requête IMMÉDIATEMENT après la préparation
+      console.log(`🚀 Envoi de la requête PUT vers /cms/${endpoint}...`);
       try {
         const response = await fetch(buildAPIURL(`/cms/${endpoint}`), {
           method: 'PUT',
@@ -2191,8 +2207,10 @@ const CMSManagementPage: React.FC = () => {
                     </button>
                   </div>
                   
-                  {/* Liste des documents existants */}
-                  {(() => {
+                  {/* Liste des documents existants - Optimisé avec useMemo */}
+                  {useMemo(() => {
+                    if (!editingProductDocument) return null;
+                    
                     const clientToUse = editingProductDocument.client || selectedClients[0];
                     const products = gpContent.products[clientToUse as ClientId]?.[editingProductDocument.family as ProdId] || [];
                     const product = products.find((p: Product) => p.name === editingProductDocument.productName);
@@ -2270,7 +2288,7 @@ const CMSManagementPage: React.FC = () => {
                         <p className="text-sm text-slate-400">📄 Aucun document attaché pour le moment</p>
                       </div>
                     );
-                  })()}
+                  }, [editingProductDocument, gpContent, selectedClients])}
                   
                   {/* Formulaire d'ajout */}
                   <div className="p-4 bg-emerald-500/10 rounded-lg border border-emerald-500/30">
