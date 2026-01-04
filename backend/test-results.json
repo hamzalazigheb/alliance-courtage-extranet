@@ -1,0 +1,186 @@
+{
+  "date": "2026-01-04T01:43:56.040Z",
+  "summary": {
+    "total": 25,
+    "passed": 20,
+    "failed": 5,
+    "successRate": 80
+  },
+  "tests": [
+    {
+      "category": "Base",
+      "name": "Health Check",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-01-04T01:43:55.550Z"
+    },
+    {
+      "category": "Base",
+      "name": "Metrics Endpoint",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-01-04T01:43:55.569Z"
+    },
+    {
+      "category": "Auth",
+      "name": "Admin Login",
+      "success": false,
+      "details": "",
+      "timestamp": "2026-01-04T01:43:55.600Z"
+    },
+    {
+      "category": "Products",
+      "name": "Liste des produits",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-01-04T01:43:55.634Z"
+    },
+    {
+      "category": "Products",
+      "name": "Nombre de produits",
+      "success": true,
+      "details": "11 produit(s)",
+      "timestamp": "2026-01-04T01:43:55.635Z"
+    },
+    {
+      "category": "Products",
+      "name": "Détail d'un produit",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-01-04T01:43:55.645Z"
+    },
+    {
+      "category": "News",
+      "name": "Liste des actualités",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-01-04T01:43:55.653Z"
+    },
+    {
+      "category": "News",
+      "name": "Nombre d'actualités",
+      "success": true,
+      "details": "6 actualité(s)",
+      "timestamp": "2026-01-04T01:43:55.653Z"
+    },
+    {
+      "category": "Archives",
+      "name": "Liste des archives",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-01-04T01:43:55.789Z"
+    },
+    {
+      "category": "Archives",
+      "name": "Nombre d'archives",
+      "success": true,
+      "details": "12 archive(s)",
+      "timestamp": "2026-01-04T01:43:55.790Z"
+    },
+    {
+      "category": "Archives",
+      "name": "Catégories d'archives",
+      "success": false,
+      "details": "",
+      "timestamp": "2026-01-04T01:43:55.794Z"
+    },
+    {
+      "category": "Partners",
+      "name": "Liste des partenaires",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-01-04T01:43:55.803Z"
+    },
+    {
+      "category": "Partners",
+      "name": "Nombre de partenaires",
+      "success": true,
+      "details": "2 partenaire(s)",
+      "timestamp": "2026-01-04T01:43:55.803Z"
+    },
+    {
+      "category": "Structured",
+      "name": "Liste des produits structurés",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-01-04T01:43:55.862Z"
+    },
+    {
+      "category": "Structured",
+      "name": "Nombre de produits structurés",
+      "success": true,
+      "details": "5 produit(s)",
+      "timestamp": "2026-01-04T01:43:55.863Z"
+    },
+    {
+      "category": "Structured",
+      "name": "Fichiers d'un produit",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-01-04T01:43:55.867Z"
+    },
+    {
+      "category": "Structured",
+      "name": "Liste des assurances (structured)",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-01-04T01:43:55.871Z"
+    },
+    {
+      "category": "Financial",
+      "name": "Liste des documents financiers",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-01-04T01:43:56.003Z"
+    },
+    {
+      "category": "Financial",
+      "name": "Nombre de documents",
+      "success": true,
+      "details": "6 document(s)",
+      "timestamp": "2026-01-04T01:43:56.004Z"
+    },
+    {
+      "category": "Formations",
+      "name": "Liste des formations",
+      "success": false,
+      "details": "",
+      "timestamp": "2026-01-04T01:43:56.008Z"
+    },
+    {
+      "category": "Assurances",
+      "name": "Liste des assurances",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-01-04T01:43:56.013Z"
+    },
+    {
+      "category": "Assurances",
+      "name": "Nombre d'assurances",
+      "success": true,
+      "details": "4 assurance(s)",
+      "timestamp": "2026-01-04T01:43:56.013Z"
+    },
+    {
+      "category": "Assurances",
+      "name": "Montants développés",
+      "success": true,
+      "details": "",
+      "timestamp": "2026-01-04T01:43:56.024Z"
+    },
+    {
+      "category": "Réglementaire",
+      "name": "Liste des documents",
+      "success": false,
+      "details": "",
+      "timestamp": "2026-01-04T01:43:56.029Z"
+    },
+    {
+      "category": "Simulators",
+      "name": "Liste des simulateurs",
+      "success": false,
+      "details": "",
+      "timestamp": "2026-01-04T01:43:56.033Z"
+    }
+  ]
+}

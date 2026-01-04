@@ -61,7 +61,7 @@ router.get('/:id', async (req, res) => {
 // @access  Private (Admin seulement)
 router.post('/', auth, authorize('admin'), async (req, res) => {
   try {
-    const { name, montant_enveloppe, color, icon, description, is_active } = req.body;
+    const { name, color, icon, description, is_active } = req.body;
 
     if (!name) {
       return res.status(400).json({ 
@@ -86,7 +86,7 @@ router.post('/', auth, authorize('admin'), async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?)`,
       [
         name,
-        parseFloat(montant_enveloppe) || 0,
+        0, // Toujours 0 lors de la création - le montant est géré au niveau du produit
         color || 'gray',
         icon || '📄',
         description || null,

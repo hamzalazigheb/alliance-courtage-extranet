@@ -228,6 +228,36 @@ CREATE TABLE IF NOT EXISTS product_reservations (
   INDEX idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 11.1. Ajouter colonne assurance_name à product_reservations si elle n'existe pas
+SET @col_exists = 0;
+SELECT COUNT(*) INTO @col_exists 
+FROM INFORMATION_SCHEMA.COLUMNS 
+WHERE TABLE_SCHEMA = 'alliance_courtage' 
+AND TABLE_NAME = 'product_reservations' 
+AND COLUMN_NAME = 'assurance_name';
+
+SET @sql = IF(@col_exists = 0, 
+  'ALTER TABLE product_reservations ADD COLUMN assurance_name VARCHAR(255) NULL AFTER product_id', 
+  'SELECT "Colonne assurance_name existe déjà" as message');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- 11.2. Ajouter index sur assurance_name
+SET @index_exists = 0;
+SELECT COUNT(*) INTO @index_exists 
+FROM INFORMATION_SCHEMA.STATISTICS 
+WHERE TABLE_SCHEMA = 'alliance_courtage' 
+AND TABLE_NAME = 'product_reservations' 
+AND INDEX_NAME = 'idx_assurance_name';
+
+SET @sql = IF(@index_exists = 0, 
+  'ALTER TABLE product_reservations ADD INDEX idx_assurance_name (assurance_name)', 
+  'SELECT "Index idx_assurance_name existe déjà" as message');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 -- 12. Créer la table formations
 CREATE TABLE IF NOT EXISTS formations (
   id INT AUTO_INCREMENT PRIMARY KEY,

@@ -8,6 +8,23 @@ const { notifyAdmins } = require('./notifications');
 
 const router = express.Router();
 
+// Fonction pour corriger l'encodage des noms de fichiers
+function fixFilenameEncoding(filename) {
+  try {
+    // Si le nom de fichier est déjà en UTF-8 valide, le retourner
+    if (Buffer.from(filename, 'utf8').toString('utf8') === filename) {
+      return filename;
+    }
+    
+    // Essayer de décoder depuis latin1 vers UTF-8 (problème courant)
+    const buffer = Buffer.from(filename, 'latin1');
+    return buffer.toString('utf8');
+  } catch (error) {
+    console.error('Erreur encodage filename:', error);
+    return filename;
+  }
+}
+
 // Configuration de multer pour l'upload de fichiers produits structurés en mémoire (base64)
 const storage = multer.memoryStorage();
 
@@ -62,9 +79,11 @@ router.get('/', async (req, res) => {
     
     let sql = `
       SELECT a.*, u.nom as uploaded_by_nom, u.prenom as uploaded_by_prenom,
-             CASE WHEN a.file_content IS NOT NULL THEN 1 ELSE 0 END as has_file_content
+             CASE WHEN a.file_content IS NOT NULL THEN 1 ELSE 0 END as has_file_content,
+             COUNT(pf.id) as files_count
       FROM archives a
       LEFT JOIN users u ON a.uploaded_by = u.id
+      LEFT JOIN product_files pf ON a.id = pf.product_id
       WHERE a.category IN ('Épargne', 'Retraite', 'Prévoyance', 'Santé', 'CIF', 'Investissements')
     `;
     
@@ -90,7 +109,7 @@ router.get('/', async (req, res) => {
       sql += ' AND ' + conditions.join(' AND ');
     }
     
-    sql += ' ORDER BY a.created_at DESC';
+    sql += ' GROUP BY a.id ORDER BY a.created_at DESC';
     
     const products = await query(sql, params);
     
@@ -116,75 +135,112 @@ router.get('/', async (req, res) => {
 // @route   POST /api/structured-products
 // @desc    Créer un nouveau produit structuré (avec upload de fichier en base64)
 // @access  Private (Admin seulement)
-router.post('/', auth, authorize('admin'), upload.single('file'), handleMulterError, async (req, res) => {
+router.post('/', auth, authorize('admin'), upload.array('files', 10), handleMulterError, async (req, res) => {
   try {
     const {
       title,
       description,
-      assurance,
+      assurances, // Peut être un JSON array ou une string
+      assurance, // Ancien format pour compatibilité
       category,
       montant_enveloppe
     } = req.body;
     
-    // Vérifier qu'un fichier a été uploadé
-    if (!req.file) {
+    // Vérifier qu'au moins un fichier a été uploadé
+    if (!req.files || req.files.length === 0) {
       return res.status(400).json({ 
-        error: 'Fichier requis' 
+        error: 'Au moins un fichier est requis' 
       });
     }
     
-    // Check if buffer exists
-    if (!req.file.buffer) {
-      return res.status(400).json({ 
-        error: 'Erreur: fichier non reçu correctement' 
-      });
+    // Parser les assurances (peut être JSON string ou array)
+    // Format attendu: [{name: string, montant: string}, ...] ou [string, ...]
+    let assurancesArray = [];
+    if (assurances) {
+      try {
+        assurancesArray = typeof assurances === 'string' ? JSON.parse(assurances) : assurances;
+        if (!Array.isArray(assurancesArray)) {
+          assurancesArray = [assurancesArray];
+        }
+      } catch (e) {
+        // Si ce n'est pas du JSON valide, traiter comme une string simple
+        assurancesArray = [assurances];
+      }
+    } else if (assurance) {
+      // Compatibilité avec l'ancien format
+      assurancesArray = [assurance];
     }
+    
+    // Extraire les noms des assurances (si c'est un tableau d'objets {name, montant})
+    const assurancesNames = assurancesArray.map(a => {
+      if (typeof a === 'object' && a.name) {
+        return a.name;
+      }
+      return a; // Si c'est déjà une string
+    });
     
     // Validation des données requises
-    if (!title || !assurance || !category) {
+    if (!title || assurancesNames.length === 0 || !category) {
       return res.status(400).json({ 
-        error: 'Titre, assurance et catégorie requis' 
+        error: 'Titre, au moins une assurance et catégorie requis' 
       });
     }
     
-    // Validation du montant enveloppe (optionnel mais doit être un nombre positif si fourni)
-    const montantEnveloppe = montant_enveloppe ? parseFloat(montant_enveloppe) : 0;
-    if (montant_enveloppe && (isNaN(montantEnveloppe) || montantEnveloppe < 0)) {
+    // Vérifier que tous les montants sont fournis si c'est un tableau d'objets
+    if (assurancesArray.length > 0 && typeof assurancesArray[0] === 'object') {
+      const missingMontants = assurancesArray.filter(a => !a.montant || parseFloat(a.montant) <= 0);
+      if (missingMontants.length > 0) {
+        return res.status(400).json({ 
+          error: 'Tous les montants enveloppe doivent être remplis et positifs' 
+        });
+      }
+    }
+    
+    // Validation du montant enveloppe (requis et doit être un nombre positif)
+    if (!montant_enveloppe) {
+      return res.status(400).json({ 
+        error: 'Le montant enveloppe est requis' 
+      });
+    }
+    
+    const montantEnveloppe = parseFloat(montant_enveloppe);
+    if (isNaN(montantEnveloppe) || montantEnveloppe < 0) {
       return res.status(400).json({ 
         error: 'Le montant enveloppe doit être un nombre positif' 
       });
     }
     
-    // Convert file buffer to base64
-    const fileBase64 = req.file.buffer.toString('base64');
-    const base64Prefix = `data:${req.file.mimetype};base64,`;
-    const fileContent = base64Prefix + fileBase64;
-    
-    // Récupérer l'extension du fichier original
-    const originalFilename = req.file.originalname;
-    const fileExtension = path.extname(originalFilename);
-    
     const host = `${req.protocol}://${req.get('host')}`;
     
-    // Créer le produit structuré avec file_content (base64)
-    // file_path stocke le nom original du fichier pour préserver l'extension
-    // Vérifier si la colonne montant_enveloppe existe
+    // Stocker les assurances avec leurs montants développés comme JSON dans la colonne assurance
+    // Format: [{"name": "assurance1", "montant": "5000"}, {"name": "assurance2", "montant": "3999.92"}]
+    // Si les montants sont fournis, les stocker avec les noms, sinon stocker juste les noms
+    let assurancesJSON;
+    if (assurancesArray.length > 0 && typeof assurancesArray[0] === 'object' && assurancesArray[0].montant) {
+      // Stocker avec les montants développés
+      assurancesJSON = JSON.stringify(assurancesArray.map(a => ({
+        name: typeof a === 'object' && a.name ? a.name : a,
+        montant: typeof a === 'object' && a.montant ? parseFloat(a.montant) : 0
+      })));
+    } else {
+      // Stocker juste les noms (compatibilité avec l'ancien format)
+      assurancesJSON = JSON.stringify(assurancesNames);
+    }
+    
+    // Créer le produit structuré SANS fichier dans archives
+    // Les fichiers seront stockés dans product_files
     let result;
     try {
       // Essayer d'insérer avec montant_enveloppe
       result = await query(
         `INSERT INTO archives 
-         (title, description, file_path, file_content, file_size, file_type, category, assurance, uploaded_by, montant_enveloppe) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (title, description, category, assurance, uploaded_by, montant_enveloppe) 
+         VALUES (?, ?, ?, ?, ?, ?)`,
         [
           title,
           description || '',
-          originalFilename, // Stocker le nom original pour préserver l'extension
-          fileContent, // Store base64 encoded file
-          req.file.size,
-          req.file.mimetype,
           category,
-          assurance,
+          assurancesJSON, // Stocker les assurances avec montants comme JSON
           req.user.id,
           montantEnveloppe
         ]
@@ -195,17 +251,13 @@ router.post('/', auth, authorize('admin'), upload.single('file'), handleMulterEr
         console.warn('Colonne montant_enveloppe non trouvée, insertion sans cette colonne');
         result = await query(
           `INSERT INTO archives 
-           (title, description, file_path, file_content, file_size, file_type, category, assurance, uploaded_by) 
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (title, description, category, assurance, uploaded_by) 
+           VALUES (?, ?, ?, ?, ?)`,
           [
             title,
             description || '',
-            originalFilename,
-            fileContent,
-            req.file.size,
-            req.file.mimetype,
             category,
-            assurance,
+            assurancesJSON, // Stocker les assurances avec montants comme JSON
             req.user.id
           ]
         );
@@ -214,31 +266,52 @@ router.post('/', auth, authorize('admin'), upload.single('file'), handleMulterEr
       }
     }
     
-    const fileUrl = `${host}/api/structured-products/${result.insertId}/download`;
+    const productId = result.insertId;
+    
+    // Stocker chaque fichier dans la table product_files
+    for (let i = 0; i < req.files.length; i++) {
+      const file = req.files[i];
+      const fileBase64 = file.buffer.toString('base64');
+      const fileName = fixFilenameEncoding(file.originalname);
+      
+      await query(
+        `INSERT INTO product_files 
+         (product_id, file_name, file_content, file_size, file_type, display_order) 
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          productId,
+          fileName,
+          fileBase64,
+          file.size,
+          file.mimetype,
+          i // Ordre d'affichage
+        ]
+      );
+    }
     
     // Notifier tous les utilisateurs (via notification globale)
     await notifyAdmins(
       'product',
       'Nouveau produit structuré',
-      `Un nouveau produit structuré "${title}" a été ajouté dans la catégorie ${category}.`,
-      result.insertId,
+      `Un nouveau produit structuré "${title}" a été ajouté dans la catégorie ${category} avec ${req.files.length} fichier(s).`,
+      productId,
       'structured_product'
     );
 
     console.log('✅ Structured product created:', { 
-      id: result.insertId, 
+      id: productId, 
       title, 
       category, 
-      assurance,
-      originalFilename,
-      fileExtension,
-      mimeType: req.file.mimetype
+      assurances: assurancesNames,
+      montant_enveloppe: montantEnveloppe,
+      filesCount: req.files.length
     });
     
     res.status(201).json({
       message: 'Produit structuré créé avec succès',
-      productId: result.insertId,
-      fileUrl: fileUrl
+      productId: productId,
+      filesCount: req.files.length,
+      assurances: assurancesNames
     });
   } catch (error) {
     console.error('Erreur create structured product:', error);
@@ -251,6 +324,142 @@ router.post('/', auth, authorize('admin'), upload.single('file'), handleMulterEr
     res.status(500).json({ 
       error: 'Erreur serveur lors de la création du produit structuré',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// @route   GET /api/structured-products/:id/files
+// @desc    Récupérer tous les fichiers d'un produit
+// @access  Public
+router.get('/:id/files', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const files = await query(
+      'SELECT id, file_name, file_size, file_type, display_order, created_at FROM product_files WHERE product_id = ? ORDER BY display_order',
+      [id]
+    );
+    
+    res.json(files);
+  } catch (error) {
+    console.error('Erreur get product files:', error);
+    res.status(500).json({ 
+      error: 'Erreur serveur lors de la récupération des fichiers' 
+    });
+  }
+});
+
+// @route   GET /api/structured-products/:id/files/:fileId/download
+// @desc    Télécharger un fichier spécifique
+// @access  Public
+router.get('/:id/files/:fileId/download', async (req, res) => {
+  try {
+    const { id, fileId } = req.params;
+    
+    const files = await query(
+      'SELECT file_content, file_type, file_name FROM product_files WHERE id = ? AND product_id = ?',
+      [fileId, id]
+    );
+    
+    if (files.length === 0) {
+      return res.status(404).json({ error: 'Fichier non trouvé' });
+    }
+    
+    const file = files[0];
+    const fileBuffer = Buffer.from(file.file_content, 'base64');
+    
+    const extension = path.extname(file.file_name).replace('.', '').toLowerCase() || 'pdf';
+    
+    res.setHeader('Content-Type', file.file_type || 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(file.file_name)}"; filename*=UTF-8''${encodeURIComponent(file.file_name)}`);
+    res.setHeader('Content-Length', fileBuffer.length);
+    
+    res.send(fileBuffer);
+  } catch (error) {
+    console.error('Erreur download file:', error);
+    res.status(500).json({ 
+      error: 'Erreur serveur lors du téléchargement du fichier' 
+    });
+  }
+});
+
+// @route   DELETE /api/structured-products/:id/files/:fileId
+// @desc    Supprimer un fichier spécifique
+// @access  Private (Admin seulement)
+// @route   PUT /api/structured-products/:id/files/:fileId
+// @desc    Remplacer un fichier d'un produit
+// @access  Admin
+router.put('/:id/files/:fileId', auth, authorize('admin'), upload.single('file'), async (req, res) => {
+  try {
+    const { id, fileId } = req.params;
+    
+    if (!req.file) {
+      return res.status(400).json({ error: 'Aucun fichier fourni' });
+    }
+
+    // Vérifier que le fichier appartient au produit
+    const [existingFile] = await query(
+      'SELECT id FROM product_files WHERE id = ? AND product_id = ?',
+      [fileId, id]
+    );
+
+    if (!existingFile) {
+      return res.status(404).json({ error: 'Fichier non trouvé' });
+    }
+
+    // Encoder le nouveau fichier en base64
+    const fileContent = req.file.buffer.toString('base64');
+    const fileName = fixFilenameEncoding(req.file.originalname);
+
+    // Mettre à jour le fichier
+    await query(
+      `UPDATE product_files 
+       SET file_name = ?, 
+           file_content = ?, 
+           file_size = ?, 
+           file_type = ?
+       WHERE id = ? AND product_id = ?`,
+      [
+        fileName,
+        fileContent,
+        req.file.size,
+        req.file.mimetype,
+        fileId,
+        id
+      ]
+    );
+
+    res.json({ 
+      message: 'Fichier remplacé avec succès',
+      file: {
+        id: fileId,
+        name: fileName,
+        size: req.file.size,
+        type: req.file.mimetype
+      }
+    });
+  } catch (error) {
+    console.error('Erreur replace file:', error);
+    res.status(500).json({ 
+      error: 'Erreur serveur lors du remplacement du fichier' 
+    });
+  }
+});
+
+router.delete('/:id/files/:fileId', auth, authorize('admin'), async (req, res) => {
+  try {
+    const { id, fileId } = req.params;
+    
+    await query(
+      'DELETE FROM product_files WHERE id = ? AND product_id = ?',
+      [fileId, id]
+    );
+    
+    res.json({ message: 'Fichier supprimé avec succès' });
+  } catch (error) {
+    console.error('Erreur delete file:', error);
+    res.status(500).json({ 
+      error: 'Erreur serveur lors de la suppression du fichier' 
     });
   }
 });
@@ -329,13 +538,20 @@ router.get('/:id/download', async (req, res) => {
     
     // Si file_content existe (base64), le décoder et servir
     if (product.file_content) {
-      // Extraire le base64 du data URL
-      const base64Data = product.file_content.replace(/^data:.*,/, '');
-      const fileBuffer = Buffer.from(base64Data, 'base64');
+      // Extraire le base64 (avec ou sans préfixe data:)
+      let base64Data = product.file_content;
+      let mimeType = product.file_type || 'application/octet-stream';
       
-      // Déterminer le type MIME
-      const mimeMatch = product.file_content.match(/^data:([^;]+);/);
-      const mimeType = mimeMatch ? mimeMatch[1] : product.file_type || 'application/octet-stream';
+      // Si c'est un data URL, extraire le MIME et le base64
+      if (product.file_content.startsWith('data:')) {
+        const mimeMatch = product.file_content.match(/^data:([^;]+);/);
+        if (mimeMatch) {
+          mimeType = mimeMatch[1];
+        }
+        base64Data = product.file_content.replace(/^data:.*,/, '');
+      }
+      
+      const fileBuffer = Buffer.from(base64Data, 'base64');
       
       // Mapper les types MIME vers les extensions correctes
       const mimeToExt = {
@@ -399,6 +615,73 @@ router.get('/:id/download', async (req, res) => {
 // @route   DELETE /api/structured-products/:id
 // @desc    Supprimer un produit structuré
 // @access  Private (Admin seulement)
+// @route   PUT /api/structured-products/:id/file
+// @desc    Mettre à jour le fichier d'un produit structuré
+// @access  Private (Admin seulement)
+router.put('/:id/file', auth, authorize('admin'), upload.single('file'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const file = req.file;
+
+    if (!file) {
+      return res.status(400).json({ error: 'Aucun fichier fourni' });
+    }
+
+    // Vérifier que le produit existe
+    const products = await query(
+      'SELECT id, file_path FROM archives WHERE id = ?',
+      [id]
+    );
+
+    if (products.length === 0) {
+      return res.status(404).json({ error: 'Produit structuré non trouvé' });
+    }
+
+    // Supprimer l'ancien fichier physique si il existe
+    const oldFilePath = products[0].file_path;
+    if (oldFilePath && fs.existsSync(oldFilePath)) {
+      try {
+        fs.unlinkSync(oldFilePath);
+        console.log(`✅ Old file deleted: ${oldFilePath}`);
+      } catch (unlinkError) {
+        console.warn('Warning: Could not delete old physical file:', unlinkError);
+      }
+    }
+
+    // Convertir le fichier en base64
+    const fileContent = file.buffer.toString('base64');
+    const fileSize = file.size;
+    const fileType = file.mimetype;
+    const fileName = fixFilenameEncoding(file.originalname);
+
+    // Mettre à jour le produit avec le nouveau fichier
+    await query(
+      `UPDATE archives 
+       SET file_content = ?, 
+           file_size = ?, 
+           file_type = ?,
+           file_path = ?
+       WHERE id = ?`,
+      [fileContent, fileSize, fileType, fileName, id]
+    );
+
+    console.log(`✅ File updated for structured product ${id}`);
+    res.json({ 
+      message: 'Fichier mis à jour avec succès',
+      file: {
+        name: fileName,
+        size: fileSize,
+        type: fileType
+      }
+    });
+  } catch (error) {
+    console.error('Erreur update file:', error);
+    res.status(500).json({ 
+      error: 'Erreur serveur lors de la mise à jour du fichier' 
+    });
+  }
+});
+
 router.delete('/:id', auth, authorize('admin'), async (req, res) => {
   try {
     const { id } = req.params;
@@ -449,7 +732,7 @@ router.delete('/:id', auth, authorize('admin'), async (req, res) => {
 router.post('/:id/reservations', auth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { montant, notes } = req.body;
+    const { montant, notes, assurance_name } = req.body;
     
     // Validation
     if (!montant || isNaN(montant) || parseFloat(montant) <= 0) {
@@ -472,6 +755,34 @@ router.post('/:id/reservations', auth, async (req, res) => {
     
     const product = products[0];
     
+    // Parser les assurances du produit pour valider que l'assurance_name existe
+    let productAssurances = [];
+    try {
+      const parsed = JSON.parse(product.assurance);
+      if (Array.isArray(parsed)) {
+        if (parsed.length > 0 && typeof parsed[0] === 'object' && parsed[0].name) {
+          productAssurances = parsed.map(a => a.name);
+        } else {
+          productAssurances = parsed;
+        }
+      }
+    } catch (e) {
+      productAssurances = [product.assurance];
+    }
+    
+    // Si assurance_name est fourni, valider qu'il existe dans le produit
+    let finalAssuranceName = assurance_name;
+    if (assurance_name && !productAssurances.includes(assurance_name)) {
+      return res.status(400).json({ 
+        error: `L'assurance "${assurance_name}" n'existe pas pour ce produit` 
+      });
+    }
+    
+    // Si pas d'assurance_name fourni, prendre la première assurance du produit
+    if (!finalAssuranceName && productAssurances.length > 0) {
+      finalAssuranceName = productAssurances[0];
+    }
+    
     // Récupérer les informations de l'utilisateur
     const users = await query(
       'SELECT id, nom, prenom, email FROM users WHERE id = ?',
@@ -486,11 +797,11 @@ router.post('/:id/reservations', auth, async (req, res) => {
     
     const user = users[0];
     
-    // Créer la réservation
+    // Créer la réservation avec assurance_name
     const result = await query(
-      `INSERT INTO product_reservations (product_id, user_id, montant, notes, status) 
-       VALUES (?, ?, ?, ?, 'pending')`,
-      [id, req.user.id, parseFloat(montant), notes || null]
+      `INSERT INTO product_reservations (product_id, assurance_name, user_id, montant, notes, status) 
+       VALUES (?, ?, ?, ?, ?, 'pending')`,
+      [id, finalAssuranceName, req.user.id, parseFloat(montant), notes || null]
     );
     
     // Notifier les admins (avec le nom de l'utilisateur)
@@ -598,7 +909,9 @@ router.get('/reservations/all', auth, authorize('admin'), async (req, res) => {
     let sql = `
       SELECT pr.*, 
              u.nom, u.prenom, u.email,
-             a.title as product_title, a.assurance, a.category
+             a.title as product_title, 
+             COALESCE(pr.assurance_name, a.assurance) as assurance,
+             a.category
       FROM product_reservations pr
       LEFT JOIN users u ON pr.user_id = u.id
       LEFT JOIN archives a ON pr.product_id = a.id
@@ -825,12 +1138,12 @@ router.get('/assurances/montants', async (req, res) => {
     const result = await Promise.all(
       assurances.map(async (assurance) => {
         try {
-          // Calculer le montant réservé (seulement les réservations approuvées) pour cette assurance
+          // Calculer le montant réservé (seulement les réservations approuvées) pour cette assurance spécifique
+          // Utilise assurance_name pour filtrer uniquement les réservations de cette assurance
           const reservations = await query(
             `SELECT COALESCE(SUM(pr.montant), 0) as total_reserve
              FROM product_reservations pr
-             INNER JOIN archives a ON pr.product_id = a.id
-             WHERE a.assurance = ? AND pr.status = 'approved'`,
+             WHERE pr.assurance_name = ? AND pr.status = 'approved'`,
             [assurance.name]
           );
 
