@@ -31,7 +31,7 @@ const storage = multer.memoryStorage();
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 50 * 1024 * 1024 // 50MB par défaut
+    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 5000 * 1024 * 1024 // 5GB par défaut
   },
   fileFilter: (req, file, cb) => {
     // Accepter seulement les documents de produits structurés
@@ -61,7 +61,7 @@ const upload = multer({
 const handleMulterError = (err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ error: 'Fichier trop volumineux. Taille maximale: 50MB' });
+      return res.status(400).json({ error: 'Fichier trop volumineux. Taille maximale: 5GB' });
     }
     return res.status(400).json({ error: 'Erreur upload fichier: ' + err.message });
   } else if (err) {
