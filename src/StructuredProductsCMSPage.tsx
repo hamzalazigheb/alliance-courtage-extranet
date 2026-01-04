@@ -1329,6 +1329,9 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                     Assurances
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Montant Développé
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Total Réservé
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1366,6 +1369,11 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                         <div className="text-sm text-gray-900">{assuranceNames.join(', ')}</div>
                       </td>
                       <td className="px-6 py-4 text-right">
+                        <div className="text-sm font-semibold text-blue-600">
+                          {formatCurrency(montantDeveloppeTotal)}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-right">
                         <div className="text-sm font-semibold text-yellow-600">
                           {formatCurrency(totalReserve)}
                         </div>
@@ -1382,6 +1390,14 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                 <tr className="bg-gray-100 font-bold">
                   <td colSpan={3} className="px-6 py-4 text-sm text-gray-900">
                     TOTAL GÉNÉRAL
+                  </td>
+                  <td className="px-6 py-4 text-right text-sm text-blue-600">
+                    {formatCurrency(
+                      products.reduce((sum, p) => {
+                        const assurancesWithMontants = parseAssurancesWithMontants(p.assurance);
+                        return sum + assurancesWithMontants.reduce((s, a) => s + a.montant, 0);
+                      }, 0)
+                    )}
                   </td>
                   <td className="px-6 py-4 text-right text-sm text-yellow-600">
                     {formatCurrency(Object.values(productReservations).flat().reduce((sum, res) => {

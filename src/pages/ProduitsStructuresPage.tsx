@@ -193,7 +193,12 @@ export default function ProduitsStructuresPage() {
       }
     }
     
-    // Fallback: utiliser le montant enveloppe global de l'assurance
+    // Fallback 1: utiliser le montant enveloppe du produit (NOUVEAU système: 1 produit = 1 assurance)
+    if (montantEnveloppe === 0) {
+      montantEnveloppe = parseFloat(product.montant_enveloppe as any) || 0;
+    }
+    
+    // Fallback 2: utiliser le montant enveloppe global de l'assurance (ANCIEN système, à éviter)
     if (montantEnveloppe === 0) {
       const productAssurances = parseAssurances(product.assurance);
       const targetAssurance = assuranceName || (productAssurances.length > 0 ? productAssurances[0] : null);
@@ -201,11 +206,6 @@ export default function ProduitsStructuresPage() {
         const assuranceMontant = getAssuranceMontant(targetAssurance);
         montantEnveloppe = parseFloat(assuranceMontant.montant_enveloppe as any) || 0;
       }
-    }
-    
-    // Dernier fallback: utiliser le montant enveloppe du produit (ne doit pas être affiché normalement)
-    if (montantEnveloppe === 0) {
-      montantEnveloppe = parseFloat(product.montant_enveloppe as any) || 0;
     }
     
     const reservations = productReservations[product.id] || [];
