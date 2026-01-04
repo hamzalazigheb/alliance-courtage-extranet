@@ -283,6 +283,86 @@ router.put('/gamme-produits', auth, async (req, res) => {
   }
 });
 
+// @route   PUT /api/cms/gamme-produits/family
+// @desc    Update a single family in Gamme Produits (faster than saving everything)
+// @access  Private
+router.put('/gamme-produits/family', auth, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { clientType, family, products } = req.body;
+    
+    if (!clientType || !family || !Array.isArray(products)) {
+      return res.status(400).json({
+        error: 'Paramètres manquants: clientType, family, et products (array) sont requis'
+      });
+    }
+
+    const familyDataSize = JSON.stringify(products).length / 1024 / 1024;
+    console.log(`💾 PUT /api/cms/gamme-produits/family - ${clientType}/${family} (${familyDataSize.toFixed(2)} MB)`);
+    
+    // Charger le contenu complet actuel
+    const existing = await query(
+      'SELECT content FROM cms_content WHERE page = ?',
+      ['gamme-produits']
+    );
+
+    let gpContent;
+    if (existing.length > 0) {
+      let contentString = existing[0].content;
+      gpContent = typeof contentString === 'string' ? JSON.parse(contentString) : contentString;
+      if (typeof gpContent === 'string') {
+        gpContent = JSON.parse(gpContent);
+      }
+    } else {
+      // Initialiser structure par défaut
+      gpContent = {
+        products: {
+          particulier: { epargne: [], retraite: [], prevoyance: [], sante: [], cif: [] },
+          professionnel: { epargne: [], retraite: [], prevoyance: [], sante: [], cif: [] },
+          entreprise: { epargne: [], retraite: [], prevoyance: [], sante: [], cif: [] }
+        }
+      };
+    }
+
+    // Mettre à jour la famille spécifique
+    if (!gpContent.products) gpContent.products = {};
+    if (!gpContent.products[clientType]) {
+      gpContent.products[clientType] = { epargne: [], retraite: [], prevoyance: [], sante: [], cif: [] };
+    }
+
+    // Remplacer la famille entière
+    gpContent.products[clientType][family] = products;
+
+    // Sauvegarder le contenu mis à jour
+    const contentString = JSON.stringify(gpContent);
+    const totalSize = contentString.length / 1024 / 1024;
+    
+    await query(
+      'UPDATE cms_content SET content = ?, updated_at = NOW() WHERE page = ?',
+      [contentString, 'gamme-produits']
+    );
+
+    const duration = Date.now() - startTime;
+    console.log(`✅ Famille ${clientType}/${family} sauvegardée en ${duration}ms (${totalSize.toFixed(2)} MB total)`);
+    
+    res.json({ 
+      message: `Famille ${family} sauvegardée avec succès`,
+      duration: `${duration}ms`,
+      familySize: `${familyDataSize.toFixed(2)} MB`,
+      totalSize: `${totalSize.toFixed(2)} MB`,
+      productsCount: products.length
+    });
+    
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    console.error(`❌ Erreur update family après ${duration}ms:`, error);
+    res.status(500).json({
+      error: 'Erreur serveur lors de la mise à jour de la famille',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
 // --- Produits Structurés CMS ---
 // @route   GET /api/cms/produits-structures
 // @desc    Get CMS content for Produits Structurés page

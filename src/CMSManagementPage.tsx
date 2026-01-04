@@ -137,6 +137,9 @@ const CMSManagementPage: React.FC = () => {
   // Workflow states for better UX
   const [workflowStep, setWorkflowStep] = useState<'select' | 'add-product' | 'manage-documents'>('select');
   const [newlyAddedProduct, setNewlyAddedProduct] = useState<{name: string, family: string, clients: string[]} | null>(null);
+  
+  // Track initial state for incremental saves (only save what changed!)
+  const [initialGpContent, setInitialGpContent] = useState<GPContent>(emptyGP);
 
   useEffect(() => {
     loadContent();
@@ -404,6 +407,9 @@ const CMSManagementPage: React.FC = () => {
             console.log('📦 État complet gpContent après chargement:', JSON.stringify(loadedContent, null, 2).substring(0, 2000));
             
             setGpContent(loadedContent);
+            // Sauvegarder l'état initial pour détecter les changements plus tard
+            setInitialGpContent(JSON.parse(JSON.stringify(loadedContent))); // Deep copy
+            
             // Initialiser la sélection avec la première famille disponible
             const firstFamily = Object.keys(loadedContent.products[selectedClients[0] || 'particulier'])[0];
             if (firstFamily) {
@@ -588,6 +594,233 @@ const CMSManagementPage: React.FC = () => {
     }
   };
 
+  // Détecter SEULEMENT les changements (nouveau/modifié/supprimé)
+  const detectChanges = () => {
+    const changes: {
+      clientType: ClientId;
+      family: ProdId;
+      products: Product[];
+    }[] = [];
+
+    // Comparer chaque famille
+    (['particulier', 'professionnel', 'entreprise'] as ClientId[]).forEach(clientType => {
+      (['epargne', 'retraite', 'prevoyance', 'sante', 'cif'] as ProdId[]).forEach(family => {
+        const currentProducts = gpContent.products[clientType]?.[family] || [];
+        const initialProducts = initialGpContent.products[clientType]?.[family] || [];
+
+        // Vérifier si cette famille a changé
+        const currentJson = JSON.stringify(currentProducts);
+        const initialJson = JSON.stringify(initialProducts);
+
+        if (currentJson !== initialJson) {
+          changes.push({
+            clientType,
+            family,
+            products: currentProducts
+          });
+          console.log(`🔄 Changement détecté: ${clientType}/${family} (${currentProducts.length} produits)`);
+        }
+      });
+    });
+
+    return changes;
+  };
+
+  // Sauvegarder SEULEMENT les changements (incremental save!)
+  const saveChangesOnly = async () => {
+    if (activePage !== 'gamme-produits') {
+      return saveContent(); // Fallback pour autres pages
+    }
+
+    try {
+      setSaving(true);
+      setSuccessMessage('');
+
+      const changes = detectChanges();
+
+      if (changes.length === 0) {
+        showSuccess('✅ Aucun changement à sauvegarder');
+        setSaving(false);
+        return;
+      }
+
+      console.log(`💾 Sauvegarde incrémentale: ${changes.length} famille(s) modifiée(s)`);
+
+      let totalSize = 0;
+      for (const change of changes) {
+        const changeSize = JSON.stringify(change.products).length / 1024 / 1024;
+        totalSize += changeSize;
+
+        console.log(`💾 Sauvegarde ${change.clientType}/${change.family} (${changeSize.toFixed(2)} MB)...`);
+
+        const response = await fetch(buildAPIURL('/cms/gamme-produits/family'), {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-auth-token': localStorage.getItem('token') || ''
+          },
+          body: JSON.stringify({
+            clientType: change.clientType,
+            family: change.family,
+            products: change.products
+          })
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || `Erreur sauvegarde ${change.family}`);
+        }
+
+        console.log(`✅ ${change.clientType}/${change.family} sauvegardé`);
+      }
+
+      // Mettre à jour l'état initial après sauvegarde réussie
+      setInitialGpContent(JSON.parse(JSON.stringify(gpContent)));
+
+      const message = changes.length === 1
+        ? `✅ 1 famille sauvegardée (${totalSize.toFixed(2)} MB)`
+        : `✅ ${changes.length} familles sauvegardées (${totalSize.toFixed(2)} MB total)`;
+
+      setSuccessMessage(message);
+      showSuccess(message);
+
+      setTimeout(() => setSuccessMessage(''), 5000);
+    } catch (error: any) {
+      console.error('❌ Erreur sauvegarde incrémentale:', error);
+      showError(error.message || 'Erreur lors de la sauvegarde');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Sauvegarder uniquement les familles sélectionnées (beaucoup plus rapide!)
+  const saveFamilyOnly = async () => {
+    if (activePage !== 'gamme-produits') {
+      showError('Cette fonction est uniquement disponible pour Gamme Produits');
+      return;
+    }
+
+    if (selectedFamilies.length === 0) {
+      showError('Veuillez sélectionner au moins une famille à sauvegarder');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setSuccessMessage('');
+
+      const clientType = selectedClients[0]; // Prendre le premier client sélectionné
+      let savedCount = 0;
+      let totalSize = 0;
+
+      // Sauvegarder chaque famille sélectionnée
+      for (const family of selectedFamilies) {
+        const products = gpContent.products[clientType][family as ProdId] || [];
+        const familySize = JSON.stringify(products).length / 1024 / 1024;
+        totalSize += familySize;
+
+        console.log(`💾 Sauvegarde ${clientType}/${family} (${familySize.toFixed(2)} MB, ${products.length} produits)...`);
+
+        const response = await fetch(buildAPIURL('/cms/gamme-produits/family'), {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-auth-token': localStorage.getItem('token') || ''
+          },
+          body: JSON.stringify({
+            clientType,
+            family,
+            products
+          })
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || `Erreur lors de la sauvegarde de ${family}`);
+        }
+
+        savedCount++;
+        console.log(`✅ Famille ${family} sauvegardée`);
+      }
+
+      const message = selectedFamilies.length === 1
+        ? `✅ Famille "${selectedFamilies[0]}" sauvegardée (${totalSize.toFixed(2)} MB)`
+        : `✅ ${savedCount} familles sauvegardées (${totalSize.toFixed(2)} MB total)`;
+      
+      setSuccessMessage(message);
+      showSuccess(message);
+      
+      setTimeout(() => setSuccessMessage(''), 5000);
+    } catch (error: any) {
+      console.error('❌ Erreur sauvegarde famille:', error);
+      showError(error.message || 'Erreur lors de la sauvegarde');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Auto-save un produit spécifique après modification
+  const autoSaveProduct = async (clientType: ClientId, family: ProdId, productIndex: number, product: Product) => {
+    const productKey = `${clientType}-${family}-${productIndex}`;
+    
+    try {
+      // Marquer comme "saving"
+      setProductSaveStates(prev => ({ ...prev, [productKey]: 'saving' }));
+      
+      console.log(`🔄 Auto-save: ${clientType}/${family}[${productIndex}] - ${product.name}`);
+
+      const response = await fetch(buildAPIURL('/cms/gamme-produits/family'), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': localStorage.getItem('token') || ''
+        },
+        body: JSON.stringify({
+          clientType,
+          family,
+          products: gpContent.products[clientType][family] // Sauvegarder toute la famille
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Erreur de sauvegarde');
+      }
+
+      // Marquer comme "saved"
+      setProductSaveStates(prev => ({ ...prev, [productKey]: 'saved' }));
+      
+      // Revenir à "idle" après 3 secondes
+      setTimeout(() => {
+        setProductSaveStates(prev => ({ ...prev, [productKey]: 'idle' }));
+      }, 3000);
+      
+      console.log(`✅ Auto-save réussi: ${product.name}`);
+    } catch (error) {
+      console.error('❌ Erreur auto-save:', error);
+      setProductSaveStates(prev => ({ ...prev, [productKey]: 'error' }));
+      
+      // Revenir à "idle" après 5 secondes
+      setTimeout(() => {
+        setProductSaveStates(prev => ({ ...prev, [productKey]: 'idle' }));
+      }, 5000);
+    }
+  };
+
+  // Déclencher l'auto-save avec debounce
+  const triggerAutoSave = (clientType: ClientId, family: ProdId, productIndex: number, product: Product) => {
+    const productKey = `${clientType}-${family}-${productIndex}`;
+    
+    // Annuler le timeout précédent s'il existe
+    if (autoSaveTimeoutsRef.current[productKey]) {
+      clearTimeout(autoSaveTimeoutsRef.current[productKey]);
+    }
+    
+    // Créer un nouveau timeout (2 secondes après la dernière modification)
+    autoSaveTimeoutsRef.current[productKey] = setTimeout(() => {
+      autoSaveProduct(clientType, family, productIndex, product);
+    }, 2000);
+  };
+
   const addNewsItem = () => {
     setContent({
       ...content,
@@ -729,12 +962,26 @@ const CMSManagementPage: React.FC = () => {
                 {successMessage}
               </div>
             )}
+            
+            {/* Bouton sauvegarder famille (rapide) - uniquement pour Gamme Produits */}
+            {activePage === 'gamme-produits' && selectedFamilies.length > 0 && (
+              <button
+                onClick={saveFamilyOnly}
+                disabled={saving}
+                className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-lg font-medium shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
+                title={`Sauvegarder uniquement ${selectedFamilies.length === 1 ? `la famille "${selectedFamilies[0]}"` : `les ${selectedFamilies.length} familles sélectionnées`} (rapide)`}
+              >
+                {saving ? '⚡ Sauvegarde rapide...' : `⚡ Sauvegarder ${selectedFamilies.length === 1 ? 'cette famille' : `ces ${selectedFamilies.length} familles`}`}
+              </button>
+            )}
+            
             <button
-              onClick={saveContent}
+              onClick={activePage === 'gamme-produits' ? saveChangesOnly : saveContent}
               disabled={saving}
               className="px-6 py-3 bg-gradient-to-r from-[#0B1220] to-[#1D4ED8] hover:from-[#0b1428] hover:to-[#1E40AF] text-white rounded-lg font-medium shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
+              title={activePage === 'gamme-produits' ? 'Sauvegarder uniquement les changements (rapide!)' : 'Sauvegarder le contenu'}
             >
-              {saving ? '💾 Sauvegarde...' : '💾 Enregistrer'}
+              {saving ? '💾 Sauvegarde...' : (activePage === 'gamme-produits' ? '💾 Enregistrer les changements' : '💾 Enregistrer')}
             </button>
           </div>
         </div>
