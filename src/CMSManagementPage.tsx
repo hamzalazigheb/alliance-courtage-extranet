@@ -963,18 +963,6 @@ const CMSManagementPage: React.FC = () => {
               </div>
             )}
             
-            {/* Bouton sauvegarder famille (rapide) - uniquement pour Gamme Produits */}
-            {activePage === 'gamme-produits' && selectedFamilies.length > 0 && (
-              <button
-                onClick={saveFamilyOnly}
-                disabled={saving}
-                className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-lg font-medium shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
-                title={`Sauvegarder uniquement ${selectedFamilies.length === 1 ? `la famille "${selectedFamilies[0]}"` : `les ${selectedFamilies.length} familles sélectionnées`} (rapide)`}
-              >
-                {saving ? '⚡ Sauvegarde rapide...' : `⚡ Sauvegarder ${selectedFamilies.length === 1 ? 'cette famille' : `ces ${selectedFamilies.length} familles`}`}
-              </button>
-            )}
-            
             <button
               onClick={activePage === 'gamme-produits' ? saveChangesOnly : saveContent}
               disabled={saving}
@@ -1758,7 +1746,7 @@ const CMSManagementPage: React.FC = () => {
                                       }
                                             if (newName === p.name) {
                                               return; // Pas de changement
-                                            }
+                                      }
                                       const next = JSON.parse(JSON.stringify(gpContent)); // Deep copy
                                             // Mettre à jour le produit dans TOUS les clients
                                             ['particulier', 'professionnel', 'entreprise'].forEach((client) => {
