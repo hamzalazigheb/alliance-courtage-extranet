@@ -212,106 +212,103 @@ router.post('/', auth, authorize('admin'), upload.array('files', 10), handleMult
     
     const host = `${req.protocol}://${req.get('host')}`;
     
-    // Stocker les assurances avec leurs montants développés comme JSON dans la colonne assurance
-    // Format: [{"name": "assurance1", "montant": "5000"}, {"name": "assurance2", "montant": "3999.92"}]
-    // Si les montants sont fournis, les stocker avec les noms, sinon stocker juste les noms
-    let assurancesJSON;
-    if (assurancesArray.length > 0 && typeof assurancesArray[0] === 'object' && assurancesArray[0].montant) {
-      // Stocker avec les montants développés
-      assurancesJSON = JSON.stringify(assurancesArray.map(a => ({
-        name: typeof a === 'object' && a.name ? a.name : a,
-        montant: typeof a === 'object' && a.montant ? parseFloat(a.montant) : 0
-      })));
-    } else {
-      // Stocker juste les noms (compatibilité avec l'ancien format)
-      assurancesJSON = JSON.stringify(assurancesNames);
-    }
+    // NOUVELLE LOGIQUE: Créer un produit SÉPARÉ pour chaque assurance
+    // Cela permet de supprimer/modifier chaque produit indépendamment
+    const createdProducts = [];
     
-    // Créer le produit structuré SANS fichier dans archives
-    // Les fichiers seront stockés dans product_files
-    let result;
-    try {
-      // Essayer d'insérer avec montant_enveloppe
-      result = await query(
-        `INSERT INTO archives 
-         (title, description, category, assurance, uploaded_by, montant_enveloppe) 
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-          title,
-          description || '',
-          category,
-          assurancesJSON, // Stocker les assurances avec montants comme JSON
-          req.user.id,
-          montantEnveloppe
-        ]
-      );
-    } catch (error) {
-      // Si la colonne n'existe pas, insérer sans montant_enveloppe
-      if (error.code === 'ER_BAD_FIELD_ERROR' || error.message.includes('montant_enveloppe')) {
-        console.warn('Colonne montant_enveloppe non trouvée, insertion sans cette colonne');
+    // Boucle sur chaque assurance
+    for (const assuranceItem of assurancesArray) {
+      const assuranceName = typeof assuranceItem === 'object' && assuranceItem.name 
+        ? assuranceItem.name 
+        : assuranceItem;
+      const assuranceMontant = typeof assuranceItem === 'object' && assuranceItem.montant 
+        ? parseFloat(assuranceItem.montant) 
+        : montantEnveloppe;
+      
+      // Créer un produit pour cette assurance
+      let result;
+      try {
+        // Essayer d'insérer avec montant_enveloppe
         result = await query(
           `INSERT INTO archives 
-           (title, description, category, assurance, uploaded_by) 
-           VALUES (?, ?, ?, ?, ?)`,
+           (title, description, category, assurance, uploaded_by, montant_enveloppe) 
+           VALUES (?, ?, ?, ?, ?, ?)`,
           [
             title,
             description || '',
             category,
-            assurancesJSON, // Stocker les assurances avec montants comme JSON
-            req.user.id
+            assuranceName, // Stocker le nom de l'assurance uniquement (pas de JSON)
+            req.user.id,
+            assuranceMontant
           ]
         );
-      } else {
-        throw error;
+      } catch (error) {
+        // Si la colonne n'existe pas, insérer sans montant_enveloppe
+        if (error.code === 'ER_BAD_FIELD_ERROR' || error.message.includes('montant_enveloppe')) {
+          console.warn('Colonne montant_enveloppe non trouvée, insertion sans cette colonne');
+          result = await query(
+            `INSERT INTO archives 
+             (title, description, category, assurance, uploaded_by) 
+             VALUES (?, ?, ?, ?, ?)`,
+            [
+              title,
+              description || '',
+              category,
+              assuranceName,
+              req.user.id
+            ]
+          );
+        } else {
+          throw error;
+        }
+      }
+      
+      const productId = result.insertId;
+      createdProducts.push({ id: productId, assurance: assuranceName, montant: assuranceMontant });
+      
+      // Dupliquer chaque fichier pour ce produit
+      for (let i = 0; i < req.files.length; i++) {
+        const file = req.files[i];
+        const fileBase64 = file.buffer.toString('base64');
+        const fileName = fixFilenameEncoding(file.originalname);
+        
+        await query(
+          `INSERT INTO product_files 
+           (product_id, file_name, file_content, file_size, file_type, display_order) 
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [
+            productId,
+            fileName,
+            fileBase64,
+            file.size,
+            file.mimetype,
+            i // Ordre d'affichage
+          ]
+        );
       }
     }
     
-    const productId = result.insertId;
-    
-    // Stocker chaque fichier dans la table product_files
-    for (let i = 0; i < req.files.length; i++) {
-      const file = req.files[i];
-      const fileBase64 = file.buffer.toString('base64');
-      const fileName = fixFilenameEncoding(file.originalname);
-      
-      await query(
-        `INSERT INTO product_files 
-         (product_id, file_name, file_content, file_size, file_type, display_order) 
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-          productId,
-          fileName,
-          fileBase64,
-          file.size,
-          file.mimetype,
-          i // Ordre d'affichage
-        ]
-      );
-    }
-    
     // Notifier tous les utilisateurs (via notification globale)
+    // Utiliser le premier productId pour la notification
     await notifyAdmins(
       'product',
       'Nouveau produit structuré',
-      `Un nouveau produit structuré "${title}" a été ajouté dans la catégorie ${category} avec ${req.files.length} fichier(s).`,
-      productId,
+      `Un nouveau produit structuré "${title}" a été ajouté dans la catégorie ${category} pour ${createdProducts.length} assurance(s) avec ${req.files.length} fichier(s) chacun.`,
+      createdProducts[0].id,
       'structured_product'
     );
 
-    console.log('✅ Structured product created:', { 
-      id: productId, 
+    console.log('✅ Structured products created:', { 
+      products: createdProducts, 
       title, 
       category, 
-      assurances: assurancesNames,
-      montant_enveloppe: montantEnveloppe,
       filesCount: req.files.length
     });
     
     res.status(201).json({
-      message: 'Produit structuré créé avec succès',
-      productId: productId,
-      filesCount: req.files.length,
-      assurances: assurancesNames
+      message: `${createdProducts.length} produit(s) structuré(s) créé(s) avec succès (un par assurance)`,
+      products: createdProducts,
+      filesCount: req.files.length
     });
   } catch (error) {
     console.error('Erreur create structured product:', error);
