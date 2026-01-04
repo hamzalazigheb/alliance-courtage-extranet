@@ -7,6 +7,7 @@ interface StructuredProduct {
   description: string;
   assurance: string; // Nom de l'assureur
   montant_enveloppe?: number; // Enveloppe spécifique à ce produit
+  date_strike?: string; // Date de Strike du produit
   category: string;
   file_path: string;
   file_size: number;
@@ -78,7 +79,8 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
     description: '',
     assurances: [] as Array<{name: string, montant: string}>, // Assurances avec leurs montants
     montant_enveloppe_total: '', // Montant total enveloppe global (saisie manuelle)
-    category: '',
+    date_strike: '', // Date de Strike du produit
+    category: [] as string[], // Catégories multiples
     files: [] as File[] // Modifier pour accepter plusieurs fichiers
   });
 
@@ -88,6 +90,13 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
   
   // État pour stocker les fichiers de chaque produit
   const [productFiles, setProductFiles] = useState<Record<number, any[]>>({});
+  
+  // État pour la modification de produit (date de strike + catégories)
+  const [editingProduct, setEditingProduct] = useState<StructuredProduct | null>(null);
+  const [editProductForm, setEditProductForm] = useState({
+    date_strike: '',
+    category: [] as string[]
+  });
   
   // État pour gérer la modification d'un fichier spécifique
   const [editingFileId, setEditingFileId] = useState<number | null>(null);
@@ -210,14 +219,32 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
     }
   };
 
-  // Charger les fichiers de tous les produits
+  // Helper pour ajouter un délai
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+  // Charger les fichiers de tous les produits (avec délai pour éviter rate limiting)
   const loadAllProductFiles = async (productsList: any[]) => {
     try {
       const filesData: Record<number, any[]> = {};
       
-      for (const product of productsList) {
-        const files = await loadProductFiles(product.id);
-        filesData[product.id] = files;
+      // Charger par batch de 5 avec délai
+      const batchSize = 5;
+      for (let i = 0; i < productsList.length; i += batchSize) {
+        const batch = productsList.slice(i, i + batchSize);
+        
+        // Charger le batch en parallèle
+        const batchPromises = batch.map(product => loadProductFiles(product.id));
+        const batchResults = await Promise.all(batchPromises);
+        
+        // Stocker les résultats
+        batch.forEach((product, index) => {
+          filesData[product.id] = batchResults[index];
+        });
+        
+        // Petit délai entre les batchs (100ms)
+        if (i + batchSize < productsList.length) {
+          await delay(100);
+        }
       }
       
       setProductFiles(filesData);
@@ -388,8 +415,8 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
       return;
     }
 
-    if (!uploadForm.title || uploadForm.assurances.length === 0 || !uploadForm.category || !uploadForm.montant_enveloppe_total) {
-      alert('Veuillez remplir tous les champs obligatoires : nom, au moins une assurance avec montant, montant enveloppe total et catégorie');
+    if (!uploadForm.title || uploadForm.assurances.length === 0 || uploadForm.category.length === 0 || !uploadForm.montant_enveloppe_total || !uploadForm.date_strike) {
+      alert('Veuillez remplir tous les champs obligatoires : nom, au moins une assurance avec montant, montant enveloppe total, date de strike et au moins une catégorie');
       return;
     }
 
@@ -422,7 +449,8 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
       formData.append('title', uploadForm.title);
       formData.append('description', uploadForm.description || '');
       formData.append('assurances', JSON.stringify(uploadForm.assurances)); // Envoyer les assurances avec leurs montants
-      formData.append('category', uploadForm.category);
+      formData.append('date_strike', uploadForm.date_strike); // Date de Strike
+      formData.append('category', JSON.stringify(uploadForm.category)); // Envoyer les catégories en JSON
       formData.append('montant_enveloppe', montantTotalFinal.toString()); // Montant total calculé automatiquement
 
       const response = await fetch(buildAPIURL('/structured-products'), {
@@ -447,7 +475,8 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
         description: '',
         assurances: [],
         montant_enveloppe_total: '',
-        category: '',
+        date_strike: '',
+        category: [],
         files: []
       });
       
@@ -475,6 +504,25 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
     } catch (error) {
       console.error('Erreur suppression:', error);
       alert('Erreur lors de la suppression du produit');
+    }
+  };
+
+  // Fonction pour modifier la date de strike et les catégories d'un produit
+  const handleProductEdit = async () => {
+    if (!editingProduct) return;
+
+    try {
+      await structuredProductsAPI.update(editingProduct.id, {
+        date_strike: editProductForm.date_strike || null,
+        category: JSON.stringify(editProductForm.category)
+      });
+
+      alert('✅ Produit modifié avec succès!');
+      setEditingProduct(null);
+      await loadProducts();
+    } catch (error) {
+      console.error('Erreur modification:', error);
+      alert('❌ Erreur lors de la modification du produit');
     }
   };
 
@@ -570,6 +618,11 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
   const parseAssurancesWithMontants = (assurance: string | null | undefined): Array<{name: string, montant: number}> => {
     if (!assurance) return [];
     
+    // Si c'est une simple string (ancien format), retourner vide
+    if (!assurance.startsWith('[') && !assurance.startsWith('{')) {
+      return [];
+    }
+    
     try {
       const parsed = JSON.parse(assurance);
       if (Array.isArray(parsed)) {
@@ -595,7 +648,7 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
       }
       return [];
     } catch (e) {
-      console.warn('Erreur parsing assurances avec montants:', e, assurance);
+      // Silencieux pour les anciens formats
       return [];
     }
   };
@@ -942,6 +995,22 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
+              Date de Strike *
+            </label>
+            <input
+              type="date"
+              value={uploadForm.date_strike}
+              onChange={(e) => setUploadForm({...uploadForm, date_strike: e.target.value})}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Date d'échéance du produit structuré
+            </p>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Description du Produit
             </label>
             <textarea
@@ -956,19 +1025,37 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Catégorie *
+                Catégorie(s) * (cochez une ou plusieurs)
               </label>
-              <select
-                value={uploadForm.category}
-                onChange={(e) => setUploadForm({...uploadForm, category: e.target.value})}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              >
-                <option value="">Sélectionner une catégorie</option>
+              <div className="grid grid-cols-2 gap-3 p-4 border border-gray-300 rounded-lg bg-gray-50">
                 {availableCategories.map(category => (
-                  <option key={category} value={category}>{category}</option>
+                  <label key={category} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-100 p-2 rounded transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={uploadForm.category.includes(category)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setUploadForm({...uploadForm, category: [...uploadForm.category, category]});
+                        } else {
+                          setUploadForm({...uploadForm, category: uploadForm.category.filter(c => c !== category)});
+                        }
+                      }}
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-700">{category}</span>
+                  </label>
                 ))}
-              </select>
+              </div>
+              {uploadForm.category.length > 0 && (
+                <p className="text-xs text-green-600 mt-2 font-medium">
+                  ✓ {uploadForm.category.length} catégorie(s) sélectionnée(s): {uploadForm.category.join(', ')}
+                </p>
+              )}
+              {uploadForm.category.length === 0 && (
+                <p className="text-xs text-red-600 mt-2">
+                  Veuillez sélectionner au moins une catégorie
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1137,9 +1224,27 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                           <div className="text-2xl flex-shrink-0">{getFileIcon(product.file_type)}</div>
                           <div className="min-w-0 flex-1">
                             <h3 className="font-semibold text-gray-800 text-lg mb-1 truncate">{product.title}</h3>
-                            <span className="inline-block bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full mt-1">
-                              {product.category}
-                            </span>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {(() => {
+                                // Parser les catégories (peut être JSON array ou string simple)
+                                let categories: string[] = [];
+                                try {
+                                  if (product.category && product.category.startsWith('[')) {
+                                    categories = JSON.parse(product.category);
+                                  } else {
+                                    categories = [product.category];
+                                  }
+                                } catch {
+                                  categories = [product.category];
+                                }
+                                
+                                return categories.map((cat, idx) => (
+                                  <span key={idx} className="inline-block bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full">
+                                    {cat}
+                                  </span>
+                                ));
+                              })()}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1174,6 +1279,20 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                           </div>
                         );
                       })()}
+                      
+                      {/* Date de Strike */}
+                      {product.date_strike && (
+                        <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                          <p className="text-xs text-blue-600 font-medium mb-1">📅 Date de Strike</p>
+                          <p className="text-sm font-bold text-blue-800">
+                            {new Date(product.date_strike).toLocaleDateString('fr-FR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric'
+                            })}
+                          </p>
+                        </div>
+                      )}
                       
                       {/* Liste des fichiers */}
                       <div className="mb-4">
@@ -1288,16 +1407,44 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                         )}
                       </div>
 
-                      {/* Bouton supprimer produit */}
-                      <button
-                        onClick={() => handleProductDelete(product.id)}
-                        className="w-full bg-red-600 text-white text-sm py-2 px-3 rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center space-x-1"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                        <span>Supprimer le produit</span>
-                      </button>
+                      {/* Boutons actions produit */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => {
+                            setEditingProduct(product);
+                            // Parser les catégories
+                            let categories: string[] = [];
+                            try {
+                              if (product.category && product.category.startsWith('[')) {
+                                categories = JSON.parse(product.category);
+                              } else {
+                                categories = [product.category];
+                              }
+                            } catch {
+                              categories = [product.category];
+                            }
+                            setEditProductForm({
+                              date_strike: product.date_strike || '',
+                              category: categories
+                            });
+                          }}
+                          className="bg-blue-600 text-white text-sm py-2 px-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-1"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          <span>Modifier</span>
+                        </button>
+                        <button
+                          onClick={() => handleProductDelete(product.id)}
+                          className="bg-red-600 text-white text-sm py-2 px-3 rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center space-x-1"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          <span>Supprimer</span>
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1756,6 +1903,99 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                     </div>
                   ))}
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de modification de produit */}
+      {editingProduct && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 rounded-t-xl">
+              <div className="flex items-center justify-between">
+                <h3 className="text-2xl font-bold">✏️ Modifier le produit</h3>
+                <button
+                  onClick={() => setEditingProduct(null)}
+                  className="text-white hover:text-gray-200 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <p className="text-blue-100 mt-2">{editingProduct.title}</p>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Date de Strike */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  📅 Date de Strike
+                </label>
+                <input
+                  type="date"
+                  value={editProductForm.date_strike}
+                  onChange={(e) => setEditProductForm({...editProductForm, date_strike: e.target.value})}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Date d'échéance du produit structuré
+                </p>
+              </div>
+
+              {/* Catégories (checkboxes) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  🏷️ Catégorie(s) * (cochez une ou plusieurs)
+                </label>
+                <div className="grid grid-cols-2 gap-3 p-4 border border-gray-300 rounded-lg bg-gray-50">
+                  {availableCategories.map(category => (
+                    <label key={category} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-100 p-2 rounded transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={editProductForm.category.includes(category)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setEditProductForm({...editProductForm, category: [...editProductForm.category, category]});
+                          } else {
+                            setEditProductForm({...editProductForm, category: editProductForm.category.filter(c => c !== category)});
+                          }
+                        }}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700">{category}</span>
+                    </label>
+                  ))}
+                </div>
+                {editProductForm.category.length > 0 && (
+                  <p className="text-xs text-green-600 mt-2 font-medium">
+                    ✓ {editProductForm.category.length} catégorie(s) sélectionnée(s): {editProductForm.category.join(', ')}
+                  </p>
+                )}
+                {editProductForm.category.length === 0 && (
+                  <p className="text-xs text-red-600 mt-2">
+                    Veuillez sélectionner au moins une catégorie
+                  </p>
+                )}
+              </div>
+
+              {/* Boutons */}
+              <div className="flex space-x-3 pt-4 border-t">
+                <button
+                  onClick={() => setEditingProduct(null)}
+                  className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={handleProductEdit}
+                  disabled={editProductForm.category.length === 0}
+                  className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:bg-gray-300 disabled:cursor-not-allowed"
+                >
+                  💾 Enregistrer
+                </button>
               </div>
             </div>
           </div>

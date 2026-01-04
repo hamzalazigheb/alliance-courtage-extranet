@@ -351,6 +351,16 @@ export const structuredProductsAPI = {
     });
   },
 
+  update: async (id, data) => {
+    return apiRequest(`/structured-products/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  },
+
   getAssurances: async () => {
     return apiRequest('/structured-products/assurances');
   },

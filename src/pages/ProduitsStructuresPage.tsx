@@ -8,6 +8,7 @@ interface StructuredProduct {
   description: string;
   assurance: string;
   montant_enveloppe?: number; // Enveloppe spécifique à ce produit
+  date_strike?: string; // Date de Strike du produit
   category: string;
   file_path?: string;
   fileUrl?: string;
@@ -343,10 +344,10 @@ export default function ProduitsStructuresPage() {
     
     // Ajouter le produit à chaque assurance
     assurancesArray.forEach(assurance => {
-      if (!acc[assurance]) {
-        acc[assurance] = [];
-      }
-      acc[assurance].push(product);
+    if (!acc[assurance]) {
+      acc[assurance] = [];
+    }
+    acc[assurance].push(product);
     });
     
     return acc;
@@ -458,20 +459,20 @@ export default function ProduitsStructuresPage() {
                       <div>
                         <h2 className="text-2xl font-bold">{assurance}</h2>
                         <p className="text-blue-200">{assuranceProducts.length} produit{assuranceProducts.length > 1 ? 's' : ''}</p>
-                      </div>
                     </div>
-                    
-                    {/* Progress Bar */}
+                  </div>
+                  
+                  {/* Progress Bar */}
                     <div className="mt-2">
-                      <div className="flex justify-between text-xs mb-1">
-                        <span className="text-blue-200">Progression des réservations</span>
-                        <span>{progressPercent.toFixed(1)}%</span>
-                      </div>
-                      <div className="h-2 bg-white/20 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-gradient-to-r from-yellow-400 to-green-400 rounded-full transition-all duration-500"
-                          style={{ width: `${Math.min(progressPercent, 100)}%` }}
-                        />
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-blue-200">Progression des réservations</span>
+                      <span>{progressPercent.toFixed(1)}%</span>
+                    </div>
+                    <div className="h-2 bg-white/20 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-yellow-400 to-green-400 rounded-full transition-all duration-500"
+                        style={{ width: `${Math.min(progressPercent, 100)}%` }}
+                      />
                       </div>
                     </div>
                   </div>
@@ -492,9 +493,27 @@ export default function ProduitsStructuresPage() {
                               <h3 className="font-bold text-gray-800 text-lg mb-2">
                                 {product.title}
                               </h3>
-                              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                {product.category}
-                              </span>
+                              <div className="flex flex-wrap gap-2">
+                                {(() => {
+                                  // Parser les catégories (peut être JSON array ou string simple)
+                                  let categories: string[] = [];
+                                  try {
+                                    if (product.category && product.category.startsWith('[')) {
+                                      categories = JSON.parse(product.category);
+                                    } else {
+                                      categories = [product.category];
+                                    }
+                                  } catch {
+                                    categories = [product.category];
+                                  }
+                                  
+                                  return categories.map((cat, idx) => (
+                                    <span key={idx} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                      {cat}
+                                    </span>
+                                  ));
+                                })()}
+                              </div>
                             </div>
                             <FavoriteButton 
                               itemType="structured-product" 
@@ -527,16 +546,30 @@ export default function ProduitsStructuresPage() {
                                   <p className="text-sm font-semibold text-yellow-600">
                                     {formatCurrency(amounts.reserve)}
                                   </p>
-                                </div>
+                            </div>
                                 <div>
                                   <p className="text-xs text-gray-500 mb-1">Disponible</p>
                                   <p className="text-sm font-semibold text-green-600">
                                     {formatCurrency(amounts.disponible)}
                                   </p>
-                                </div>
-                              </div>
+                            </div>
+                          </div>
                             );
                           })()}
+                          
+                          {/* Date de Strike */}
+                          {product.date_strike && (
+                            <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                              <p className="text-xs text-blue-600 font-medium mb-1">📅 Date de Strike</p>
+                              <p className="text-sm font-bold text-blue-800">
+                                {new Date(product.date_strike).toLocaleDateString('fr-FR', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric'
+                                })}
+                              </p>
+                            </div>
+                          )}
                           
                           {/* Liste des fichiers */}
                           {productFiles[product.id] && productFiles[product.id].length > 0 && (
@@ -546,11 +579,11 @@ export default function ProduitsStructuresPage() {
                               </h4>
                               <div className="space-y-2">
                                 {productFiles[product.id].map((file: any) => (
-                                  <a
+                              <a
                                     key={file.id}
                                     href={buildAPIURL(`/structured-products/${product.id}/files/${file.id}/download`)}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                                target="_blank"
+                                rel="noopener noreferrer"
                                     className="flex items-center justify-between bg-gray-50 hover:bg-gray-100 p-3 rounded-lg border border-gray-200 transition-colors group"
                                   >
                                     <div className="flex items-center space-x-3 flex-1 min-w-0">
@@ -567,23 +600,23 @@ export default function ProduitsStructuresPage() {
                                     <svg className="w-5 h-5 text-gray-400 group-hover:text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                     </svg>
-                                  </a>
+                              </a>
                                 ))}
                               </div>
                             </div>
                           )}
                           
                           {/* Bouton Réserver */}
-                          <button
-                            onClick={() => {
-                              setSelectedProduct(product);
+                            <button
+                              onClick={() => {
+                                setSelectedProduct(product);
                               setSelectedProductAssurance(assurance); // Stocker l'assurance du groupe actuel
-                              setShowReservationModal(true);
-                            }}
+                                setShowReservationModal(true);
+                              }}
                             className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg transition-colors font-medium text-sm shadow-md hover:shadow-lg"
-                          >
+                            >
                             ✅ Réserver ce produit
-                          </button>
+                            </button>
                         </div>
                       </div>
                     ))}

@@ -337,10 +337,10 @@ router.put('/gamme-produits/family', auth, async (req, res) => {
     const contentString = JSON.stringify(gpContent);
     const totalSize = contentString.length / 1024 / 1024;
     
-    await query(
-      'UPDATE cms_content SET content = ?, updated_at = NOW() WHERE page = ?',
-      [contentString, 'gamme-produits']
-    );
+      await query(
+        'UPDATE cms_content SET content = ?, updated_at = NOW() WHERE page = ?',
+        [contentString, 'gamme-produits']
+      );
 
     const duration = Date.now() - startTime;
     console.log(`✅ Famille ${clientType}/${family} sauvegardée en ${duration}ms (${totalSize.toFixed(2)} MB total)`);

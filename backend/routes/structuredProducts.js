@@ -84,7 +84,15 @@ router.get('/', async (req, res) => {
       FROM archives a
       LEFT JOIN users u ON a.uploaded_by = u.id
       LEFT JOIN product_files pf ON a.id = pf.product_id
-      WHERE a.category IN ('Épargne', 'Retraite', 'Prévoyance', 'Santé', 'CIF', 'Investissements')
+      WHERE (
+        a.category IN ('Épargne', 'Retraite', 'Prévoyance', 'Santé', 'CIF', 'Investissements')
+        OR a.category LIKE '%"Épargne"%'
+        OR a.category LIKE '%"Retraite"%'
+        OR a.category LIKE '%"Prévoyance"%'
+        OR a.category LIKE '%"Santé"%'
+        OR a.category LIKE '%"CIF"%'
+        OR a.category LIKE '%"Investissements"%'
+      )
     `;
     
     const conditions = [];
@@ -96,8 +104,9 @@ router.get('/', async (req, res) => {
     }
     
     if (category) {
-      conditions.push('a.category = ?');
-      params.push(category);
+      // Supporter les catégories multiples stockées en JSON
+      conditions.push('(a.category = ? OR JSON_CONTAINS(a.category, ?) OR a.category LIKE ?)');
+      params.push(category, `"${category}"`, `%"${category}"%`);
     }
     
     if (search) {
@@ -142,6 +151,7 @@ router.post('/', auth, authorize('admin'), upload.array('files', 10), handleMult
       description,
       assurances, // Peut être un JSON array ou une string
       assurance, // Ancien format pour compatibilité
+      date_strike, // Date de Strike du produit
       category,
       montant_enveloppe
     } = req.body;
@@ -170,6 +180,23 @@ router.post('/', auth, authorize('admin'), upload.array('files', 10), handleMult
       // Compatibilité avec l'ancien format
       assurancesArray = [assurance];
     }
+    
+    // Parser les catégories (peut être JSON string ou array)
+    let categoriesArray = [];
+    if (category) {
+      try {
+        categoriesArray = typeof category === 'string' ? JSON.parse(category) : category;
+        if (!Array.isArray(categoriesArray)) {
+          categoriesArray = [category];
+        }
+      } catch (e) {
+        // Si ce n'est pas du JSON valide, traiter comme une string simple
+        categoriesArray = [category];
+      }
+    }
+    
+    // Convertir les catégories en JSON string pour stockage
+    const categoryJSON = JSON.stringify(categoriesArray);
     
     // Extraire les noms des assurances (si c'est un tableau d'objets {name, montant})
     const assurancesNames = assurancesArray.map(a => {
@@ -226,43 +253,44 @@ router.post('/', auth, authorize('admin'), upload.array('files', 10), handleMult
         : montantEnveloppe;
       
       // Créer un produit pour cette assurance
-      let result;
-      try {
-        // Essayer d'insérer avec montant_enveloppe
+    let result;
+    try {
+      // Essayer d'insérer avec montant_enveloppe et date_strike
+      result = await query(
+        `INSERT INTO archives 
+           (title, description, category, assurance, uploaded_by, montant_enveloppe, date_strike) 
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          title,
+          description || '',
+          categoryJSON, // Stocker les catégories comme JSON
+            assuranceName, // Stocker le nom de l'assurance uniquement (pas de JSON)
+          req.user.id,
+            assuranceMontant,
+            date_strike || null
+        ]
+      );
+    } catch (error) {
+      // Si la colonne n'existe pas, insérer sans montant_enveloppe
+      if (error.code === 'ER_BAD_FIELD_ERROR' || error.message.includes('montant_enveloppe')) {
+        console.warn('Colonne montant_enveloppe non trouvée, insertion sans cette colonne');
         result = await query(
           `INSERT INTO archives 
-           (title, description, category, assurance, uploaded_by, montant_enveloppe) 
-           VALUES (?, ?, ?, ?, ?, ?)`,
+             (title, description, category, assurance, uploaded_by) 
+             VALUES (?, ?, ?, ?, ?)`,
           [
             title,
             description || '',
-            category,
-            assuranceName, // Stocker le nom de l'assurance uniquement (pas de JSON)
-            req.user.id,
-            assuranceMontant
+            categoryJSON, // Stocker les catégories comme JSON
+              assuranceName,
+            req.user.id
           ]
         );
-      } catch (error) {
-        // Si la colonne n'existe pas, insérer sans montant_enveloppe
-        if (error.code === 'ER_BAD_FIELD_ERROR' || error.message.includes('montant_enveloppe')) {
-          console.warn('Colonne montant_enveloppe non trouvée, insertion sans cette colonne');
-          result = await query(
-            `INSERT INTO archives 
-             (title, description, category, assurance, uploaded_by) 
-             VALUES (?, ?, ?, ?, ?)`,
-            [
-              title,
-              description || '',
-              category,
-              assuranceName,
-              req.user.id
-            ]
-          );
-        } else {
-          throw error;
-        }
+      } else {
+        throw error;
       }
-      
+    }
+    
       const productId = result.insertId;
       createdProducts.push({ id: productId, assurance: assuranceName, montant: assuranceMontant });
       
@@ -675,6 +703,47 @@ router.put('/:id/file', auth, authorize('admin'), upload.single('file'), async (
     console.error('Erreur update file:', error);
     res.status(500).json({ 
       error: 'Erreur serveur lors de la mise à jour du fichier' 
+    });
+  }
+});
+
+// @route   PUT /api/structured-products/:id
+// @desc    Modifier la date de strike et les catégories d'un produit structuré
+// @access  Private (Admin seulement)
+router.put('/:id', auth, authorize('admin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { date_strike, category } = req.body;
+
+    // Vérifier que le produit existe
+    const products = await query('SELECT id FROM archives WHERE id = ?', [id]);
+    if (products.length === 0) {
+      return res.status(404).json({ error: 'Produit non trouvé' });
+    }
+
+    // Mettre à jour la date de strike et la catégorie
+    await query(
+      'UPDATE archives SET date_strike = ?, category = ? WHERE id = ?',
+      [date_strike || null, category, id]
+    );
+
+    console.log('✅ Product updated:', { 
+      id, 
+      date_strike: date_strike || 'null', 
+      category 
+    });
+
+    res.json({
+      message: 'Produit modifié avec succès',
+      id,
+      date_strike,
+      category
+    });
+  } catch (error) {
+    console.error('Erreur update structured product:', error);
+    res.status(500).json({ 
+      error: 'Erreur serveur lors de la modification du produit',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 });
