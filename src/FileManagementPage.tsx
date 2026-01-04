@@ -367,18 +367,22 @@ function FileManagementPage() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const getFileIcon = (fileType: string) => {
+  const getFileIcon = (fileType: string | null | undefined) => {
     const iconClass = 'w-8 h-8';
-    if (fileType.includes('pdf')) {
+    if (!fileType) {
+      return <FileIcon className={`${iconClass} text-gray-600`} />;
+    }
+    const type = fileType.toLowerCase();
+    if (type.includes('pdf')) {
       return <PdfIcon className={`${iconClass} text-red-600`} />;
     }
-    if (fileType.includes('word') || fileType.includes('document')) {
+    if (type.includes('word') || type.includes('document')) {
       return <FileIcon className={`${iconClass} text-blue-600`} />;
     }
-    if (fileType.includes('excel') || fileType.includes('spreadsheet')) {
+    if (type.includes('excel') || type.includes('spreadsheet')) {
       return <FileIcon className={`${iconClass} text-green-600`} />;
     }
-    if (fileType.includes('image')) {
+    if (type.includes('image')) {
       return <FileIcon className={`${iconClass} text-purple-600`} />;
     }
     return <FileIcon className={`${iconClass} text-gray-600`} />;
