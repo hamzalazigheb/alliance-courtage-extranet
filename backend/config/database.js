@@ -15,7 +15,8 @@ const dbConfig = {
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'alliance_courtage',
   charset: 'utf8mb4',
-  timezone: '+00:00'
+  timezone: '+00:00',
+  maxAllowedPacket: 1073741824 // 1 GB pour supporter les gros contenus CMS
 };
 
 // Créer le pool de connexions optimisé avec timeouts
@@ -27,7 +28,9 @@ const pool = mysql.createPool({
   enableKeepAlive: true,
   keepAliveInitialDelay: 0,
   // Timeout pour établir la connexion (seule option valide pour mysql2)
-  connectTimeout: 10000 // 10 secondes pour établir la connexion
+  connectTimeout: 10000, // 10 secondes pour établir la connexion
+  // maxAllowedPacket déjà défini dans dbConfig, mais on le spécifie explicitement
+  maxAllowedPacket: 1073741824 // 1 GB pour supporter les gros contenus CMS
 });
 
 // Variable globale pour la connexion simple (créée lors du connect)
