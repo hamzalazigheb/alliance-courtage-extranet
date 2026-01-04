@@ -32,6 +32,7 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
   mode = 'full' 
 }) => {
   const [products, setProducts] = useState<StructuredProduct[]>([]);
+  const [productReservations, setProductReservations] = useState<Record<number, any[]>>({}); // Réservations par produit
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [selectedAssurance, setSelectedAssurance] = useState('');
@@ -75,10 +76,22 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
   const [uploadForm, setUploadForm] = useState({
     title: '',
     description: '',
-    assurances: [] as Array<{name: string, montant: string}>,
+    assurances: [] as Array<{name: string, montant: string}>, // Assurances avec leurs montants
+    montant_enveloppe_total: '', // Montant total enveloppe global (saisie manuelle)
     category: '',
-    file: null as File | null
+    files: [] as File[] // Modifier pour accepter plusieurs fichiers
   });
+
+  // État pour la modification de fichier
+  const [editingProductFile, setEditingProductFile] = useState<number | null>(null);
+  const [newFile, setNewFile] = useState<File | null>(null);
+  
+  // État pour stocker les fichiers de chaque produit
+  const [productFiles, setProductFiles] = useState<Record<number, any[]>>({});
+  
+  // État pour gérer la modification d'un fichier spécifique
+  const [editingFileId, setEditingFileId] = useState<number | null>(null);
+  const [replacementFile, setReplacementFile] = useState<File | null>(null);
 
   // Gestion des assurances
   const [assurances, setAssurances] = useState<any[]>([]);
@@ -106,6 +119,7 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
     loadProducts();
     loadAssurances();
     loadContent();
+    loadProductReservations();
   }, []);
 
   const loadContent = async () => {
@@ -185,6 +199,9 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
 
       const response = await structuredProductsAPI.getAll(params);
       setProducts(response);
+      
+      // Charger les fichiers pour chaque produit
+      await loadAllProductFiles(response);
     } catch (error) {
       console.error('Erreur lors du chargement des produits:', error);
       alert('Erreur lors du chargement des produits');
@@ -193,68 +210,250 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
     }
   };
 
+  // Charger les fichiers de tous les produits
+  const loadAllProductFiles = async (productsList: any[]) => {
+    try {
+      const filesData: Record<number, any[]> = {};
+      
+      for (const product of productsList) {
+        const files = await loadProductFiles(product.id);
+        filesData[product.id] = files;
+      }
+      
+      setProductFiles(filesData);
+    } catch (error) {
+      console.error('Erreur lors du chargement des fichiers:', error);
+    }
+  };
+
+  // Charger les fichiers d'un produit spécifique
+  const loadProductFiles = async (productId: number): Promise<any[]> => {
+    try {
+      const response = await fetch(buildAPIURL(`/structured-products/${productId}/files`));
+      if (!response.ok) {
+        throw new Error('Erreur lors du chargement des fichiers');
+      }
+      return await response.json();
+    } catch (error) {
+      console.error(`Erreur chargement fichiers produit ${productId}:`, error);
+      return [];
+    }
+  };
+
+  // Supprimer un fichier
+  const handleFileDelete = async (productId: number, fileId: number) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce fichier ?')) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(buildAPIURL(`/structured-products/${productId}/files/${fileId}`), {
+        method: 'DELETE',
+        headers: {
+          'x-auth-token': token || ''
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Erreur lors de la suppression du fichier');
+      }
+
+      alert('Fichier supprimé avec succès !');
+      // Recharger les fichiers du produit
+      const files = await loadProductFiles(productId);
+      setProductFiles(prev => ({
+        ...prev,
+        [productId]: files
+      }));
+    } catch (error: any) {
+      console.error('Erreur suppression fichier:', error);
+      alert(error.message || 'Erreur lors de la suppression du fichier');
+    }
+  };
+
+  // Remplacer un fichier
+  const handleFileReplace = async (productId: number, fileId: number, newFile: File) => {
+    if (!confirm('Êtes-vous sûr de vouloir remplacer ce fichier ?')) {
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append('file', newFile);
+
+      const token = localStorage.getItem('token');
+      const response = await fetch(buildAPIURL(`/structured-products/${productId}/files/${fileId}`), {
+        method: 'PUT',
+        headers: {
+          'x-auth-token': token || ''
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erreur lors du remplacement du fichier');
+      }
+
+      alert('Fichier remplacé avec succès !');
+      setEditingFileId(null);
+      setReplacementFile(null);
+      
+      // Recharger les fichiers du produit
+      const files = await loadProductFiles(productId);
+      setProductFiles(prev => ({
+        ...prev,
+        [productId]: files
+      }));
+    } catch (error: any) {
+      console.error('Erreur remplacement fichier:', error);
+      alert(error.message || 'Erreur lors du remplacement du fichier');
+    }
+  };
+
+  // Charger les réservations pour tous les produits
+  const loadProductReservations = async () => {
+    try {
+      const reservations = await structuredProductsAPI.getAllReservations('approved');
+      // Grouper les réservations par product_id
+      const reservationsByProduct: Record<number, any[]> = {};
+      reservations.forEach((reservation: any) => {
+        if (!reservationsByProduct[reservation.product_id]) {
+          reservationsByProduct[reservation.product_id] = [];
+        }
+        reservationsByProduct[reservation.product_id].push(reservation);
+      });
+      setProductReservations(reservationsByProduct);
+    } catch (error) {
+      console.error('Erreur lors du chargement des réservations:', error);
+    }
+  };
+
+  // Calculer les montants pour un produit
+  const getProductAmounts = (product: StructuredProduct, assuranceName?: string) => {
+    // Récupérer le montant développé pour ce produit et cette assurance spécifique
+    const assurancesWithMontants = parseAssurancesWithMontants(product.assurance);
+    let montantEnveloppe = 0;
+    
+    // Si le produit a des montants développés stockés
+    if (assurancesWithMontants.length > 0) {
+      // Si un nom d'assurance est fourni, chercher le montant correspondant
+      if (assuranceName) {
+        const assuranceData = assurancesWithMontants.find(a => a.name === assuranceName);
+        if (assuranceData && assuranceData.montant > 0) {
+          montantEnveloppe = assuranceData.montant;
+        }
+      }
+      
+      // Si aucun montant trouvé avec le nom, utiliser le premier montant disponible
+      if (montantEnveloppe === 0 && assurancesWithMontants[0].montant > 0) {
+        montantEnveloppe = assurancesWithMontants[0].montant;
+      }
+    }
+    
+    // Fallback: utiliser le montant enveloppe du produit
+    if (montantEnveloppe === 0) {
+      montantEnveloppe = parseFloat(product.montant_enveloppe as any) || 0;
+    }
+    
+    const reservations = productReservations[product.id] || [];
+    // Filtrer les réservations pour cette assurance spécifique
+    const assuranceReservations = assuranceName 
+      ? reservations.filter(res => res.assurance_name === assuranceName)
+      : reservations;
+    const montantReserve = assuranceReservations.reduce((sum, res) => sum + (parseFloat(res.montant) || 0), 0);
+    const montantDisponible = montantEnveloppe - montantReserve;
+    
+    return {
+      montant: montantEnveloppe,
+      reserve: montantReserve,
+      disponible: montantDisponible,
+      total: montantEnveloppe
+    };
+  };
+
+  const formatCurrency = (amount: number) => {
+    const safeAmount = isNaN(amount) || amount == null ? 0 : amount;
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: 'EUR'
+    }).format(safeAmount);
+  };
+
   const handleFileUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!uploadForm.file) {
-      alert('Veuillez sélectionner un fichier');
+    if (!uploadForm.files || uploadForm.files.length === 0) {
+      alert('Veuillez sélectionner au moins un fichier');
       return;
     }
 
-    if (!uploadForm.title || uploadForm.assurances.length === 0 || !uploadForm.category) {
-      alert('Veuillez remplir tous les champs obligatoires et sélectionner au moins une assurance avec un montant');
+    if (!uploadForm.title || uploadForm.assurances.length === 0 || !uploadForm.category || !uploadForm.montant_enveloppe_total) {
+      alert('Veuillez remplir tous les champs obligatoires : nom, au moins une assurance avec montant, montant enveloppe total et catégorie');
       return;
     }
 
-    // Vérifier que tous les montants sont remplis
+    // Vérifier que tous les montants sont remplis et valides
     const missingMontants = uploadForm.assurances.filter(a => !a.montant || parseFloat(a.montant) <= 0);
     if (missingMontants.length > 0) {
       alert('Veuillez remplir le montant enveloppe pour toutes les assurances sélectionnées');
       return;
     }
 
+    // Utiliser le montant total saisi manuellement
+    const montantTotalFinal = parseFloat(uploadForm.montant_enveloppe_total);
+    
+    if (isNaN(montantTotalFinal) || montantTotalFinal <= 0) {
+      alert('Le montant total enveloppe doit être un nombre positif');
+      return;
+    }
+
     try {
       setUploading(true);
       
-      // Créer un produit pour chaque assurance sélectionnée avec son montant spécifique
-      const promises = uploadForm.assurances.map(async (assuranceItem) => {
-        const formData = new FormData();
-        formData.append('file', uploadForm.file!);
-        formData.append('title', uploadForm.title);
-        formData.append('description', uploadForm.description || '');
-        formData.append('assurance', assuranceItem.name);
-        formData.append('category', uploadForm.category);
-        formData.append('montant_enveloppe', assuranceItem.montant);
+      // Créer UN SEUL produit avec plusieurs assurances, leurs montants et plusieurs fichiers
+      const formData = new FormData();
+      
+      // Ajouter tous les fichiers
+      uploadForm.files.forEach((file) => {
+        formData.append('files', file);
+      });
+      
+      formData.append('title', uploadForm.title);
+      formData.append('description', uploadForm.description || '');
+      formData.append('assurances', JSON.stringify(uploadForm.assurances)); // Envoyer les assurances avec leurs montants
+      formData.append('category', uploadForm.category);
+      formData.append('montant_enveloppe', montantTotalFinal.toString()); // Montant total calculé automatiquement
 
-        const response = await fetch(buildAPIURL('/structured-products'), {
-          method: 'POST',
-          headers: {
-            'x-auth-token': localStorage.getItem('token') || ''
-          },
-          body: formData
-        });
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.error || 'Erreur lors de l\'upload');
-        }
-
-        return response.json();
+      const response = await fetch(buildAPIURL('/structured-products'), {
+        method: 'POST',
+        headers: {
+          'x-auth-token': localStorage.getItem('token') || ''
+        },
+        body: formData
       });
 
-      await Promise.all(promises);
-      alert(`✅ ${uploadForm.assurances.length} produit(s) créé(s) avec succès !`);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Erreur lors de l\'upload');
+      }
+
+      const result = await response.json();
+      alert(`✅ Produit créé avec succès pour ${uploadForm.assurances.length} assurance(s) !`);
       
       // Réinitialiser le formulaire
       setUploadForm({
         title: '',
         description: '',
         assurances: [],
+        montant_enveloppe_total: '',
         category: '',
-        file: null
+        files: []
       });
       
       // Recharger la liste des produits
       await loadProducts();
+      await loadProductReservations();
     } catch (error: any) {
       console.error('Erreur upload:', error);
       alert(error.message || 'Erreur lors de l\'upload du produit');
@@ -271,6 +470,7 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
     try {
       await structuredProductsAPI.delete(id);
       await loadProducts();
+      await loadProductReservations();
       alert('Produit supprimé avec succès !');
     } catch (error) {
       console.error('Erreur suppression:', error);
@@ -278,11 +478,53 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
     }
   };
 
-  const getFileIcon = (fileType: string) => {
-    if (fileType.includes('pdf')) return '📄';
-    if (fileType.includes('word') || fileType.includes('document')) return '📝';
-    if (fileType.includes('excel') || fileType.includes('spreadsheet')) return '📊';
-    if (fileType.includes('image')) return '🖼️';
+  const handleFileChange = async (productId: number, file: File) => {
+    if (!file) {
+      alert('Veuillez sélectionner un fichier');
+      return;
+    }
+
+    if (!confirm('Êtes-vous sûr de vouloir remplacer le fichier de ce produit ?')) {
+      setEditingProductFile(null);
+      setNewFile(null);
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const token = localStorage.getItem('token');
+      const response = await fetch(buildAPIURL(`/structured-products/${productId}/file`), {
+        method: 'PUT',
+        headers: {
+          'x-auth-token': token || ''
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erreur lors de la mise à jour du fichier');
+      }
+
+      alert('Fichier mis à jour avec succès !');
+      setEditingProductFile(null);
+      setNewFile(null);
+      await loadProducts();
+    } catch (error: any) {
+      console.error('Erreur mise à jour fichier:', error);
+      alert(error.message || 'Erreur lors de la mise à jour du fichier');
+    }
+  };
+
+  const getFileIcon = (fileType: string | null | undefined) => {
+    if (!fileType) return '📁';
+    const type = fileType.toLowerCase();
+    if (type.includes('pdf')) return '📄';
+    if (type.includes('word') || type.includes('document')) return '📝';
+    if (type.includes('excel') || type.includes('spreadsheet')) return '📊';
+    if (type.includes('image')) return '🖼️';
     return '📁';
   };
 
@@ -298,13 +540,84 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
     return colors[assurance] || 'bg-gray-500';
   };
 
-  // Grouper les produits par assurance
-  const productsByAssurance = products.reduce((acc, product) => {
-    const assurance = product.assurance || 'Autres';
-    if (!acc[assurance]) {
-      acc[assurance] = [];
+  // Helper function pour parser les assurances (JSON ou string)
+  const parseAssurances = (assurance: string | null | undefined): string[] => {
+    if (!assurance) return ['Autres'];
+    
+    try {
+      // Essayer de parser comme JSON
+      const parsed = JSON.parse(assurance);
+      if (Array.isArray(parsed)) {
+        // Si c'est un array d'objets avec name, extraire les noms
+        if (parsed.length > 0 && typeof parsed[0] === 'object' && parsed[0] !== null && parsed[0].name) {
+          return parsed.map((a: any) => a.name || String(a)).filter(Boolean);
+        }
+        // Sinon, c'est un array de strings
+        return parsed.map((a: any) => typeof a === 'string' ? a : String(a));
+      }
+      // Si c'est un objet unique avec name
+      if (typeof parsed === 'object' && parsed !== null && parsed.name) {
+        return [parsed.name];
+      }
+      return [String(parsed)];
+    } catch (e) {
+      // Si ce n'est pas du JSON, traiter comme une string simple
+      return [assurance];
     }
-    acc[assurance].push(product);
+  };
+
+  // Helper function pour obtenir les montants développés des assurances
+  const parseAssurancesWithMontants = (assurance: string | null | undefined): Array<{name: string, montant: number}> => {
+    if (!assurance) return [];
+    
+    try {
+      const parsed = JSON.parse(assurance);
+      if (Array.isArray(parsed)) {
+        // Si c'est un array d'objets avec name et montant
+        if (parsed.length > 0 && typeof parsed[0] === 'object' && parsed[0] !== null) {
+          // Vérifier si c'est le nouveau format avec name et montant
+          if (parsed[0].name !== undefined) {
+            return parsed.map((a: any) => {
+              // Gérer les montants qui peuvent être des nombres ou des strings
+              let montant = 0;
+              if (a.montant !== undefined && a.montant !== null) {
+                montant = typeof a.montant === 'number' ? a.montant : parseFloat(a.montant) || 0;
+              }
+              return {
+                name: a.name || '',
+                montant: montant
+              };
+            }).filter(a => a.name); // Filtrer les entrées sans nom
+          }
+        }
+        // Sinon, c'est un array de strings (ancien format)
+        return [];
+      }
+      return [];
+    } catch (e) {
+      console.warn('Erreur parsing assurances avec montants:', e, assurance);
+      return [];
+    }
+  };
+
+  // Grouper les produits par assurance
+  // Les assurances peuvent être stockées comme JSON array ou string simple
+  const productsByAssurance = products.reduce((acc, product) => {
+    const assurancesArray = parseAssurances(product.assurance);
+    
+    // Si aucune assurance, mettre dans "Autres"
+    if (assurancesArray.length === 0) {
+      assurancesArray.push('Autres');
+    }
+    
+    // Ajouter le produit à chaque assurance
+    assurancesArray.forEach(assurance => {
+      if (!acc[assurance]) {
+        acc[assurance] = [];
+      }
+      acc[assurance].push(product);
+    });
+    
     return acc;
   }, {} as Record<string, StructuredProduct[]>);
 
@@ -526,12 +839,12 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                     setShowAssuranceModal(true);
                   }}
                   className="ml-2 text-xs text-blue-600 hover:text-blue-800 underline font-semibold"
-                  title="Créer une nouvelle assurance pour ce produit"
+                  title="Créer une nouvelle assurance"
                 >
                   + Créer une nouvelle assurance
                 </button>
               </label>
-              <div className="space-y-3 border border-gray-300 rounded-lg p-4 max-h-64 overflow-y-auto">
+              <div className="space-y-2 border border-gray-300 rounded-lg p-4 max-h-64 overflow-y-auto">
                 {assurances.filter(a => a.is_active).length === 0 ? (
                   <div className="text-sm text-yellow-600 p-3 bg-yellow-50 border border-yellow-200 rounded">
                     ⚠️ Aucune assurance active. Créez-en une d'abord.
@@ -591,7 +904,7 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                               required
                             />
                             <p className="text-xs text-gray-500 mt-1">
-                              Montant spécifique à ce produit pour {assurance.name}
+                              Montant spécifique à cette assurance pour ce produit
                             </p>
                           </div>
                         )}
@@ -606,6 +919,25 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                 </p>
               )}
             </div>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Montant enveloppe total (€) *
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={uploadForm.montant_enveloppe_total}
+              onChange={(e) => setUploadForm({...uploadForm, montant_enveloppe_total: e.target.value})}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Ex: 1000000"
+              required
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Montant total global pour ce produit (saisie manuelle)
+            </p>
           </div>
           
           <div>
@@ -640,18 +972,48 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Fichier Produit *
+                Fichiers Produit * (plusieurs fichiers possibles)
               </label>
               <input
                 type="file"
-                onChange={(e) => setUploadForm({...uploadForm, file: e.target.files?.[0] || null})}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                multiple
                 accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                onChange={(e) => {
+                  const filesArray = Array.from(e.target.files || []);
+                  setUploadForm({...uploadForm, files: filesArray});
+                }}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               />
               <p className="text-xs text-gray-500 mt-1">
-                Types supportés: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX (Max: 50MB)
+                Types supportés: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX (Max: 50MB par fichier)
               </p>
+              {uploadForm.files.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  <p className="text-sm font-medium text-gray-700">
+                    {uploadForm.files.length} fichier(s) sélectionné(s):
+                  </p>
+                  <div className="space-y-1">
+                    {uploadForm.files.map((file, index) => (
+                      <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                        <span className="text-sm text-gray-600 truncate flex-1">
+                          📄 {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newFiles = uploadForm.files.filter((_, i) => i !== index);
+                            setUploadForm({...uploadForm, files: newFiles});
+                          }}
+                          className="ml-2 text-red-600 hover:text-red-800"
+                        >
+                          ✗
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -786,69 +1148,156 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                         <p className="text-gray-600 text-sm mb-4 line-clamp-2">{product.description}</p>
                       )}
                       
-                      {/* Enveloppe spécifique du produit - Section mise en évidence */}
-                      {product.montant_enveloppe && product.montant_enveloppe > 0 ? (
-                        <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg p-4 mb-4">
-                          <div className="flex items-center justify-between">
+                      {/* Montants du produit */}
+                      {(() => {
+                        const amounts = getProductAmounts(product, assurance);
+                        return (
+                          <div className="grid grid-cols-3 gap-2 mb-4 p-3 bg-white rounded-lg border border-gray-200">
                             <div>
-                              <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-1">
-                                💰 Enveloppe de ce produit
-                              </p>
-                              <p className="text-2xl font-bold text-green-700">
-                                {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(product.montant_enveloppe)}
+                              <p className="text-xs text-gray-500 mb-1">Montant</p>
+                              <p className="text-sm font-semibold text-gray-800">
+                                {formatCurrency(amounts.montant)}
                               </p>
                             </div>
-                            <div className="text-right">
-                              <p className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">
-                                Spécifique à ce produit
+                            <div>
+                              <p className="text-xs text-gray-500 mb-1">Réservé</p>
+                              <p className="text-sm font-semibold text-yellow-600">
+                                {formatCurrency(amounts.reserve)}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500 mb-1">Disponible</p>
+                              <p className="text-sm font-semibold text-green-600">
+                                {formatCurrency(amounts.disponible)}
                               </p>
                             </div>
                           </div>
-                        </div>
-                      ) : (
-                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
-                          <p className="text-xs text-yellow-700 italic">
-                            ⚠️ Aucune enveloppe spécifique définie. Vous pouvez l'ajouter lors de l'édition du produit.
-                          </p>
-                        </div>
-                      )}
+                        );
+                      })()}
                       
-                      <div className="space-y-2 text-xs text-gray-500 mb-4">
-                        <div className="flex justify-between">
-                          <span>🛡️ Assureur:</span>
-                          <span className="font-medium text-gray-700">{product.assurance || 'Non spécifié'}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>👤 Uploadé par:</span>
-                          <span>{product.uploaded_by_prenom} {product.uploaded_by_nom}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>🕒 Date:</span>
-                          <span>{new Date(product.created_at).toLocaleDateString('fr-FR')}</span>
-                        </div>
+                      {/* Liste des fichiers */}
+                      <div className="mb-4">
+                        <h4 className="text-sm font-semibold text-gray-700 mb-2">
+                          📎 Fichiers ({productFiles[product.id]?.length || 0})
+                        </h4>
+                        {productFiles[product.id] && productFiles[product.id].length > 0 ? (
+                          <div className="space-y-2">
+                            {productFiles[product.id].map((file: any) => (
+                              <div key={file.id} className="bg-white p-2 rounded border border-gray-200">
+                                {editingFileId === file.id ? (
+                                  // Mode édition
+                                  <div className="space-y-2">
+                                    <div className="flex items-center space-x-2">
+                                      <span className="text-lg">{getFileIcon(file.file_type)}</span>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-gray-700 truncate">{file.file_name}</p>
+                                        <p className="text-xs text-gray-500">Remplacer ce fichier</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <input
+                                        type="file"
+                                        accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                                        onChange={(e) => {
+                                          const selectedFile = e.target.files?.[0];
+                                          if (selectedFile) {
+                                            setReplacementFile(selectedFile);
+                                          }
+                                        }}
+                                        className="flex-1 text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100"
+                                      />
+                                      <button
+                                        onClick={() => {
+                                          if (replacementFile) {
+                                            handleFileReplace(product.id, file.id, replacementFile);
+                                          } else {
+                                            alert('Veuillez sélectionner un fichier');
+                                          }
+                                        }}
+                                        className="p-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                                        title="Confirmer"
+                                      >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setEditingFileId(null);
+                                          setReplacementFile(null);
+                                        }}
+                                        className="p-2 bg-gray-400 text-white rounded hover:bg-gray-500 transition-colors"
+                                        title="Annuler"
+                                      >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  // Mode normal
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center space-x-2 flex-1 min-w-0">
+                                      <span className="text-lg">{getFileIcon(file.file_type)}</span>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-gray-700 truncate">{file.file_name}</p>
+                                        <p className="text-xs text-gray-500">
+                                          {(file.file_size / 1024 / 1024).toFixed(2)} MB
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center space-x-1 flex-shrink-0 ml-2">
+                                      <a
+                                        href={buildAPIURL(`/structured-products/${product.id}/files/${file.id}/download`)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="p-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                                        title="Télécharger"
+                                      >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                        </svg>
+                                      </a>
+                                      <button
+                                        onClick={() => setEditingFileId(file.id)}
+                                        className="p-2 bg-amber-600 text-white rounded hover:bg-amber-700 transition-colors"
+                                        title="Modifier"
+                                      >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                        </svg>
+                                      </button>
+                                      <button
+                                        onClick={() => handleFileDelete(product.id, file.id)}
+                                        className="p-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                                        title="Supprimer"
+                                      >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-500 italic">Aucun fichier</p>
+                        )}
                       </div>
-                      
-                      <div className="flex space-x-2">
-                        <a
-                          href={buildFileURL(product.file_path)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex-1 bg-blue-600 text-white text-sm py-2 px-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-1"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                          <span>Télécharger</span>
-                        </a>
-                        <button
-                          onClick={() => handleProductDelete(product.id)}
-                          className="bg-red-600 text-white text-sm py-2 px-3 rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </div>
+
+                      {/* Bouton supprimer produit */}
+                      <button
+                        onClick={() => handleProductDelete(product.id)}
+                        className="w-full bg-red-600 text-white text-sm py-2 px-3 rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center space-x-1"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        <span>Supprimer le produit</span>
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -858,6 +1307,104 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
           })
         )}
       </div>
+
+      {/* Tableau Récapitulatif par Produit */}
+      {!loading && products.length > 0 && (
+        <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
+          <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-4">
+            <h3 className="text-xl font-bold">📊 Récapitulatif par Produit</h3>
+            <p className="text-sm text-indigo-100">Vue d'ensemble des montants développés et réservations</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Produit
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Catégorie
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Assurances
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Total Réservé
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Disponible
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {products.map((product) => {
+                  // Calculer le montant développé total (somme de tous les montants d'enveloppe pour toutes les assurances)
+                  const assurancesWithMontants = parseAssurancesWithMontants(product.assurance);
+                  const montantDeveloppeTotal = assurancesWithMontants.reduce((sum, a) => sum + a.montant, 0);
+                  
+                  // Calculer le total réservé pour ce produit (toutes assurances confondues)
+                  const reservationsProduit = productReservations[product.id] || [];
+                  const totalReserve = reservationsProduit.reduce((sum, res) => sum + (parseFloat(res.montant) || 0), 0);
+                  
+                  // Calculer le disponible
+                  const disponible = montantDeveloppeTotal - totalReserve;
+                  
+                  // Obtenir les noms des assurances
+                  const assuranceNames = parseAssurances(product.assurance);
+                  
+                  return (
+                    <tr key={product.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-medium text-gray-900">{product.title}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                          {product.category}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-gray-900">{assuranceNames.join(', ')}</div>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="text-sm font-semibold text-yellow-600">
+                          {formatCurrency(totalReserve)}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="text-sm font-semibold text-green-600">
+                          {formatCurrency(disponible)}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {/* Ligne de totaux */}
+                <tr className="bg-gray-100 font-bold">
+                  <td colSpan={3} className="px-6 py-4 text-sm text-gray-900">
+                    TOTAL GÉNÉRAL
+                  </td>
+                  <td className="px-6 py-4 text-right text-sm text-yellow-600">
+                    {formatCurrency(Object.values(productReservations).flat().reduce((sum, res) => {
+                      return sum + (parseFloat(res.montant) || 0);
+                    }, 0))}
+                  </td>
+                  <td className="px-6 py-4 text-right text-sm text-green-600">
+                    {formatCurrency(
+                      products.reduce((sum, p) => {
+                        const assurancesWithMontants = parseAssurancesWithMontants(p.assurance);
+                        return sum + assurancesWithMontants.reduce((s, a) => s + a.montant, 0);
+                      }, 0) -
+                      Object.values(productReservations).flat().reduce((sum, res) => {
+                        return sum + (parseFloat(res.montant) || 0);
+                      }, 0)
+                    )}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
         </div>
       )}
 
@@ -1122,8 +1669,8 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                         <span className="text-xl">{assurance.icon}</span>
                         <div>
                           <p className="font-medium">{assurance.name}</p>
-                          <p className="text-sm text-gray-600">
-                            {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(assurance.montant_enveloppe)}
+                          <p className="text-sm text-gray-500 italic">
+                            Montant géré au niveau du produit
                           </p>
                         </div>
                         {!assurance.is_active && (
