@@ -246,29 +246,29 @@ router.put('/gamme-produits', auth, async (req, res) => {
     
     // Logs détaillés en arrière-plan (non bloquants)
     setImmediate(() => {
-      try {
-        let parsed = typeof content === 'string' ? JSON.parse(content) : content;
-        if (typeof parsed === 'string') {
-          parsed = JSON.parse(parsed);
-        }
-        
-        let totalDocuments = 0;
-        if (parsed && parsed.products) {
-          Object.keys(parsed.products).forEach((clientKey) => {
-            Object.keys(parsed.products[clientKey] || {}).forEach((familyKey) => {
-              const products = parsed.products[clientKey][familyKey];
-              if (Array.isArray(products)) {
-                products.forEach((p) => {
-                  if (p && p.documents && Array.isArray(p.documents)) {
-                    totalDocuments += p.documents.length;
-                  }
-                });
-              }
-            });
+    try {
+      let parsed = typeof content === 'string' ? JSON.parse(content) : content;
+      if (typeof parsed === 'string') {
+        parsed = JSON.parse(parsed);
+      }
+      
+      let totalDocuments = 0;
+      if (parsed && parsed.products) {
+        Object.keys(parsed.products).forEach((clientKey) => {
+          Object.keys(parsed.products[clientKey] || {}).forEach((familyKey) => {
+            const products = parsed.products[clientKey][familyKey];
+            if (Array.isArray(products)) {
+              products.forEach((p) => {
+                if (p && p.documents && Array.isArray(p.documents)) {
+                  totalDocuments += p.documents.length;
+                }
+              });
+            }
           });
-        }
+        });
+      }
         console.log(`📊 Total documents sauvegardés: ${totalDocuments}`);
-      } catch (parseError) {
+    } catch (parseError) {
         // Ignorer les erreurs de parsing pour les logs
       }
     });

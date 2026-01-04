@@ -26,11 +26,14 @@ export default function ProduitsStructuresPage() {
   const [products, setProducts] = useState<StructuredProduct[]>([]);
   const [assurances, setAssurances] = useState<any[]>([]);
   const [assurancesMontants, setAssurancesMontants] = useState<any[]>([]);
+  const [productReservations, setProductReservations] = useState<Record<number, any[]>>({});
+  const [productFiles, setProductFiles] = useState<Record<number, any[]>>({}); // Réservations par produit
   const [loading, setLoading] = useState(true);
   const [selectedAssurance, setSelectedAssurance] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<StructuredProduct | null>(null);
+  const [selectedProductAssurance, setSelectedProductAssurance] = useState<string>(''); // Assurance du produit pour la réservation
   const [showReservationModal, setShowReservationModal] = useState(false);
   const [reservationAmount, setReservationAmount] = useState('');
   const [reservationNotes, setReservationNotes] = useState('');
@@ -48,6 +51,7 @@ export default function ProduitsStructuresPage() {
     loadAssurances();
     loadAssurancesMontants();
     loadCMSContent();
+    loadProductReservations();
   }, [selectedAssurance, selectedCategory, searchTerm]);
 
   // Charger le contenu CMS
@@ -91,10 +95,43 @@ export default function ProduitsStructuresPage() {
       if (searchTerm) params.search = searchTerm;
       const data = await structuredProductsAPI.getAll(params);
       setProducts(data);
+      
+      // Charger les fichiers pour chaque produit
+      await loadAllProductFiles(data);
     } catch (error: any) {
       console.error('Erreur lors du chargement des produits:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Charger les fichiers de tous les produits
+  const loadAllProductFiles = async (productsList: any[]) => {
+    try {
+      const filesData: Record<number, any[]> = {};
+      
+      for (const product of productsList) {
+        const files = await loadProductFiles(product.id);
+        filesData[product.id] = files;
+      }
+      
+      setProductFiles(filesData);
+    } catch (error) {
+      console.error('Erreur lors du chargement des fichiers:', error);
+    }
+  };
+
+  // Charger les fichiers d'un produit spécifique
+  const loadProductFiles = async (productId: number): Promise<any[]> => {
+    try {
+      const response = await fetch(buildAPIURL(`/structured-products/${productId}/files`));
+      if (!response.ok) {
+        throw new Error('Erreur lors du chargement des fichiers');
+      }
+      return await response.json();
+    } catch (error) {
+      console.error(`Erreur chargement fichiers produit ${productId}:`, error);
+      return [];
     }
   };
 
@@ -116,6 +153,77 @@ export default function ProduitsStructuresPage() {
     }
   };
 
+  // Charger les réservations pour tous les produits
+  const loadProductReservations = async () => {
+    try {
+      const reservations = await structuredProductsAPI.getAllReservations('approved');
+      // Grouper les réservations par product_id
+      const reservationsByProduct: Record<number, any[]> = {};
+      reservations.forEach((reservation: any) => {
+        if (!reservationsByProduct[reservation.product_id]) {
+          reservationsByProduct[reservation.product_id] = [];
+        }
+        reservationsByProduct[reservation.product_id].push(reservation);
+      });
+      setProductReservations(reservationsByProduct);
+    } catch (error) {
+      console.error('Erreur lors du chargement des réservations:', error);
+    }
+  };
+
+  // Calculer les montants pour un produit
+  const getProductAmounts = (product: StructuredProduct, assuranceName?: string) => {
+    // Récupérer le montant développé pour ce produit et cette assurance spécifique
+    const assurancesWithMontants = parseAssurancesWithMontants(product.assurance);
+    let montantEnveloppe = 0;
+    
+    // Si le produit a des montants développés stockés
+    if (assurancesWithMontants.length > 0) {
+      // Si un nom d'assurance est fourni, chercher le montant correspondant
+      if (assuranceName) {
+        const assuranceData = assurancesWithMontants.find(a => a.name === assuranceName);
+        if (assuranceData && assuranceData.montant > 0) {
+          montantEnveloppe = assuranceData.montant;
+        }
+      }
+      
+      // Si aucun montant trouvé avec le nom, utiliser le premier montant disponible
+      if (montantEnveloppe === 0 && assurancesWithMontants[0].montant > 0) {
+        montantEnveloppe = assurancesWithMontants[0].montant;
+      }
+    }
+    
+    // Fallback: utiliser le montant enveloppe global de l'assurance
+    if (montantEnveloppe === 0) {
+      const productAssurances = parseAssurances(product.assurance);
+      const targetAssurance = assuranceName || (productAssurances.length > 0 ? productAssurances[0] : null);
+      if (targetAssurance) {
+        const assuranceMontant = getAssuranceMontant(targetAssurance);
+        montantEnveloppe = parseFloat(assuranceMontant.montant_enveloppe as any) || 0;
+      }
+    }
+    
+    // Dernier fallback: utiliser le montant enveloppe du produit (ne doit pas être affiché normalement)
+    if (montantEnveloppe === 0) {
+      montantEnveloppe = parseFloat(product.montant_enveloppe as any) || 0;
+    }
+    
+    const reservations = productReservations[product.id] || [];
+    // Filtrer les réservations pour cette assurance spécifique
+    const assuranceReservations = assuranceName 
+      ? reservations.filter(res => res.assurance_name === assuranceName)
+      : reservations;
+    const montantReserve = assuranceReservations.reduce((sum, res) => sum + (parseFloat(res.montant) || 0), 0);
+    const montantDisponible = montantEnveloppe - montantReserve;
+    
+    return {
+      montant: montantEnveloppe,
+      reserve: montantReserve,
+      disponible: montantDisponible,
+      total: montantEnveloppe
+    };
+  };
+
   const handleReservation = async () => {
     if (!selectedProduct || !reservationAmount) {
       alert('Veuillez remplir le montant à investir');
@@ -126,7 +234,8 @@ export default function ProduitsStructuresPage() {
       await structuredProductsAPI.createReservation(
         selectedProduct.id,
         parseFloat(reservationAmount),
-        reservationNotes || null
+        reservationNotes || null,
+        selectedProductAssurance // Passer l'assurance du produit
       );
       alert('Réservation créée avec succès !');
       setShowReservationModal(false);
@@ -134,15 +243,78 @@ export default function ProduitsStructuresPage() {
       setReservationNotes('');
       setReservationDate('');
       setSelectedProduct(null);
+      setSelectedProductAssurance(''); // Réinitialiser l'assurance
       await loadAssurancesMontants();
+      await loadProductReservations();
     } catch (error: any) {
       console.error('Erreur lors de la réservation:', error);
       alert(error.message || 'Erreur lors de la création de la réservation');
     }
   };
 
+  // Helper function pour parser les assurances (JSON ou string)
+  // Peut être: ["assurance1", "assurance2"] ou [{"name": "assurance1", "montant": 5000}, ...]
+  const parseAssurances = (assurance: string | null | undefined): string[] => {
+    if (!assurance) return ['Autres'];
+    
+    try {
+      // Essayer de parser comme JSON
+      const parsed = JSON.parse(assurance);
+      if (Array.isArray(parsed)) {
+        // Si c'est un array d'objets avec name, extraire les noms
+        if (parsed.length > 0 && typeof parsed[0] === 'object' && parsed[0].name) {
+          return parsed.map((a: any) => a.name);
+        }
+        // Sinon, c'est déjà un array de strings
+        return parsed;
+      }
+      return [parsed];
+    } catch (e) {
+      // Si ce n'est pas du JSON, traiter comme une string simple
+      return [assurance];
+    }
+  };
+
+  // Helper function pour obtenir les montants développés des assurances
+  const parseAssurancesWithMontants = (assurance: string | null | undefined): Array<{name: string, montant: number}> => {
+    if (!assurance) return [];
+    
+    try {
+      const parsed = JSON.parse(assurance);
+      if (Array.isArray(parsed)) {
+        // Si c'est un array d'objets avec name et montant
+        if (parsed.length > 0 && typeof parsed[0] === 'object' && parsed[0] !== null) {
+          // Vérifier si c'est le nouveau format avec name et montant
+          if (parsed[0].name !== undefined) {
+            return parsed.map((a: any) => {
+              // Gérer les montants qui peuvent être des nombres ou des strings
+              let montant = 0;
+              if (a.montant !== undefined && a.montant !== null) {
+                montant = typeof a.montant === 'number' ? a.montant : parseFloat(a.montant) || 0;
+              }
+              return {
+                name: a.name || '',
+                montant: montant
+              };
+            }).filter(a => a.name); // Filtrer les entrées sans nom
+          }
+        }
+        // Sinon, c'est un array de strings (ancien format)
+        return [];
+      }
+      return [];
+    } catch (e) {
+      console.warn('Erreur parsing assurances avec montants:', e, assurance);
+      return [];
+    }
+  };
+
   const getAssuranceMontant = (assuranceName: string) => {
-    const montant = assurancesMontants.find(m => m.assurance === assuranceName);
+    // Parser les assurances dans assurancesMontants pour faire la correspondance
+    const montant = assurancesMontants.find(m => {
+      const mAssurances = parseAssurances(m.assurance);
+      return mAssurances.includes(assuranceName);
+    });
     return montant || {
       montant_enveloppe: 0,
       montant_reserve: 0,
@@ -160,12 +332,23 @@ export default function ProduitsStructuresPage() {
   };
 
   // Grouper les produits par assurance
+  // Les assurances peuvent être stockées comme JSON array ou string simple
   const productsByAssurance = products.reduce((acc, product) => {
-    const assurance = product.assurance || 'Autres';
-    if (!acc[assurance]) {
-      acc[assurance] = [];
+    const assurancesArray = parseAssurances(product.assurance);
+    
+    // Si aucune assurance, mettre dans "Autres"
+    if (assurancesArray.length === 0) {
+      assurancesArray.push('Autres');
     }
-    acc[assurance].push(product);
+    
+    // Ajouter le produit à chaque assurance
+    assurancesArray.forEach(assurance => {
+      if (!acc[assurance]) {
+        acc[assurance] = [];
+      }
+      acc[assurance].push(product);
+    });
+    
     return acc;
   }, {} as Record<string, StructuredProduct[]>);
 
@@ -266,7 +449,7 @@ export default function ProduitsStructuresPage() {
               <div key={assurance} className="bg-white rounded-xl shadow-lg overflow-hidden">
                 {/* Assurance Header */}
                 <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-6">
-                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                  <div className="flex flex-col gap-4">
                     {/* Assurance Info */}
                     <div className="flex items-center space-x-4">
                       <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center">
@@ -278,48 +461,18 @@ export default function ProduitsStructuresPage() {
                       </div>
                     </div>
                     
-                    {/* Financial Stats */}
-                    <div className="flex flex-wrap items-center gap-4">
-                      {/* Calculer la somme des enveloppes des produits */}
-                      <div className="bg-purple-500/20 rounded-lg px-4 py-2 border border-purple-300/30">
-                        <p className="text-xs text-purple-200 font-medium">Enveloppes produits</p>
-                        <p className="text-lg font-bold text-purple-300">
-                          {formatCurrency(assuranceProducts.reduce((sum, p) => {
-                            // Gérer tous les cas : null, undefined, string, number
-                            let montant = 0;
-                            if (p.montant_enveloppe != null && p.montant_enveloppe !== '') {
-                              const parsed = typeof p.montant_enveloppe === 'string' 
-                                ? parseFloat(p.montant_enveloppe) 
-                                : Number(p.montant_enveloppe);
-                              montant = isNaN(parsed) || parsed < 0 ? 0 : parsed;
-                            }
-                            return sum + montant;
-                          }, 0))}
-                        </p>
-                        <p className="text-xs text-purple-300 mt-1">(Somme des enveloppes de chaque produit)</p>
+                    {/* Progress Bar */}
+                    <div className="mt-2">
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-blue-200">Progression des réservations</span>
+                        <span>{progressPercent.toFixed(1)}%</span>
                       </div>
-                      <div className="bg-yellow-500/20 rounded-lg px-4 py-2 border border-yellow-300/30">
-                        <p className="text-xs text-yellow-200 font-medium">Réservé</p>
-                        <p className="text-lg font-bold text-yellow-300">{formatCurrency(montant.montant_reserve)}</p>
+                      <div className="h-2 bg-white/20 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-yellow-400 to-green-400 rounded-full transition-all duration-500"
+                          style={{ width: `${Math.min(progressPercent, 100)}%` }}
+                        />
                       </div>
-                      <div className="bg-green-500/20 rounded-lg px-4 py-2 border border-green-300/30">
-                        <p className="text-xs text-green-200 font-medium">Disponible</p>
-                        <p className="text-lg font-bold text-green-300">{formatCurrency(montant.montant_restant)}</p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Progress Bar */}
-                  <div className="mt-4">
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-blue-200">Progression des réservations</span>
-                      <span>{progressPercent.toFixed(1)}%</span>
-                    </div>
-                    <div className="h-2 bg-white/20 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-gradient-to-r from-yellow-400 to-green-400 rounded-full transition-all duration-500"
-                        style={{ width: `${Math.min(progressPercent, 100)}%` }}
-                      />
                     </div>
                   </div>
                 </div>
@@ -358,67 +511,79 @@ export default function ProduitsStructuresPage() {
                             <p className="text-sm text-gray-600 mb-4 line-clamp-2">{product.description}</p>
                           )}
                           
-                          {/* Enveloppe spécifique du produit - Section mise en évidence */}
-                          {product.montant_enveloppe && product.montant_enveloppe > 0 ? (
-                            <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg p-4 mb-4">
-                              <div className="flex items-center justify-between">
+                          {/* Montants du produit */}
+                          {(() => {
+                            const amounts = getProductAmounts(product, assurance);
+                            return (
+                              <div className="grid grid-cols-2 gap-2 mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
                                 <div>
-                                  <p className="text-xs text-green-700 font-semibold uppercase tracking-wide mb-1">
-                                    💰 Enveloppe de ce produit
-                                  </p>
-                                  <p className="text-2xl font-bold text-green-700">
-                                    {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(product.montant_enveloppe)}
+                                  <p className="text-xs text-gray-500 mb-1">Montant</p>
+                                  <p className="text-sm font-semibold text-gray-800">
+                                    {formatCurrency(amounts.montant)}
                                   </p>
                                 </div>
-                                <div className="text-right">
-                                  <p className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">
-                                    Spécifique à ce produit
+                                <div>
+                                  <p className="text-xs text-gray-500 mb-1">Réservé</p>
+                                  <p className="text-sm font-semibold text-yellow-600">
+                                    {formatCurrency(amounts.reserve)}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-xs text-gray-500 mb-1">Disponible</p>
+                                  <p className="text-sm font-semibold text-green-600">
+                                    {formatCurrency(amounts.disponible)}
                                   </p>
                                 </div>
                               </div>
-                            </div>
-                          ) : (
-                            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-4">
-                              <p className="text-xs text-gray-500 italic">
-                                ⚠️ Aucune enveloppe spécifique définie pour ce produit
-                              </p>
+                            );
+                          })()}
+                          
+                          {/* Liste des fichiers */}
+                          {productFiles[product.id] && productFiles[product.id].length > 0 && (
+                            <div className="mb-4">
+                              <h4 className="text-sm font-semibold text-gray-700 mb-2">
+                                📎 Fichiers disponibles ({productFiles[product.id].length})
+                              </h4>
+                              <div className="space-y-2">
+                                {productFiles[product.id].map((file: any) => (
+                                  <a
+                                    key={file.id}
+                                    href={buildAPIURL(`/structured-products/${product.id}/files/${file.id}/download`)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center justify-between bg-gray-50 hover:bg-gray-100 p-3 rounded-lg border border-gray-200 transition-colors group"
+                                  >
+                                    <div className="flex items-center space-x-3 flex-1 min-w-0">
+                                      <span className="text-2xl">📄</span>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-gray-800 truncate group-hover:text-blue-600">
+                                          {file.file_name}
+                                        </p>
+                                        <p className="text-xs text-gray-500">
+                                          {(file.file_size / 1024 / 1024).toFixed(2)} MB
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <svg className="w-5 h-5 text-gray-400 group-hover:text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                  </a>
+                                ))}
+                              </div>
                             </div>
                           )}
                           
-                          {/* Metadata */}
-                          <div className="flex items-center justify-between text-xs text-gray-500 mb-4 pb-4 border-b border-gray-100">
-                            <div className="flex items-center gap-1">
-                              <span>👤</span>
-                              <span>{product.uploaded_by_prenom || 'Admin'} {product.uploaded_by_nom || ''}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <span>📅</span>
-                              <span>{new Date(product.created_at).toLocaleDateString('fr-FR')}</span>
-                            </div>
-                          </div>
-                          
-                          {/* Action Buttons */}
-                          <div className="flex gap-3">
-                            {product.fileUrl && (
-                              <a
-                                href={product.fileUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 px-4 rounded-lg transition-colors font-medium text-sm text-center"
-                              >
-                                📥 Télécharger
-                              </a>
-                            )}
-                            <button
-                              onClick={() => {
-                                setSelectedProduct(product);
-                                setShowReservationModal(true);
-                              }}
-                              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg transition-colors font-medium text-sm"
-                            >
-                              ✅ Réserver
-                            </button>
-                          </div>
+                          {/* Bouton Réserver */}
+                          <button
+                            onClick={() => {
+                              setSelectedProduct(product);
+                              setSelectedProductAssurance(assurance); // Stocker l'assurance du groupe actuel
+                              setShowReservationModal(true);
+                            }}
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg transition-colors font-medium text-sm shadow-md hover:shadow-lg"
+                          >
+                            ✅ Réserver ce produit
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -438,13 +603,14 @@ export default function ProduitsStructuresPage() {
             <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white px-6 py-4 rounded-t-xl">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg font-bold">{selectedProduct.assurance || 'Produit'}</h2>
+                  <h2 className="text-lg font-bold">{selectedProductAssurance || 'Produit'}</h2>
                   <p className="text-sm text-blue-200">{selectedProduct.title}</p>
                 </div>
                 <button
                   onClick={() => {
                     setShowReservationModal(false);
                     setSelectedProduct(null);
+                    setSelectedProductAssurance('');
                     setReservationAmount('');
                     setReservationNotes('');
                     setReservationDate('');

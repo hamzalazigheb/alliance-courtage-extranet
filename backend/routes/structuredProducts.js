@@ -190,9 +190,9 @@ router.post('/', auth, authorize('admin'), upload.array('files', 10), handleMult
     if (assurancesArray.length > 0 && typeof assurancesArray[0] === 'object') {
       const missingMontants = assurancesArray.filter(a => !a.montant || parseFloat(a.montant) <= 0);
       if (missingMontants.length > 0) {
-        return res.status(400).json({ 
+      return res.status(400).json({ 
           error: 'Tous les montants enveloppe doivent être remplis et positifs' 
-        });
+      });
       }
     }
     
@@ -544,7 +544,7 @@ router.get('/:id/download', async (req, res) => {
       
       // Si c'est un data URL, extraire le MIME et le base64
       if (product.file_content.startsWith('data:')) {
-        const mimeMatch = product.file_content.match(/^data:([^;]+);/);
+      const mimeMatch = product.file_content.match(/^data:([^;]+);/);
         if (mimeMatch) {
           mimeType = mimeMatch[1];
         }

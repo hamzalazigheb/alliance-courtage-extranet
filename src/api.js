@@ -360,10 +360,10 @@ export const structuredProductsAPI = {
   },
 
   // Réservations
-  createReservation: async (productId, montant, notes = null) => {
+  createReservation: async (productId, montant, notes = null, assurance_name = null) => {
     return apiRequest(`/structured-products/${productId}/reservations`, {
       method: 'POST',
-      body: JSON.stringify({ montant, notes }),
+      body: JSON.stringify({ montant, notes, assurance_name }),
       headers: {
         'Content-Type': 'application/json',
       },

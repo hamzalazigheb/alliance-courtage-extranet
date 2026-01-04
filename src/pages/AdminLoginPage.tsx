@@ -285,12 +285,12 @@ export default function AdminLoginPage({ onLogin }: AdminLoginPageProps) {
 
           <form onSubmit={handleLogin} className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Email Administrateur</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Identifiant</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@alliance.com"
+                placeholder="Votre email"
                 className="w-full px-4 py-3 bg-red-50 rounded-lg border-2 border-red-200 focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all"
                 required
               />

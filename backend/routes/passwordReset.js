@@ -62,14 +62,14 @@ router.post('/request', async (req, res) => {
 
       // Créer une notification pour chaque admin
       for (const admin of admins) {
-        await createNotification(
-          'password_reset',
-          '🔑 Demande de réinitialisation de mot de passe',
-          `L'utilisateur ${user.prenom} ${user.nom} (${user.email}) a demandé une réinitialisation de mot de passe.`,
+      await createNotification(
+        'password_reset',
+        '🔑 Demande de réinitialisation de mot de passe',
+        `L'utilisateur ${user.prenom} ${user.nom} (${user.email}) a demandé une réinitialisation de mot de passe.`,
           admin.id, // Notification individuelle pour chaque admin
-          user.id,
-          'password_reset'
-        );
+        user.id,
+        'password_reset'
+      );
       }
       console.log(`✅ Notifications envoyées à ${admins.length} admin(s) pour la demande de réinitialisation`);
     } catch (notifError) {

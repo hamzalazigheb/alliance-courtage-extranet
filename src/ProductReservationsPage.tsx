@@ -101,6 +101,35 @@ const ProductReservationsPage: React.FC = () => {
     }).format(amount);
   };
 
+  // Parse assurance field to extract the name
+  const parseAssuranceName = (assuranceField: string): string => {
+    if (!assuranceField) return 'N/A';
+    
+    try {
+      // Si c'est déjà un nom simple
+      if (!assuranceField.startsWith('[') && !assuranceField.startsWith('{')) {
+        return assuranceField;
+      }
+      
+      // Si c'est un tableau JSON
+      const parsed = JSON.parse(assuranceField);
+      if (Array.isArray(parsed)) {
+        // Retourner le premier nom ou tous les noms séparés par des virgules
+        return parsed.map(item => typeof item === 'string' ? item : item.name).filter(Boolean).join(', ');
+      }
+      
+      // Si c'est un objet JSON
+      if (typeof parsed === 'object' && parsed.name) {
+        return parsed.name;
+      }
+      
+      return assuranceField;
+    } catch (e) {
+      // Si le parsing échoue, retourner tel quel
+      return assuranceField;
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     const badges = {
       pending: 'bg-yellow-100 text-yellow-800 border-yellow-300',
@@ -246,7 +275,7 @@ const ProductReservationsPage: React.FC = () => {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm text-gray-900">{reservation.assurance}</span>
+                      <span className="text-sm text-gray-900">{parseAssuranceName(reservation.assurance)}</span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm font-semibold text-gray-900">

@@ -427,9 +427,9 @@ const CMSManagementPage: React.FC = () => {
     
     try {
       // Démarrer immédiatement l'UI de chargement
-      setSaving(true);
-      setSuccessMessage('');
-      
+    setSaving(true);
+    setSuccessMessage('');
+    
       // Timeout de sécurité absolu (10 minutes max) pour éviter que le bouton reste bloqué indéfiniment
       safetyTimeoutId = setTimeout(() => {
         console.error('⚠️ Timeout de sécurité atteint - libération du bouton');
@@ -481,38 +481,38 @@ const CMSManagementPage: React.FC = () => {
         setTimeout(() => {
           console.log('💾 Sauvegarde Gamme Produits en cours...');
           console.log(`📦 Taille du payload: ${payloadSizeMB.toFixed(2)} MB`);
-          
+        
           // Compter les documents en arrière-plan
-          let totalDocuments = 0;
-          Object.keys(gpContent.products).forEach((clientKey) => {
-            Object.keys(gpContent.products[clientKey as ClientId]).forEach((familyKey) => {
-              const products = gpContent.products[clientKey as ClientId][familyKey as ProdId];
-              if (Array.isArray(products)) {
-                products.forEach((p: Product) => {
-                  if (p.documents && Array.isArray(p.documents)) {
-                    totalDocuments += p.documents.length;
-                  }
-                });
-              }
-            });
+        let totalDocuments = 0;
+        Object.keys(gpContent.products).forEach((clientKey) => {
+          Object.keys(gpContent.products[clientKey as ClientId]).forEach((familyKey) => {
+            const products = gpContent.products[clientKey as ClientId][familyKey as ProdId];
+            if (Array.isArray(products)) {
+              products.forEach((p: Product) => {
+                if (p.documents && Array.isArray(p.documents)) {
+                  totalDocuments += p.documents.length;
+                }
+              });
+            }
           });
-          console.log(`📊 Total documents à sauvegarder: ${totalDocuments}`);
+        });
+        console.log(`📊 Total documents à sauvegarder: ${totalDocuments}`);
         }, 0);
       }
 
       // Lancer la requête IMMÉDIATEMENT après la préparation
       console.log(`🚀 Envoi de la requête PUT vers /cms/${endpoint}...`);
       try {
-        const response = await fetch(buildAPIURL(`/cms/${endpoint}`), {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-auth-token': localStorage.getItem('token') || ''
-          },
+      const response = await fetch(buildAPIURL(`/cms/${endpoint}`), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': localStorage.getItem('token') || ''
+        },
           body: payload,
           signal: controller.signal
-        });
-        
+      });
+      
         if (timeoutId) {
           clearTimeout(timeoutId);
           timeoutId = null;
@@ -879,8 +879,8 @@ const CMSManagementPage: React.FC = () => {
                   <h4 className="text-xl font-semibold text-white mb-2">Ajouter un nouveau produit</h4>
                   <p className="text-sm text-slate-400">Sélectionnez pour qui et dans quelle catégorie vous voulez ajouter ce produit</p>
                 </div>
-                
-                {/* Choix client / type de produit */}
+            
+            {/* Choix client / type de produit */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -1056,8 +1056,8 @@ const CMSManagementPage: React.FC = () => {
               </div>
             </div>
 
-                {/* Ajouter / supprimer une famille */}
-                <div className="bg-slate-700/40 rounded-lg p-4">
+            {/* Ajouter / supprimer une famille */}
+            <div className="bg-slate-700/40 rounded-lg p-4">
               <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-3 items-end">
                 <div>
                   <label className="block text-sm font-semibold text-slate-300 mb-2">Nouvelle famille</label>
@@ -1128,8 +1128,8 @@ const CMSManagementPage: React.FC = () => {
                 >
                   Supprimer la famille sélectionnée
                 </button>
-                </div>
               </div>
+            </div>
 
                 {/* Bouton continuer */}
                 <div className="flex justify-end pt-4">
@@ -1188,28 +1188,28 @@ const CMSManagementPage: React.FC = () => {
 
                 {/* Formulaire produit */}
                 <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-300 mb-2">Nom du produit *</label>
-                    <input
-                      type="text"
-                      value={newProductName}
-                      onChange={(e) => setNewProductName(e.target.value)}
-                      className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500"
-                      placeholder="Ex: Assurance vie, PERP..."
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-300 mb-2">Description</label>
-                    <textarea
-                      value={newProductDescription}
-                      onChange={(e) => setNewProductDescription(e.target.value)}
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-300 mb-2">Nom du produit *</label>
+                      <input
+                        type="text"
+                        value={newProductName}
+                        onChange={(e) => setNewProductName(e.target.value)}
+                        className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500"
+                        placeholder="Ex: Assurance vie, PERP..."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-300 mb-2">Description</label>
+                      <textarea
+                        value={newProductDescription}
+                        onChange={(e) => setNewProductDescription(e.target.value)}
                       rows={4}
-                      className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500 resize-none"
-                      placeholder="Décrivez le produit, ses avantages, caractéristiques..."
-                    />
-                  </div>
-                  <button
-                    onClick={() => {
+                        className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500 resize-none"
+                        placeholder="Décrivez le produit, ses avantages, caractéristiques..."
+                      />
+                    </div>
+                    <button
+                      onClick={() => {
                       try {
                         const name = newProductName.trim();
                         if (!name) {
@@ -1295,10 +1295,10 @@ const CMSManagementPage: React.FC = () => {
                     }}
                     disabled={!newProductName.trim()}
                     className="w-full px-6 py-3 bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-500 text-white rounded-lg font-medium"
-                  >
+                    >
                     ✓ Ajouter le produit
-                  </button>
-                </div>
+                    </button>
+                  </div>
               </div>
             )}
 
@@ -1326,8 +1326,8 @@ const CMSManagementPage: React.FC = () => {
                     >
                       ← Retour
                     </button>
-                  </div>
                 </div>
+              </div>
 
                 {/* Si un produit vient d'être ajouté, le mettre en évidence */}
                 {newlyAddedProduct && (
@@ -1360,13 +1360,13 @@ const CMSManagementPage: React.FC = () => {
                 </div>
 
                 {/* Liste des produits avec gestion de documents */}
-                <div className="space-y-4">
-                  {selectedClients.length === 0 ? (
-                    <div className="text-slate-300 text-sm">⚠️ Sélectionnez au moins un type de client pour voir les produits</div>
-                  ) : selectedFamilies.length === 0 ? (
-                    <div className="text-slate-300 text-sm">⚠️ Sélectionnez au moins une famille pour voir les produits</div>
-                  ) : (
-                    selectedFamilies.map((fam) => {
+              <div className="space-y-4">
+                {selectedClients.length === 0 ? (
+                  <div className="text-slate-300 text-sm">⚠️ Sélectionnez au moins un type de client pour voir les produits</div>
+                ) : selectedFamilies.length === 0 ? (
+                  <div className="text-slate-300 text-sm">⚠️ Sélectionnez au moins une famille pour voir les produits</div>
+                ) : (
+                  selectedFamilies.map((fam) => {
                     const products = selectedClients.length > 0 
                       ? gpContent.products[selectedClients[0]][fam as ProdId] || []
                       : [];
@@ -1453,9 +1453,9 @@ const CMSManagementPage: React.FC = () => {
                                           return;
                                         }
                                         try {
-                                          const next = JSON.parse(JSON.stringify(gpContent)); // Deep copy
+                                      const next = JSON.parse(JSON.stringify(gpContent)); // Deep copy
                                           // Supprimer uniquement le produit à l'index idx dans les clients sélectionnés
-                                          selectedClients.forEach((client) => {
+                                      selectedClients.forEach((client) => {
                                             if (next.products[client] && next.products[client][fam as ProdId] && Array.isArray(next.products[client][fam as ProdId])) {
                                               // Vérifier que l'index existe et correspond au produit
                                               if (idx >= 0 && idx < next.products[client][fam as ProdId].length) {
@@ -1465,15 +1465,15 @@ const CMSManagementPage: React.FC = () => {
                                                   next.products[client][fam as ProdId].splice(idx, 1);
                                                 }
                                               }
-                                            }
-                                          });
-                                          setGpContent(next);
+                                        }
+                                      });
+                                      setGpContent(next);
                                           showSuccess('Produit supprimé avec succès');
                                         } catch (error) {
                                           console.error('Erreur lors de la suppression:', error);
                                           showError('Erreur lors de la suppression du produit');
                                         }
-                                      }}
+                                    }}
                                       className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium whitespace-nowrap"
                                     >
                                       🗑️ Supprimer
@@ -1485,8 +1485,8 @@ const CMSManagementPage: React.FC = () => {
                                 <div className="mt-4 pt-4 border-t border-slate-600">
                                   <div className="flex items-center justify-between mb-3">
                                     <h6 className="text-sm font-semibold text-slate-300">✏️ Modifier le produit</h6>
-                                    <button
-                                      onClick={() => {
+                                  <button
+                                    onClick={() => {
                                         setWorkflowStep('select');
                                         showSuccess('Modifications enregistrées ! N\'oubliez pas de sauvegarder le contenu.');
                                       }}
@@ -1507,12 +1507,12 @@ const CMSManagementPage: React.FC = () => {
                                             if (!newName) {
                                               showWarning('Le nom du produit ne peut pas être vide');
                                               e.target.value = p.name;
-                                              return;
-                                            }
+                                        return;
+                                      }
                                             if (newName === p.name) {
                                               return; // Pas de changement
                                             }
-                                            const next = JSON.parse(JSON.stringify(gpContent)); // Deep copy
+                                      const next = JSON.parse(JSON.stringify(gpContent)); // Deep copy
                                             // Mettre à jour le produit dans TOUS les clients
                                             ['particulier', 'professionnel', 'entreprise'].forEach((client) => {
                                               if (next.products[client] && next.products[client][fam as ProdId] && Array.isArray(next.products[client][fam as ProdId])) {
@@ -1525,22 +1525,22 @@ const CMSManagementPage: React.FC = () => {
                                                     };
                                                   }
                                                 }
-                                              }
-                                            });
-                                            setGpContent(next);
+                                        }
+                                      });
+                                      setGpContent(next);
                                             showSuccess('Nom du produit modifié');
                                           } catch (error) {
                                             console.error('Erreur lors de la mise à jour du nom:', error);
                                             showError('Erreur lors de la mise à jour du nom');
                                           }
-                                        }}
+                                    }}
                                         className="w-full px-3 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500 text-sm"
                                         placeholder="Nom du produit"
                                       />
-                                    </div>
+                                </div>
                                     <div>
                                       <label className="block text-xs font-semibold text-slate-300 mb-1">Modifier la description</label>
-                                      <textarea
+                                <textarea
                                         defaultValue={p.description}
                                         onBlur={(e) => {
                                           try {
@@ -1548,32 +1548,32 @@ const CMSManagementPage: React.FC = () => {
                                             if (newDescription === p.description) {
                                               return; // Pas de changement
                                             }
-                                            const next = JSON.parse(JSON.stringify(gpContent)); // Deep copy
+                                      const next = JSON.parse(JSON.stringify(gpContent)); // Deep copy
                                             // Mettre à jour le produit dans TOUS les clients
                                             ['particulier', 'professionnel', 'entreprise'].forEach((client) => {
                                               if (next.products[client] && next.products[client][fam as ProdId] && Array.isArray(next.products[client][fam as ProdId])) {
                                                 if (idx >= 0 && idx < next.products[client][fam as ProdId].length) {
                                                   const productAtIdx = next.products[client][fam as ProdId][idx];
                                                   if (productAtIdx && productAtIdx.name === p.name) {
-                                                    next.products[client][fam as ProdId][idx] = {
+                                          next.products[client][fam as ProdId][idx] = {
                                                       ...productAtIdx,
-                                                      description: newDescription
-                                                    };
+                                            description: newDescription
+                                          };
                                                   }
                                                 }
-                                              }
-                                            });
-                                            setGpContent(next);
+                                        }
+                                      });
+                                      setGpContent(next);
                                             showSuccess('Description du produit modifiée');
                                           } catch (error) {
                                             console.error('Erreur lors de la mise à jour de la description:', error);
                                             showError('Erreur lors de la mise à jour de la description');
                                           }
-                                        }}
+                                    }}
                                         rows={3}
-                                        className="w-full px-3 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500 text-sm resize-none"
-                                        placeholder="Description du produit..."
-                                      />
+                                  className="w-full px-3 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500 text-sm resize-none"
+                                  placeholder="Description du produit..."
+                                />
                                     </div>
                                     <div className="bg-blue-500/5 rounded-lg p-3 border border-blue-500/20">
                                       <label className="flex items-center gap-2 text-sm font-semibold text-blue-300 mb-3">
@@ -1730,9 +1730,9 @@ const CMSManagementPage: React.FC = () => {
                                                       return;
                                                     }
                                                     try {
-                                                      const next = JSON.parse(JSON.stringify(gpContent)); // Deep copy
+                                                    const next = JSON.parse(JSON.stringify(gpContent)); // Deep copy
                                                       // Supprimer le document dans tous les clients sélectionnés en utilisant l'index
-                                                      selectedClients.forEach((client) => {
+                                                    selectedClients.forEach((client) => {
                                                         if (next.products[client] && next.products[client][fam as ProdId] && Array.isArray(next.products[client][fam as ProdId])) {
                                                           // Utiliser l'index idx pour trouver le produit exact
                                                           if (idx >= 0 && idx < next.products[client][fam as ProdId].length) {
@@ -1744,13 +1744,13 @@ const CMSManagementPage: React.FC = () => {
                                                               }
                                                               // Supprimer le document par son ID
                                                               productAtIdx.documents = productAtIdx.documents.filter(
-                                                                (d: ProductDocument) => d.id !== doc.id
+                                                            (d: ProductDocument) => d.id !== doc.id
                                                               );
                                                             }
                                                           }
-                                                        }
-                                                      });
-                                                      setGpContent(next);
+                                                      }
+                                                    });
+                                                    setGpContent(next);
                                                       showSuccess('Document supprimé avec succès');
                                                     } catch (error) {
                                                       console.error('Erreur lors de la suppression du document:', error);
@@ -1778,8 +1778,8 @@ const CMSManagementPage: React.FC = () => {
                       </div>
                     );
                   })
-                  )}
-                </div>
+                )}
+              </div>
               </div>
             )}
 
@@ -2290,7 +2290,7 @@ const CMSManagementPage: React.FC = () => {
                   {/* Formulaire d'ajout */}
                   <div className="p-4 bg-emerald-500/10 rounded-lg border border-emerald-500/30">
                     <h4 className="text-sm font-bold text-emerald-400 mb-3">➕ Ajouter un nouveau document</h4>
-                    <div className="space-y-4">
+                  <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-semibold text-slate-300 mb-2">Titre du document</label>
                       <input
@@ -2395,7 +2395,7 @@ const CMSManagementPage: React.FC = () => {
                         ➕ Ajouter
                       </button>
                     </div>
-                  </div>
+                    </div>
                   </div>
                 </div>
               </div>

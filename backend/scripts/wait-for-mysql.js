@@ -80,7 +80,7 @@ function waitForMySQL(attempt = 1) {
         // Fermer la connexion proprement
         try {
           if (dbConnection && dbConnection.state !== 'disconnected') {
-            dbConnection.end();
+        dbConnection.end();
           }
         } catch (closeErr) {
           // Ignorer les erreurs de fermeture
