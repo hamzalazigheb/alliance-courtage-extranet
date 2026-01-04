@@ -1341,11 +1341,10 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {products.map((product) => {
-                  // Calculer le montant développé total (somme de tous les montants d'enveloppe pour toutes les assurances)
-                  const assurancesWithMontants = parseAssurancesWithMontants(product.assurance);
-                  const montantDeveloppeTotal = assurancesWithMontants.reduce((sum, a) => sum + a.montant, 0);
+                  // Calculer le montant développé (maintenant stocké directement dans product.montant_enveloppe)
+                  const montantDeveloppeTotal = parseFloat(product.montant_enveloppe as any) || 0;
                   
-                  // Calculer le total réservé pour ce produit (toutes assurances confondues)
+                  // Calculer le total réservé pour ce produit
                   const reservationsProduit = productReservations[product.id] || [];
                   const totalReserve = reservationsProduit.reduce((sum, res) => sum + (parseFloat(res.montant) || 0), 0);
                   
@@ -1394,8 +1393,7 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                   <td className="px-6 py-4 text-right text-sm text-blue-600">
                     {formatCurrency(
                       products.reduce((sum, p) => {
-                        const assurancesWithMontants = parseAssurancesWithMontants(p.assurance);
-                        return sum + assurancesWithMontants.reduce((s, a) => s + a.montant, 0);
+                        return sum + (parseFloat(p.montant_enveloppe as any) || 0);
                       }, 0)
                     )}
                   </td>
@@ -1407,8 +1405,7 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                   <td className="px-6 py-4 text-right text-sm text-green-600">
                     {formatCurrency(
                       products.reduce((sum, p) => {
-                        const assurancesWithMontants = parseAssurancesWithMontants(p.assurance);
-                        return sum + assurancesWithMontants.reduce((s, a) => s + a.montant, 0);
+                        return sum + (parseFloat(p.montant_enveloppe as any) || 0);
                       }, 0) -
                       Object.values(productReservations).flat().reduce((sum, res) => {
                         return sum + (parseFloat(res.montant) || 0);
