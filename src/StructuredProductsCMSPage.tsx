@@ -1340,51 +1340,71 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {products.map((product) => {
-                  // Calculer le montant développé (maintenant stocké directement dans product.montant_enveloppe)
-                  const montantDeveloppeTotal = parseFloat(product.montant_enveloppe as any) || 0;
+                {(() => {
+                  // Grouper les produits par titre
+                  const productsByTitle = products.reduce((acc, product) => {
+                    const title = product.title;
+                    if (!acc[title]) {
+                      acc[title] = {
+                        title: title,
+                        category: product.category,
+                        products: [],
+                        assurances: new Set<string>(),
+                        montantTotal: 0,
+                        reserveTotal: 0
+                      };
+                    }
+                    
+                    acc[title].products.push(product);
+                    const assuranceNames = parseAssurances(product.assurance);
+                    assuranceNames.forEach((a: string) => acc[title].assurances.add(a));
+                    acc[title].montantTotal += parseFloat(product.montant_enveloppe as any) || 0;
+                    
+                    // Ajouter les réservations
+                    const reservations = productReservations[product.id] || [];
+                    acc[title].reserveTotal += reservations.reduce((sum, res) => sum + (parseFloat(res.montant) || 0), 0);
+                    
+                    return acc;
+                  }, {} as Record<string, any>);
                   
-                  // Calculer le total réservé pour ce produit
-                  const reservationsProduit = productReservations[product.id] || [];
-                  const totalReserve = reservationsProduit.reduce((sum, res) => sum + (parseFloat(res.montant) || 0), 0);
+                  const groupedProducts = Object.values(productsByTitle);
                   
-                  // Calculer le disponible
-                  const disponible = montantDeveloppeTotal - totalReserve;
-                  
-                  // Obtenir les noms des assurances
-                  const assuranceNames = parseAssurances(product.assurance);
-                  
-                  return (
-                    <tr key={product.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4">
-                        <div className="text-sm font-medium text-gray-900">{product.title}</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                          {product.category}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-gray-900">{assuranceNames.join(', ')}</div>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="text-sm font-semibold text-blue-600">
-                          {formatCurrency(montantDeveloppeTotal)}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="text-sm font-semibold text-yellow-600">
-                          {formatCurrency(totalReserve)}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="text-sm font-semibold text-green-600">
-                          {formatCurrency(disponible)}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                  return groupedProducts.map((group: any) => {
+                    const disponible = group.montantTotal - group.reserveTotal;
+                    const assurancesList = Array.from(group.assurances).join(', ');
+                    
+                    return (
+                      <tr key={group.title} className="hover:bg-gray-50">
+                        <td className="px-6 py-4">
+                          <div className="text-sm font-medium text-gray-900">{group.title}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                            {group.category}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm text-gray-900">{assurancesList}</div>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="text-sm font-semibold text-blue-600">
+                            {formatCurrency(group.montantTotal)}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="text-sm font-semibold text-yellow-600">
+                            {formatCurrency(group.reserveTotal)}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="text-sm font-semibold text-green-600">
+                            {formatCurrency(disponible)}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  });
+                })()}
                 {/* Ligne de totaux */}
                 <tr className="bg-gray-100 font-bold">
                   <td colSpan={3} className="px-6 py-4 text-sm text-gray-900">
