@@ -1,4 +1,4 @@
-import apiRequest from '../api';
+import apiRequest, { buildAPIURL } from '../api';
 
 export interface GammeProduct {
   id: number;
@@ -84,10 +84,9 @@ export const gammeProductsAPI = {
       formData.append('files', file);
     });
 
-    const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
     const token = localStorage.getItem('token');
     
-    const response = await fetch(`${baseURL}/gamme-products/${productId}/files`, {
+    const response = await fetch(buildAPIURL(`/gamme-products/${productId}/files`), {
       method: 'POST',
       headers: {
         'x-auth-token': token || ''
@@ -104,8 +103,7 @@ export const gammeProductsAPI = {
 
   // Télécharger un fichier
   getFileDownloadUrl(productId: number, fileId: number): string {
-    const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
-    return `${baseURL}/gamme-products/${productId}/files/${fileId}/download`;
+    return buildAPIURL(`/gamme-products/${productId}/files/${fileId}/download`);
   },
 
   // Supprimer un fichier
