@@ -136,6 +136,124 @@ router.post('/', auth, authorize('admin'), async (req, res) => {
   }
 });
 
+// @route   POST /api/gamme-products/create-with-files
+// @desc    Créer des produits avec fichiers en une seule requête (optimisé)
+// @access  Private (Admin)
+router.post('/create-with-files', auth, authorize('admin'), upload.array('files', 10), handleMulterError, async (req, res) => {
+  try {
+    const { client_types, families, product_name, description } = req.body;
+    
+    // Valider les données
+    if (!client_types || !families || !product_name) {
+      return res.status(400).json({ 
+        error: 'Les champs client_types, families et product_name sont requis' 
+      });
+    }
+
+    // Parser les tableaux JSON
+    const clientTypesArray = JSON.parse(client_types);
+    const familiesArray = JSON.parse(families);
+
+    if (!Array.isArray(clientTypesArray) || clientTypesArray.length === 0) {
+      return res.status(400).json({ error: 'client_types doit être un tableau non vide' });
+    }
+
+    if (!Array.isArray(familiesArray) || familiesArray.length === 0) {
+      return res.status(400).json({ error: 'families doit être un tableau non vide' });
+    }
+
+    const createdProducts = [];
+    const errors = [];
+
+    // Créer tous les produits
+    for (const client_type of clientTypesArray) {
+      for (const family of familiesArray) {
+        const productKey = `${client_type}_${family}_${product_name}`;
+        
+        try {
+          // Vérifier si le produit existe déjà
+          const existing = await query(
+            'SELECT id FROM gamme_products WHERE product_key = ?',
+            [productKey]
+          );
+          
+          if (existing.length > 0) {
+            console.log(`⏭️  Produit déjà existant: ${productKey}`);
+            createdProducts.push({
+              id: existing[0].id,
+              product_key: productKey,
+              already_exists: true
+            });
+            continue;
+          }
+          
+          // Créer le produit
+          const result = await query(
+            `INSERT INTO gamme_products (product_key, client_type, family, product_name, description)
+             VALUES (?, ?, ?, ?, ?)`,
+            [productKey, client_type, family, product_name, description || '']
+          );
+          
+          createdProducts.push({
+            id: result.insertId,
+            product_key: productKey,
+            already_exists: false
+          });
+          
+          console.log(`✅ Produit créé: ${productKey}`);
+        } catch (error) {
+          console.error(`❌ Erreur création produit ${productKey}:`, error);
+          errors.push({ productKey, error: error.message });
+        }
+      }
+    }
+
+    // Uploader les fichiers pour tous les produits créés
+    let totalFilesUploaded = 0;
+    if (req.files && req.files.length > 0) {
+      for (const product of createdProducts) {
+        try {
+          for (let i = 0; i < req.files.length; i++) {
+            const file = req.files[i];
+            const fileBase64 = file.buffer.toString('base64');
+            const fileName = fixFilenameEncoding(file.originalname);
+            
+            // Vérifier si le fichier existe déjà pour ce produit
+            const existing = await query(
+              'SELECT id FROM gamme_product_files WHERE product_key = ? AND file_name = ?',
+              [product.product_key, fileName]
+            );
+            
+            if (existing.length === 0) {
+              await query(
+                `INSERT INTO gamme_product_files 
+                 (product_key, file_name, file_content, file_size, file_type, display_order) 
+                 VALUES (?, ?, ?, ?, ?, ?)`,
+                [product.product_key, fileName, fileBase64, file.size, file.mimetype, i]
+              );
+              totalFilesUploaded++;
+            }
+          }
+        } catch (error) {
+          console.error(`⚠️  Erreur upload fichiers pour ${product.product_key}:`, error);
+        }
+      }
+    }
+
+    res.status(201).json({
+      message: `${createdProducts.length} produit(s) créé(s) avec ${totalFilesUploaded} fichier(s) uploadé(s)`,
+      products: createdProducts,
+      files_uploaded: totalFilesUploaded,
+      errors: errors.length > 0 ? errors : undefined
+    });
+  } catch (error) {
+    console.error('Erreur create gamme products with files:', error);
+    res.status(500).json({ 
+      error: 'Erreur serveur lors de la création des produits avec fichiers' 
+    });
+  }
+});
+
 // @route   PUT /api/gamme-products/:id
 // @desc    Mettre à jour un produit
 // @access  Private (Admin)

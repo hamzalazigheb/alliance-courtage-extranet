@@ -44,6 +44,46 @@ export const gammeProductsAPI = {
     });
   },
 
+  // Créer plusieurs produits avec fichiers en une seule requête (OPTIMISÉ)
+  async createWithFiles(data: {
+    client_types: string[];
+    families: string[];
+    product_name: string;
+    description?: string;
+    files: File[];
+  }): Promise<{ message: string; products: any[]; files_uploaded: number }> {
+    const formData = new FormData();
+    
+    // Ajouter les fichiers
+    data.files.forEach(file => {
+      formData.append('files', file);
+    });
+    
+    // Ajouter les données du produit
+    formData.append('client_types', JSON.stringify(data.client_types));
+    formData.append('families', JSON.stringify(data.families));
+    formData.append('product_name', data.product_name);
+    if (data.description) {
+      formData.append('description', data.description);
+    }
+
+    const token = localStorage.getItem('token');
+    
+    const response = await fetch(buildAPIURL('/gamme-products/create-with-files'), {
+      method: 'POST',
+      headers: {
+        'x-auth-token': token || ''
+      },
+      body: formData
+    });
+    
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || 'Erreur lors de la création des produits');
+    }
+    return result;
+  },
+
   // Mettre à jour un produit
   async update(id: number, productData: {
     product_name?: string;

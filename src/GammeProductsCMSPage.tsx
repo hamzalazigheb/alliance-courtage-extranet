@@ -166,44 +166,30 @@ const GammeProductsCMSPage: React.FC = () => {
     setAddProductStep(2);
   };
 
-  // WORKFLOW AJOUT - Finaliser
+  // WORKFLOW AJOUT - Finaliser (OPTIMISÉ: Une seule requête pour tout)
   const handleAddProduct = async () => {
     try {
       setUploading(true);
       
-      const createdProducts: { id: number; product_key: string }[] = [];
-      for (const client_type of newProduct.client_types) {
-        for (const family of newProduct.families) {
-          const result = await gammeProductsAPI.create({
-            client_type,
-            family,
-            product_name: newProduct.product_name,
-            description: newProduct.description
-          });
-          createdProducts.push({
-            id: result.product.id,
-            product_key: result.product.product_key
-          });
-        }
-      }
+      // 🚀 NOUVELLE MÉTHODE OPTIMISÉE: Tout en une seule requête
+      const result = await gammeProductsAPI.createWithFiles({
+        client_types: newProduct.client_types,
+        families: newProduct.families,
+        product_name: newProduct.product_name,
+        description: newProduct.description,
+        files: pendingFiles
+      });
 
-      const totalCreated = createdProducts.length;
-      console.log(`✅ ${totalCreated} produit(s) créé(s):`, createdProducts);
+      const totalCreated = result.products.length;
+      const totalFiles = result.files_uploaded;
 
-      if (pendingFiles.length > 0) {
-        let totalFilesUploaded = 0;
-        for (const product of createdProducts) {
-          try {
-            await gammeProductsAPI.uploadFiles(product.id, pendingFiles);
-            totalFilesUploaded += pendingFiles.length;
-          } catch (uploadError) {
-            console.error(`⚠️ Erreur upload fichiers pour produit ${product.id}:`, uploadError);
-          }
-        }
-        showSuccess(`✅ ${totalCreated} produit(s) créé(s) avec ${totalFilesUploaded} document(s) total !`);
+      if (totalFiles > 0) {
+        showSuccess(`✅ ${totalCreated} produit(s) créé(s) avec ${totalFiles} document(s) uploadé(s) !`);
       } else {
         showSuccess(`✅ ${totalCreated} produit(s) créé(s) avec succès !`);
       }
+
+      console.log(`✅ Résultat:`, result);
 
       setShowAddModal(false);
       setAddProductStep(1);
