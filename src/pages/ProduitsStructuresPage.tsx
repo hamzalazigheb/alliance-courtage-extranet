@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { structuredProductsAPI, buildFileURL, assurancesAPI, buildAPIURL } from "../api";
+import { structuredProductsAPI, buildFileURL, assurancesAPI, buildAPIURL, authAPI } from "../api";
 import FavoriteButton from "../components/FavoriteButton";
 
 interface StructuredProduct {
@@ -39,6 +39,7 @@ export default function ProduitsStructuresPage() {
   const [reservationAmount, setReservationAmount] = useState('');
   const [reservationNotes, setReservationNotes] = useState('');
   const [reservationDate, setReservationDate] = useState('');
+  const [currentUser, setCurrentUser] = useState<any>(null); // Utilisateur connecté
   
   // Contenu CMS
   const [pageContent, setPageContent] = useState<PageContent>({
@@ -53,6 +54,7 @@ export default function ProduitsStructuresPage() {
     loadAssurancesMontants();
     loadCMSContent();
     loadProductReservations();
+    loadUserProfile();
   }, [selectedAssurance, selectedCategory, searchTerm]);
 
   // Charger le contenu CMS
@@ -84,6 +86,18 @@ export default function ProduitsStructuresPage() {
       }
     } catch (error) {
       console.error('Erreur chargement contenu CMS:', error);
+    }
+  };
+
+  // Charger le profil de l'utilisateur connecté
+  const loadUserProfile = async () => {
+    try {
+      const response = await authAPI.getProfile();
+      // L'API retourne { user: {...} }, donc on extrait user
+      const user = response.user || response;
+      setCurrentUser(user);
+    } catch (error) {
+      console.error('Erreur chargement profil utilisateur:', error);
     }
   };
 
@@ -214,12 +228,23 @@ export default function ProduitsStructuresPage() {
     const assuranceReservations = assuranceName 
       ? reservations.filter(res => res.assurance_name === assuranceName)
       : reservations;
-    const montantReserve = assuranceReservations.reduce((sum, res) => sum + (parseFloat(res.montant) || 0), 0);
-    const montantDisponible = montantEnveloppe - montantReserve;
+    
+    // Calculer le montant total réservé par TOUS les utilisateurs
+    const montantReserveTotal = assuranceReservations.reduce((sum, res) => sum + (parseFloat(res.montant) || 0), 0);
+    
+    // Calculer le montant réservé par l'utilisateur connecté UNIQUEMENT
+    const userReservations = currentUser 
+      ? assuranceReservations.filter(res => res.user_id === currentUser.id)
+      : [];
+    
+    const montantReserveUser = userReservations.reduce((sum, res) => sum + (parseFloat(res.montant) || 0), 0);
+    
+    const montantDisponible = montantEnveloppe - montantReserveTotal;
     
     return {
       montant: montantEnveloppe,
-      reserve: montantReserve,
+      reserve: montantReserveUser,        // Montant réservé par l'utilisateur (pour affichage sur la carte)
+      reserveTotal: montantReserveTotal,  // Montant total réservé par tous (pour calcul disponible et header)
       disponible: montantDisponible,
       total: montantEnveloppe
     };
@@ -231,10 +256,26 @@ export default function ProduitsStructuresPage() {
       return;
     }
 
+    // Calculer le montant disponible pour ce produit
+    const amounts = getProductAmounts(selectedProduct, selectedProductAssurance);
+    const montantSaisi = parseFloat(reservationAmount);
+    
+    // Validation : vérifier que le montant est positif
+    if (isNaN(montantSaisi) || montantSaisi <= 0) {
+      alert('❌ Erreur : Le montant doit être supérieur à 0');
+      return;
+    }
+    
+    // Validation : vérifier que le montant saisi ne dépasse pas le montant disponible
+    if (montantSaisi > amounts.disponible) {
+      alert(`❌ Erreur : Le montant saisi (${formatCurrency(montantSaisi)}) dépasse le montant disponible.\n\nMontant maximum disponible : ${formatCurrency(amounts.disponible)}`);
+      return;
+    }
+
     try {
       await structuredProductsAPI.createReservation(
         selectedProduct.id,
-        parseFloat(reservationAmount),
+        montantSaisi,
         reservationNotes || null,
         selectedProductAssurance // Passer l'assurance du produit
       );
@@ -442,14 +483,30 @@ export default function ProduitsStructuresPage() {
         ) : (
           Object.entries(productsByAssurance).map(([assurance, assuranceProducts]) => {
             const montant = getAssuranceMontant(assurance);
-            const progressPercent = montant.montant_enveloppe > 0 
-              ? (montant.montant_reserve / montant.montant_enveloppe) * 100 
+            
+            // Calculer le montant cumulé des réservations acceptées pour cette assurance
+            // en sommant toutes les réservations acceptées de tous les produits de cette assurance
+            let montantReserveCumule = 0;
+            let montantEnveloppeTotal = 0;
+            
+            assuranceProducts.forEach(product => {
+              const amounts = getProductAmounts(product, assurance);
+              montantEnveloppeTotal += amounts.montant;
+              montantReserveCumule += amounts.reserveTotal; // Utiliser le total de tous les utilisateurs
+            });
+            
+            // Utiliser le montant calculé ou celui de la base de données comme fallback
+            const montantReserveFinal = montantReserveCumule > 0 ? montantReserveCumule : (montant.montant_reserve || 0);
+            const montantEnveloppeFinal = montantEnveloppeTotal > 0 ? montantEnveloppeTotal : (montant.montant_enveloppe || 0);
+            
+            const progressPercent = montantEnveloppeFinal > 0 
+              ? (montantReserveFinal / montantEnveloppeFinal) * 100 
               : 0;
             
             return (
-              <div key={assurance} className="bg-white rounded-xl shadow-lg overflow-hidden">
+              <div key={assurance} className="bg-gradient-to-br from-white to-slate-100 rounded-2xl shadow-2xl overflow-hidden border-2 border-slate-300">
                 {/* Assurance Header */}
-                <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-6">
+                <div className="bg-gradient-to-r from-slate-800 via-slate-700 to-blue-900 text-white p-6 border-b-4 border-blue-500">
                   <div className="flex flex-col gap-4">
                     {/* Assurance Info */}
                     <div className="flex items-center space-x-4">
@@ -475,6 +532,22 @@ export default function ProduitsStructuresPage() {
                       />
                       </div>
                     </div>
+                    
+                    {/* Affichage du montant cumulé des réservations acceptées */}
+                    <div className="mt-3 pt-3 border-t border-white/20">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-blue-200">Montant cumulé des réservations acceptées:</span>
+                        <span className="text-white font-bold">{formatCurrency(montantReserveFinal)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-xs mt-1 text-blue-200">
+                        <span>Enveloppe totale:</span>
+                        <span>{formatCurrency(montantEnveloppeFinal)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-xs mt-1 text-blue-200">
+                        <span>Enveloppe restante:</span>
+                        <span className="font-semibold">{formatCurrency(montantEnveloppeFinal - montantReserveFinal)}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -482,15 +555,18 @@ export default function ProduitsStructuresPage() {
                 <div className="p-6 bg-gray-50">
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {assuranceProducts.map((product) => (
-                      <div 
-                        key={product.id} 
-                        className="bg-white rounded-xl shadow-md border border-gray-200 hover:shadow-lg transition-all duration-300"
+                      <div
+                        key={product.id}
+                        className="bg-gradient-to-br from-white to-slate-50 rounded-2xl shadow-xl border-2 border-slate-200 hover:shadow-2xl hover:border-slate-300 transition-all duration-300 overflow-hidden"
                       >
                         {/* Product Header */}
-                        <div className="p-5 border-b border-gray-100">
+                        <div className="bg-gradient-to-r from-slate-700 to-slate-600 p-5">
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex-1 min-w-0">
-                              <h3 className="font-bold text-gray-800 text-lg mb-2">
+                              <h3 className="font-bold text-white text-lg mb-3 flex items-center">
+                                <svg className="w-5 h-5 mr-2 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
                                 {product.title}
                               </h3>
                               <div className="flex flex-wrap gap-2">
@@ -508,7 +584,7 @@ export default function ProduitsStructuresPage() {
                                   }
                                   
                                   return categories.map((cat, idx) => (
-                                    <span key={idx} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                    <span key={idx} className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/20 text-white backdrop-blur-sm border border-white/30">
                                       {cat}
                                     </span>
                                   ));
@@ -534,22 +610,37 @@ export default function ProduitsStructuresPage() {
                           {(() => {
                             const amounts = getProductAmounts(product, assurance);
                             return (
-                              <div className="grid grid-cols-2 gap-2 mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                                <div>
-                                  <p className="text-xs text-gray-500 mb-1">Montant</p>
-                                  <p className="text-sm font-semibold text-gray-800">
+                              <div className="grid grid-cols-2 gap-3 mb-4">
+                                <div className="bg-slate-50 border-2 border-slate-200 rounded-xl p-3">
+                                  <p className="text-xs font-semibold text-slate-600 mb-1.5 flex items-center">
+                                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                                    </svg>
+                                    Montant
+                                  </p>
+                                  <p className="text-base font-bold text-slate-800">
                                     {formatCurrency(amounts.montant)}
                                   </p>
                                 </div>
-                                <div>
-                                  <p className="text-xs text-gray-500 mb-1">Réservé</p>
-                                  <p className="text-sm font-semibold text-yellow-600">
+                                <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-3">
+                                  <p className="text-xs font-semibold text-amber-700 mb-1.5 flex items-center">
+                                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    Réservé
+                                  </p>
+                                  <p className="text-base font-bold text-amber-700">
                                     {formatCurrency(amounts.reserve)}
                                   </p>
                             </div>
-                                <div>
-                                  <p className="text-xs text-gray-500 mb-1">Disponible</p>
-                                  <p className="text-sm font-semibold text-green-600">
+                                <div className="col-span-2 bg-gradient-to-r from-emerald-50 to-green-50 border-2 border-emerald-300 rounded-xl p-3">
+                                  <p className="text-xs font-semibold text-emerald-700 mb-1.5 flex items-center">
+                                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    Disponible
+                                  </p>
+                                  <p className="text-lg font-bold text-emerald-700">
                                     {formatCurrency(amounts.disponible)}
                                   </p>
                             </div>
@@ -559,9 +650,14 @@ export default function ProduitsStructuresPage() {
                           
                           {/* Date de Strike */}
                           {product.date_strike && (
-                            <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                              <p className="text-xs text-blue-600 font-medium mb-1">📅 Date de Strike</p>
-                              <p className="text-sm font-bold text-blue-800">
+                            <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-300">
+                              <p className="text-xs text-blue-700 font-semibold mb-2 flex items-center">
+                                <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                Date de Strike
+                              </p>
+                              <p className="text-base font-bold text-blue-900">
                                 {new Date(product.date_strike).toLocaleDateString('fr-FR', {
                                   day: '2-digit',
                                   month: '2-digit',
@@ -574,8 +670,11 @@ export default function ProduitsStructuresPage() {
                           {/* Liste des fichiers */}
                           {productFiles[product.id] && productFiles[product.id].length > 0 && (
                             <div className="mb-4">
-                              <h4 className="text-sm font-semibold text-gray-700 mb-2">
-                                📎 Fichiers disponibles ({productFiles[product.id].length})
+                              <h4 className="text-sm font-bold text-slate-700 mb-3 flex items-center">
+                                <svg className="w-4 h-4 mr-2 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                Fichiers disponibles ({productFiles[product.id].length})
                               </h4>
                               <div className="space-y-2">
                                 {productFiles[product.id].map((file: any) => (
@@ -584,22 +683,28 @@ export default function ProduitsStructuresPage() {
                                     href={buildAPIURL(`/structured-products/${product.id}/files/${file.id}/download`)}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                    className="flex items-center justify-between bg-gray-50 hover:bg-gray-100 p-3 rounded-lg border border-gray-200 transition-colors group"
+                                    className="flex items-center justify-between bg-slate-50 hover:bg-slate-100 p-3 rounded-xl border-2 border-slate-200 hover:border-blue-400 transition-all group"
                                   >
                                     <div className="flex items-center space-x-3 flex-1 min-w-0">
-                                      <span className="text-2xl">📄</span>
+                                      <div className="bg-blue-100 p-2 rounded-lg">
+                                        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                        </svg>
+                                      </div>
                                       <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-gray-800 truncate group-hover:text-blue-600">
+                                        <p className="text-sm font-semibold text-slate-800 truncate group-hover:text-blue-600">
                                           {file.file_name}
                                         </p>
-                                        <p className="text-xs text-gray-500">
+                                        <p className="text-xs text-slate-500 font-medium">
                                           {(file.file_size / 1024 / 1024).toFixed(2)} MB
                                         </p>
                                       </div>
                                     </div>
-                                    <svg className="w-5 h-5 text-gray-400 group-hover:text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
+                                    <div className="flex items-center space-x-1 text-blue-600 group-hover:text-blue-700">
+                                      <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                      </svg>
+                                    </div>
                               </a>
                                 ))}
                               </div>
@@ -613,9 +718,12 @@ export default function ProduitsStructuresPage() {
                               setSelectedProductAssurance(assurance); // Stocker l'assurance du groupe actuel
                                 setShowReservationModal(true);
                               }}
-                            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg transition-colors font-medium text-sm shadow-md hover:shadow-lg"
+                            className="w-full bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 hover:from-blue-700 hover:via-blue-800 hover:to-blue-900 text-white py-4 px-6 rounded-xl transition-all duration-300 font-bold text-base shadow-xl hover:shadow-2xl hover:scale-[1.02] flex items-center justify-center space-x-2 border-2 border-blue-500"
                             >
-                            ✅ Réserver ce produit
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span>Réserver ce produit</span>
                             </button>
                         </div>
                       </div>
@@ -630,10 +738,10 @@ export default function ProduitsStructuresPage() {
 
       {/* Reservation Modal */}
       {showReservationModal && selectedProduct && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-gradient-to-br from-white to-slate-50 rounded-2xl shadow-2xl max-w-lg w-full border-2 border-slate-300">
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white px-6 py-4 rounded-t-xl">
+            <div className="bg-gradient-to-r from-slate-800 via-slate-700 to-blue-900 text-white px-6 py-5 rounded-t-2xl border-b-4 border-blue-500">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-lg font-bold">{selectedProductAssurance || 'Produit'}</h2>
@@ -658,6 +766,30 @@ export default function ProduitsStructuresPage() {
             {/* Modal Body */}
             <div className="p-6">
               <h3 className="text-lg font-bold text-gray-800 mb-4">📝 Formulaire de réservation</h3>
+              
+              {/* Afficher les informations du produit */}
+              {(() => {
+                const amounts = getProductAmounts(selectedProduct, selectedProductAssurance);
+                return (
+                  <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <p className="text-gray-600 mb-1">Montant total</p>
+                        <p className="font-semibold text-gray-800">{formatCurrency(amounts.montant)}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-600 mb-1">Déjà réservé (tous utilisateurs)</p>
+                        <p className="font-semibold text-yellow-600">{formatCurrency(amounts.reserveTotal)}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-gray-600 mb-1">Montant disponible</p>
+                        <p className="font-bold text-green-600 text-lg">{formatCurrency(amounts.disponible)}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+              
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Montant à investir *</label>
@@ -668,7 +800,29 @@ export default function ProduitsStructuresPage() {
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
                     placeholder="Montant en €" 
                     required
+                    min="0"
+                    step="0.01"
                   />
+                  {(() => {
+                    if (!reservationAmount) return null;
+                    const amounts = getProductAmounts(selectedProduct, selectedProductAssurance);
+                    const montantSaisi = parseFloat(reservationAmount);
+                    if (isNaN(montantSaisi) || montantSaisi <= 0) {
+                      return (
+                        <p className="mt-1 text-sm text-red-600 font-medium">
+                          ⚠️ Le montant doit être supérieur à 0
+                        </p>
+                      );
+                    }
+                    if (montantSaisi > amounts.disponible) {
+                      return (
+                        <p className="mt-1 text-sm text-red-600 font-medium">
+                          ⚠️ Le montant saisi dépasse le montant disponible. Montant maximum : {formatCurrency(amounts.disponible)}
+                        </p>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Date de souscription souhaitée</label>
@@ -708,7 +862,13 @@ export default function ProduitsStructuresPage() {
               </button>
               <button 
                 onClick={handleReservation}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg transition-colors font-medium"
+                disabled={(() => {
+                  if (!reservationAmount) return true;
+                  const amounts = getProductAmounts(selectedProduct, selectedProductAssurance);
+                  const montantSaisi = parseFloat(reservationAmount);
+                  return isNaN(montantSaisi) || montantSaisi <= 0 || montantSaisi > amounts.disponible;
+                })()}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white py-2 px-4 rounded-lg transition-colors font-medium"
               >
                 Confirmer la réservation
               </button>

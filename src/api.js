@@ -92,6 +92,15 @@ async function apiRequest(endpoint, options = {}) {
       return retryData;
     }
     
+    // Vérifier le status code AVANT de parser JSON
+    // Gérer spécifiquement les erreurs 429 (Too Many Requests)
+    if (response.status === 429) {
+      const text = await response.text();
+      const errorMessage = text || 'Trop de requêtes. Veuillez patienter quelques instants avant de réessayer.';
+      console.warn('Rate limit atteint (429):', errorMessage);
+      throw new Error(`Trop de requêtes. Veuillez patienter quelques instants avant de réessayer.`);
+    }
+
     // Vérifier si la réponse est OK avant de parser JSON
     // Lire le texte UNE SEULE FOIS pour éviter "body stream already read"
     const text = await response.text();
@@ -109,7 +118,9 @@ async function apiRequest(endpoint, options = {}) {
       if (text.trim().startsWith('<html>') || text.trim().startsWith('<!DOCTYPE')) {
         throw new Error(`Erreur serveur (${response.status}): Le backend n'est pas accessible. Vérifiez que le serveur backend est démarré.`);
       }
-      throw new Error(`Erreur de format de réponse (${response.status}): ${response.statusText}`);
+      // Pour les erreurs non-JSON, utiliser le texte brut comme message d'erreur
+      const errorMessage = text || `Erreur HTTP ${response.status}: ${response.statusText}`;
+      throw new Error(errorMessage);
     }
 
     if (!response.ok) {

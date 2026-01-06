@@ -1,11 +1,108 @@
 import React, { useState, useEffect } from "react";
 import { buildAPIURL } from '../api';
 
+// Composant pour afficher les fichiers d'un produit (chargés via API)
+const ProductFilesSection: React.FC<{
+  productKey: string;
+  productFiles: Record<string, any[]>;
+  setProductFiles: React.Dispatch<React.SetStateAction<Record<string, any[]>>>;
+}> = ({ productKey, productFiles, setProductFiles }) => {
+  const [loading, setLoading] = useState(false);
+  
+  useEffect(() => {
+    // Charger les fichiers si pas déjà chargés
+    if (!productFiles[productKey]) {
+      loadFiles();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productKey]);
+  
+  const loadFiles = async () => {
+    try {
+      setLoading(true);
+      const encodedProductKey = encodeURIComponent(productKey);
+      const response = await fetch(buildAPIURL(`/cms/gamme-produits/files/${encodedProductKey}`));
+      if (response.ok) {
+        const files = await response.json();
+        // Filtrer les fichiers qui ont du contenu (file_size > 0)
+        const validFiles = files.filter((f: any) => f.file_size > 0);
+        setProductFiles(prev => ({ ...prev, [productKey]: validFiles }));
+        if (validFiles.length > 0) {
+          console.log(`✅ Fichiers chargés pour ${productKey}:`, validFiles.length);
+        }
+      } else {
+        // Pas de fichiers pour ce produit, initialiser avec tableau vide
+        setProductFiles(prev => ({ ...prev, [productKey]: [] }));
+      }
+    } catch (error) {
+      console.error('Erreur chargement fichiers:', error);
+      setProductFiles(prev => ({ ...prev, [productKey]: [] }));
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const files = productFiles[productKey] || [];
+  
+  if (loading) {
+    return (
+      <div className="mt-3 pt-3 border-t border-gray-300">
+        <p className="text-xs text-gray-500">Chargement des documents...</p>
+      </div>
+    );
+  }
+  
+  if (files.length === 0) {
+    return null;
+  }
+  
+  return (
+    <div className="mt-3 pt-3 border-t-2 border-slate-200">
+      <h4 className="text-sm font-bold text-slate-700 mb-3 flex items-center">
+        <svg className="w-4 h-4 mr-2 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        Documents associés
+      </h4>
+      <div className="space-y-2">
+        {files.map((file: any) => (
+          <div key={file.id} className="flex items-center justify-between bg-slate-50 rounded-xl p-3 border-2 border-slate-200 hover:border-blue-400 hover:bg-slate-100 transition-all group">
+            <div className="flex items-center space-x-2 flex-1 min-w-0">
+              <div className="bg-blue-100 p-1.5 rounded-lg">
+                <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <span className="text-xs text-slate-700 font-semibold truncate flex-1">
+                {file.file_name}
+              </span>
+            </div>
+            <a
+              href={buildAPIURL(`/cms/gamme-produits/files/${productKey}/${file.id}/download`)}
+              download={file.file_name}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all font-semibold flex items-center space-x-1 shadow-md hover:shadow-lg ml-2"
+              title="Télécharger"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span>Télécharger</span>
+            </a>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 export default function GammeProduitsPage() {
   const [selectedClientType, setSelectedClientType] = useState("particulier");
   const [selectedProductType, setSelectedProductType] = useState("epargne");
   const [cmsProducts, setCmsProducts] = useState<any | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [productFiles, setProductFiles] = useState<Record<string, any[]>>({});
 
   const clientTypes = [
     { id: "particulier", name: "Particulier", icon: "👤" },
@@ -46,63 +143,63 @@ export default function GammeProduitsPage() {
     const fallback = {
       particulier: {
         epargne: [
-          { name: "Assurance vie", description: "Solution adaptée aux besoins spécifiques" },
-          { name: "Capitalisation", description: "Solution adaptée aux besoins spécifiques" },
-          { name: "PEA assurance", description: "Solution adaptée aux besoins spécifiques" }
+          { name: "Assurance vie", description: "" },
+          { name: "Capitalisation", description: "" },
+          { name: "PEA assurance", description: "" }
         ],
-        retraite: [{ name: "PER", description: "Solution adaptée aux besoins spécifiques" }],
+        retraite: [{ name: "PER", description: "" }],
         prevoyance: [
-          { name: "Assurance décès / invalidité / incapacité", description: "Solution adaptée aux besoins spécifiques" },
-          { name: "Assurance emprunteur", description: "Solution adaptée aux besoins spécifiques" }
+          { name: "Assurance décès / invalidité / incapacité", description: "" },
+          { name: "Assurance emprunteur", description: "" }
         ],
-        sante: [{ name: "Mutuelle santé", description: "Solution adaptée aux besoins spécifiques" }],
+        sante: [{ name: "Mutuelle santé", description: "" }],
         cif: [
-          { name: "SCPI", description: "Solution adaptée aux besoins spécifiques" },
-          { name: "Private Equity", description: "Solution adaptée aux besoins spécifiques" },
-          { name: "Défiscalisation", description: "Solution adaptée aux besoins spécifiques" },
-          { name: "Diversification", description: "Solution adaptée aux besoins spécifiques" }
+          { name: "SCPI", description: "" },
+          { name: "Private Equity", description: "" },
+          { name: "Défiscalisation", description: "" },
+          { name: "Diversification", description: "" }
         ]
       },
       professionnel: {
         epargne: [
-          { name: "Capitalisation", description: "Solution adaptée aux besoins spécifiques" },
-          { name: "PEE", description: "Solution adaptée aux besoins spécifiques" }
+          { name: "Capitalisation", description: "" },
+          { name: "PEE", description: "" }
         ],
         retraite: [
-          { name: "PER", description: "Solution adaptée aux besoins spécifiques" },
-          { name: "PERCO", description: "Solution adaptée aux besoins spécifiques" }
+          { name: "PER", description: "" },
+          { name: "PERCO", description: "" }
         ],
         prevoyance: [
-          { name: "Assurance décès / invalidité / incapacité", description: "Solution adaptée aux besoins spécifiques" },
-          { name: "Assurance emprunteur", description: "Solution adaptée aux besoins spécifiques" }
+          { name: "Assurance décès / invalidité / incapacité", description: "" },
+          { name: "Assurance emprunteur", description: "" }
         ],
-        sante: [{ name: "Mutuelle santé", description: "Solution adaptée aux besoins spécifiques" }],
+        sante: [{ name: "Mutuelle santé", description: "" }],
         cif: [
-          { name: "Conseil professionnel", description: "Solution adaptée aux besoins spécifiques" },
-          { name: "Investissements professionnels", description: "Solution adaptée aux besoins spécifiques" },
-          { name: "Gestion patrimoniale", description: "Solution adaptée aux besoins spécifiques" },
-          { name: "Placements spécialisés", description: "Solution adaptée aux besoins spécifiques" }
+          { name: "Conseil professionnel", description: "" },
+          { name: "Investissements professionnels", description: "" },
+          { name: "Gestion patrimoniale", description: "" },
+          { name: "Placements spécialisés", description: "" }
         ]
       },
       entreprise: {
         epargne: [
-          { name: "Capitalisation", description: "Solution adaptée aux besoins spécifiques" },
-          { name: "PEE", description: "Solution adaptée aux besoins spécifiques" },
-          { name: "Intéressement", description: "Solution adaptée aux besoins spécifiques" },
-          { name: "Participation", description: "Solution adaptée aux besoins spécifiques" },
-          { name: "IFC", description: "Solution adaptée aux besoins spécifiques" }
+          { name: "Capitalisation", description: "" },
+          { name: "PEE", description: "" },
+          { name: "Intéressement", description: "" },
+          { name: "Participation", description: "" },
+          { name: "IFC", description: "" }
         ],
         retraite: [
-          { name: "PER Entreprise", description: "Solution adaptée aux besoins spécifiques" },
-          { name: "PERCO", description: "Solution adaptée aux besoins spécifiques" }
+          { name: "PER Entreprise", description: "" },
+          { name: "PERCO", description: "" }
         ],
-        prevoyance: [{ name: "Prévoyance collective", description: "Solution adaptée aux besoins spécifiques" }],
-        sante: [{ name: "Mutuelle santé collective", description: "Solution adaptée aux besoins spécifiques" }],
+        prevoyance: [{ name: "Prévoyance collective", description: "" }],
+        sante: [{ name: "Mutuelle santé collective", description: "" }],
         cif: [
-          { name: "Conseil d'entreprise", description: "Solution adaptée aux besoins spécifiques" },
-          { name: "Investissements corporatifs", description: "Solution adaptée aux besoins spécifiques" },
-          { name: "Gestion financière", description: "Solution adaptée aux besoins spécifiques" },
-          { name: "Stratégies d'investissement", description: "Solution adaptée aux besoins spécifiques" }
+          { name: "Conseil d'entreprise", description: "" },
+          { name: "Investissements corporatifs", description: "" },
+          { name: "Gestion financière", description: "" },
+          { name: "Stratégies d'investissement", description: "" }
         ]
       }
     };
@@ -111,11 +208,11 @@ export default function GammeProduitsPage() {
     // Convertir les anciens produits (strings) en objets si nécessaire, en préservant les documents
     return products.map((p: any) => {
       if (typeof p === 'string') {
-        return { name: p, description: 'Solution adaptée aux besoins spécifiques', documents: [] };
+        return { name: p, description: '', documents: [] };
       }
       return { 
         name: p.name || '', 
-        description: p.description || 'Solution adaptée aux besoins spécifiques',
+        description: p.description || '',
         documents: p.documents && Array.isArray(p.documents) ? p.documents : []
       };
     });
@@ -124,28 +221,38 @@ export default function GammeProduitsPage() {
   return (
     <div className="max-w-6xl mx-auto space-y-8">
       {/* Client Type Selection */}
-      <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">Type de Client</h2>
+      <div className="bg-gradient-to-br from-white to-slate-50 rounded-2xl shadow-2xl p-8 border-2 border-slate-200">
+        <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center">
+          <svg className="w-6 h-6 mr-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
+          Type de Client
+        </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {clientTypes.map((type) => (
             <button
               key={type.id}
               onClick={() => setSelectedClientType(type.id)}
-              className={`p-4 rounded-xl border-2 transition-all duration-200 ${
+              className={`p-5 rounded-xl border-2 transition-all duration-300 font-semibold ${
                 selectedClientType === type.id
-                  ? "border-indigo-500 bg-indigo-50"
-                  : "border-gray-200 hover:border-gray-300"
+                  ? "border-blue-500 bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-800 shadow-lg scale-105"
+                  : "border-slate-300 bg-white hover:border-slate-400 text-slate-700 hover:shadow-md"
               }`}
             >
-              <div className="font-medium text-gray-800">{type.name}</div>
+              <div className="text-base">{type.name}</div>
             </button>
           ))}
         </div>
       </div>
 
       {/* Product Type Selection */}
-      <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">Type de Produit</h2>
+      <div className="bg-gradient-to-br from-white to-slate-50 rounded-2xl shadow-2xl p-8 border-2 border-slate-200">
+        <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center">
+          <svg className="w-6 h-6 mr-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+          </svg>
+          Type de Produit
+        </h2>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           {(cmsProducts?.products && Object.keys(cmsProducts.products[selectedClientType] || {}).length > 0
             ? Object.keys(cmsProducts.products[selectedClientType] || {}).map((k: string) => ({ id: k, name: k }))
@@ -154,21 +261,24 @@ export default function GammeProduitsPage() {
             <button
               key={type.id}
               onClick={() => setSelectedProductType(type.id)}
-              className={`p-4 rounded-xl border-2 transition-all duration-200 ${
+              className={`p-5 rounded-xl border-2 transition-all duration-300 font-semibold ${
                 selectedProductType === type.id
-                  ? "border-purple-500 bg-purple-50"
-                  : "border-gray-200 hover:border-gray-300"
+                  ? "border-emerald-500 bg-gradient-to-r from-emerald-50 to-green-50 text-emerald-800 shadow-lg scale-105"
+                  : "border-slate-300 bg-white hover:border-slate-400 text-slate-700 hover:shadow-md"
               }`}
             >
-              <div className="font-medium text-gray-800 text-sm">{type.name}</div>
+              <div className="text-sm capitalize">{type.name}</div>
             </button>
           ))}
         </div>
       </div>
 
       {/* Products Display */}
-      <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">
+      <div className="bg-gradient-to-br from-white to-slate-50 rounded-2xl shadow-2xl p-8 border-2 border-slate-200">
+        <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center">
+          <svg className="w-6 h-6 mr-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
           Produits {clientTypes.find(t => t.id === selectedClientType)?.name} - {(
             cmsProducts?.products && cmsProducts.products[selectedClientType] && cmsProducts.products[selectedClientType][selectedProductType]
               ? selectedProductType
@@ -177,38 +287,29 @@ export default function GammeProduitsPage() {
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {getProducts().map((product: { name: string; description: string; documents?: any[] }, index: number) => (
-            <div key={index} className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200 hover:shadow-md transition-shadow">
-              <h3 className="font-medium text-gray-800 mb-2">{product.name}</h3>
-              {product.description && (
-                <p className="text-sm text-gray-600 mt-1 mb-3">
-                  {product.description}
-                </p>
-              )}
-              
-              {/* Section Documents */}
-              {product.documents && Array.isArray(product.documents) && product.documents.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-gray-300">
-                  <h4 className="text-xs font-semibold text-gray-700 mb-2">📄 Documents associés</h4>
-                  <div className="space-y-2">
-                    {product.documents.map((doc: any) => (
-                      <div key={doc.id || doc.file_name} className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-200 hover:bg-gray-50 transition-colors">
-                        <span className="text-xs text-gray-700 truncate flex-1 mr-2">
-                          {doc.title || doc.file_name || 'Document'}
-                        </span>
-                        <a
-                          href={`data:${doc.file_type || 'application/octet-stream'};base64,${doc.file_content}`}
-                          download={doc.file_name}
-                          className="px-2 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors flex items-center space-x-1"
-                          title="Télécharger"
-                        >
-                          <span>📥</span>
-                          <span>Télécharger</span>
-                        </a>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+            <div key={index} className="bg-gradient-to-br from-white to-slate-50 rounded-2xl shadow-xl border-2 border-slate-200 hover:shadow-2xl hover:border-slate-300 transition-all duration-300 overflow-hidden">
+              <div className="bg-gradient-to-r from-slate-700 to-slate-600 p-4">
+                <h3 className="font-bold text-white text-base flex items-center">
+                  <svg className="w-5 h-5 mr-2 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  {product.name}
+                </h3>
+              </div>
+              <div className="p-4">
+                {product.description && (
+                  <p className="text-sm text-slate-600 mb-3 font-medium">
+                    {product.description}
+                  </p>
+                )}
+                
+                {/* Section Documents - Chargement via API */}
+                <ProductFilesSection 
+                  productKey={`${selectedClientType}_${selectedProductType}_${product.name}`}
+                  productFiles={productFiles}
+                  setProductFiles={setProductFiles}
+                />
+              </div>
             </div>
           ))}
         </div>

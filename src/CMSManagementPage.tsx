@@ -37,6 +37,85 @@ interface HomePageContent {
   };
 }
 
+// Composant pour afficher les fichiers d'un produit dans le workflow
+const ProductFilesListForWorkflow: React.FC<{
+  productKey: string;
+  clientType: string;
+  productName: string;
+}> = ({ productKey, clientType, productName }) => {
+  const [files, setFiles] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    loadFiles();
+  }, [productKey, refreshKey]);
+
+  const loadFiles = async () => {
+    try {
+      setLoading(true);
+      const encodedProductKey = encodeURIComponent(productKey);
+      const response = await fetch(buildAPIURL(`/cms/gamme-produits/files/${encodedProductKey}`));
+      if (response.ok) {
+        const filesData = await response.json();
+        const validFiles = filesData.filter((f: any) => f.file_size > 0);
+        setFiles(validFiles);
+      } else {
+        setFiles([]);
+      }
+    } catch (error) {
+      console.error('Erreur chargement fichiers:', error);
+      setFiles([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Exposer la fonction de rechargement via window pour pouvoir l'appeler depuis le parent
+  useEffect(() => {
+    (window as any)[`reloadFiles_${productKey.replace(/[^a-zA-Z0-9]/g, '_')}`] = () => {
+      setRefreshKey(prev => prev + 1);
+    };
+    return () => {
+      delete (window as any)[`reloadFiles_${productKey.replace(/[^a-zA-Z0-9]/g, '_')}`];
+    };
+  }, [productKey]);
+
+  if (loading) {
+    return (
+      <div className="mt-3 pt-3 border-t border-slate-600">
+        <p className="text-xs text-slate-400">Chargement des documents...</p>
+      </div>
+    );
+  }
+
+  if (files.length === 0) {
+    return (
+      <div className="mt-3 pt-3 border-t border-slate-600">
+        <p className="text-sm text-slate-400">Aucun document ajouté pour le moment.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 pt-3 border-t border-slate-600">
+      <h6 className="text-sm font-semibold text-slate-300 mb-2">📄 Documents ajoutés ({files.length})</h6>
+      <div className="space-y-2">
+        {files.map((file: any) => (
+          <div key={file.id} className="flex items-center justify-between bg-slate-600/50 rounded-lg p-2">
+            <span className="text-xs text-slate-300 truncate flex-1 mr-2">
+              {file.file_name}
+            </span>
+            <span className="text-xs text-slate-400">
+              {(file.file_size / 1024).toFixed(2)} KB
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const CMSManagementPage: React.FC = () => {
   const { showSuccess, showError, showWarning } = useAlert();
   
@@ -126,7 +205,7 @@ const CMSManagementPage: React.FC = () => {
   const [editingProductDocument, setEditingProductDocument] = useState<{productName: string, family: string, client?: string} | null>(null);
   const [documentForm, setDocumentForm] = useState({
     title: '',
-    file: null as File | null
+    files: [] as File[]
   });
   // État pour gérer l'expansion des cartes de produits dans la liste globale
   const [expandedProducts, setExpandedProducts] = useState<Record<string, boolean>>({});
@@ -639,7 +718,7 @@ const CMSManagementPage: React.FC = () => {
       const changes = detectChanges();
 
       if (changes.length === 0) {
-        showSuccess('✅ Aucun changement à sauvegarder');
+        showSuccess('✅ Sauvegarde terminée');
         setSaving(false);
         return;
       }
@@ -677,9 +756,7 @@ const CMSManagementPage: React.FC = () => {
       // Mettre à jour l'état initial après sauvegarde réussie
       setInitialGpContent(JSON.parse(JSON.stringify(gpContent)));
 
-      const message = changes.length === 1
-        ? `✅ 1 famille sauvegardée (${totalSize.toFixed(2)} MB)`
-        : `✅ ${changes.length} familles sauvegardées (${totalSize.toFixed(2)} MB total)`;
+      const message = '✅ Sauvegarde terminée';
 
       setSuccessMessage(message);
       showSuccess(message);
@@ -1410,7 +1487,132 @@ const CMSManagementPage: React.FC = () => {
             )}
 
             {/* ÉTAPE 3: Gérer les documents */}
-            {workflowStep === 'manage-documents' && (
+            {workflowStep === 'manage-documents' && newlyAddedProduct && (
+              <div className="bg-slate-800 rounded-xl p-6 space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-lg font-semibold text-white">Ajouter des documents</h4>
+                    <p className="text-sm text-slate-400 mt-1">Ajoutez des documents au produit "{newlyAddedProduct.name}"</p>
+                  </div>
+                  <button
+                    onClick={() => setWorkflowStep('add-product')}
+                    className="px-4 py-2 text-sm bg-slate-700 hover:bg-slate-600 text-white rounded-lg"
+                  >
+                    ← Retour
+                  </button>
+                </div>
+
+                {/* Message de confirmation */}
+                <div className="bg-emerald-500/20 border border-emerald-500 rounded-lg p-4">
+                  <p className="text-emerald-300 font-medium mb-2">✓ Produit "{newlyAddedProduct.name}" ajouté avec succès !</p>
+                  <p className="text-sm text-slate-300">Ajoutez maintenant des documents à ce produit. Ils seront disponibles dans toutes les familles où le produit existe.</p>
+                </div>
+
+                {/* Résumé des sélections */}
+                <div className="bg-slate-700/50 rounded-lg p-4">
+                  <div className="flex flex-wrap gap-4">
+                    <div>
+                      <span className="text-sm text-slate-400">Type(s) de client:</span>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {selectedClients.map(c => (
+                          <span key={c} className="px-2 py-1 bg-blue-500/20 text-blue-300 text-sm rounded capitalize">{c}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-sm text-slate-400">Famille(s):</span>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {selectedFamilies.map(f => (
+                          <span key={f} className="px-2 py-1 bg-emerald-500/20 text-emerald-300 text-sm rounded">{f}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Afficher uniquement le produit nouvellement ajouté */}
+                <div className="bg-slate-700/50 rounded-lg p-4 border border-slate-600">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex-1">
+                      <h5 className="text-white font-semibold text-lg mb-2">{newlyAddedProduct.name}</h5>
+                      <div className="flex items-center gap-4 text-xs text-slate-400 mb-3">
+                        <span>Familles: {selectedFamilies.map(f => f.charAt(0).toUpperCase() + f.slice(1)).join(', ')}</span>
+                        <span>•</span>
+                        <span>Clients: {selectedClients.map(c => c.charAt(0).toUpperCase() + c.slice(1)).join(', ')}</span>
+                      </div>
+                      {/* Afficher la description si elle existe */}
+                      {(() => {
+                        const product = selectedClients[0] && selectedFamilies[0] 
+                          ? gpContent.products[selectedClients[0] as ClientId]?.[selectedFamilies[0] as ProdId]?.find(p => p.name === newlyAddedProduct.name)
+                          : null;
+                        return product?.description ? (
+                          <p className="text-sm text-slate-300 mt-2">{product.description}</p>
+                        ) : null;
+                      })()}
+                    </div>
+                    <button
+                      onClick={() => {
+                        setEditingProductDocument({ 
+                          productName: newlyAddedProduct.name, 
+                          family: selectedFamilies[0],
+                          client: selectedClients[0]
+                        });
+                        setShowDocumentModal(true);
+                      }}
+                      className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 whitespace-nowrap ml-4"
+                    >
+                      <span>📎</span>
+                      <span>Ajouter un document</span>
+                    </button>
+                  </div>
+
+                  {/* Liste des fichiers existants (chargés via API) */}
+                  <ProductFilesListForWorkflow 
+                    productKey={`${selectedClients[0]}_${selectedFamilies[0]}_${newlyAddedProduct.name}`}
+                    clientType={selectedClients[0]}
+                    productName={newlyAddedProduct.name}
+                  />
+                </div>
+
+                {/* Bouton Terminé */}
+                <div className="mt-6 pt-6 border-t border-slate-600">
+                  <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-emerald-300 font-medium mb-1">✓ Produit "{newlyAddedProduct.name}" prêt</p>
+                        <p className="text-sm text-slate-400">Les documents ont été ajoutés. Cliquez sur "Terminé" pour sauvegarder et afficher le produit dans la liste.</p>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          try {
+                            // Sauvegarder les changements
+                            await saveChangesOnly();
+                            
+                            // Réinitialiser le workflow
+                            setNewlyAddedProduct(null);
+                            setWorkflowStep('select');
+                            setNewProductName('');
+                            setNewProductDescription('');
+                            
+                            showSuccess('✅ Produit et documents sauvegardés avec succès ! Le produit est maintenant visible dans la liste.');
+                          } catch (error: any) {
+                            console.error('Erreur lors de la finalisation:', error);
+                            showError('Erreur lors de la sauvegarde');
+                          }
+                        }}
+                        className="px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-medium transition-colors flex items-center space-x-2"
+                      >
+                        <span>✓</span>
+                        <span>Terminé</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Ancienne section - gardée pour compatibilité mais ne s'affiche plus si newlyAddedProduct existe */}
+            {workflowStep === 'manage-documents' && !newlyAddedProduct && (
               <div className="bg-slate-800 rounded-xl p-6 space-y-6">
                 <div className="flex items-center justify-between">
                   <div>
@@ -1419,15 +1621,6 @@ const CMSManagementPage: React.FC = () => {
                   </div>
                   <div className="flex space-x-2">
                     <button
-                      onClick={() => {
-                        setNewlyAddedProduct(null);
-                        setWorkflowStep('select');
-                      }}
-                      className="px-4 py-2 text-sm bg-slate-700 hover:bg-slate-600 text-white rounded-lg"
-                    >
-                      ← Nouveau produit
-                    </button>
-                    <button
                       onClick={() => setWorkflowStep('add-product')}
                       className="px-4 py-2 text-sm bg-slate-700 hover:bg-slate-600 text-white rounded-lg"
                     >
@@ -1435,14 +1628,6 @@ const CMSManagementPage: React.FC = () => {
                     </button>
                 </div>
               </div>
-
-                {/* Si un produit vient d'être ajouté, le mettre en évidence */}
-                {newlyAddedProduct && (
-                  <div className="bg-emerald-500/20 border border-emerald-500 rounded-lg p-4">
-                    <p className="text-emerald-300 font-medium mb-2">✓ Produit "{newlyAddedProduct.name}" ajouté avec succès !</p>
-                    <p className="text-sm text-slate-300">Vous pouvez maintenant ajouter des documents à ce produit.</p>
-                  </div>
-                )}
 
                 {/* Résumé des sélections */}
                 <div className="bg-slate-700/50 rounded-lg p-4">
@@ -2293,7 +2478,7 @@ const CMSManagementPage: React.FC = () => {
                   if (e.target === e.currentTarget) {
                     setShowDocumentModal(false);
                     setEditingProductDocument(null);
-                    setDocumentForm({ title: '', file: null });
+                    setDocumentForm({ title: '', files: [] });
                   }
                 }}
               >
@@ -2409,14 +2594,33 @@ const CMSManagementPage: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-slate-300 mb-2">Fichier</label>
+                      <label className="block text-sm font-semibold text-slate-300 mb-2">Fichiers (sélection multiple possible)</label>
                       <input
                         type="file"
-                        onChange={(e) => setDocumentForm({...documentForm, file: e.target.files?.[0] || null})}
+                        multiple
+                        onChange={(e) => {
+                          const selectedFiles = Array.from(e.target.files || []);
+                          setDocumentForm({...documentForm, files: selectedFiles});
+                        }}
                         className="w-full px-4 py-2 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-500 file:text-white hover:file:bg-emerald-600"
                         accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
                       />
                       <p className="text-xs text-slate-400 mt-1">Formats acceptés: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX</p>
+                      {documentForm.files.length > 0 && (
+                        <div className="mt-3 p-3 bg-slate-700/50 rounded-lg border border-slate-600">
+                          <p className="text-xs text-slate-300 font-medium mb-2">
+                            {documentForm.files.length} fichier{documentForm.files.length > 1 ? 's' : ''} sélectionné{documentForm.files.length > 1 ? 's' : ''}:
+                          </p>
+                          <div className="space-y-1 max-h-32 overflow-y-auto">
+                            {documentForm.files.map((file, index) => (
+                              <div key={index} className="flex items-center justify-between text-xs text-slate-300 bg-slate-600/50 rounded px-2 py-1">
+                                <span className="truncate flex-1 mr-2">{file.name}</span>
+                                <span className="text-slate-400">{(file.size / 1024).toFixed(2)} KB</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div className="flex justify-end space-x-3 pt-2">
                       <button
@@ -2431,80 +2635,111 @@ const CMSManagementPage: React.FC = () => {
                       </button>
                       <button
                         onClick={async () => {
-                          if (!documentForm.file) {
-                            showWarning('Veuillez sélectionner un fichier');
+                          if (!documentForm.files || documentForm.files.length === 0) {
+                            showWarning('Veuillez sélectionner au moins un fichier');
                             return;
                           }
-                          // Convertir le fichier en base64
-                          const reader = new FileReader();
-                          reader.onload = (e) => {
-                            const fileContent = e.target?.result as string;
-                            const base64Content = fileContent.split(',')[1]; // Retirer le préfixe data:...
-                            const newDocument: ProductDocument = {
-                              id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-                              title: documentForm.title || documentForm.file!.name,
-                              file_name: documentForm.file!.name,
-                              file_content: base64Content,
-                              file_size: documentForm.file!.size,
-                              file_type: documentForm.file!.type,
-                              uploaded_at: new Date().toISOString()
-                            };
-                            // Ajouter le document au produit dans tous les clients sélectionnés
-                            const next = JSON.parse(JSON.stringify(gpContent)); // Deep copy
-                            let documentAdded = false;
-                            selectedClients.forEach((client) => {
-                              const products = next.products[client][editingProductDocument.family as ProdId];
-                              if (!products || !Array.isArray(products)) {
-                                console.error('Products array not found for', client, editingProductDocument.family);
-                                return;
+                          
+                          try {
+                            // Upload via API (comme Produits Structurés)
+                            // Pour chaque client sélectionné, créer une clé produit et uploader tous les fichiers
+                            // Le backend va automatiquement dupliquer dans toutes les familles où le produit existe
+                            const uploadPromises = selectedClients.map(async (client) => {
+                              const productKey = `${client}_${editingProductDocument.family}_${editingProductDocument.productName}`;
+                              
+                              const formData = new FormData();
+                              // Ajouter tous les fichiers
+                              documentForm.files.forEach((file) => {
+                                formData.append('files', file);
+                              });
+                              formData.append('productKey', productKey);
+                              formData.append('clientType', client);
+                              formData.append('productName', editingProductDocument.productName);
+                              
+                              const token = localStorage.getItem('token');
+                              const response = await fetch(buildAPIURL('/cms/gamme-produits/files'), {
+                                method: 'POST',
+                                headers: {
+                                  'x-auth-token': token || ''
+                                },
+                                body: formData
+                              });
+                              
+                              if (!response.ok) {
+                                const error = await response.json();
+                                throw new Error(error.error || 'Erreur lors de l\'upload');
                               }
-                              const productIndex = products.findIndex(
-                                (p: Product) => p.name === editingProductDocument.productName
-                              );
-                              if (productIndex !== -1) {
-                                if (!products[productIndex].documents) {
-                                  products[productIndex].documents = [];
-                                }
-                                // Vérifier si le document existe déjà (par nom de fichier)
-                                const existingDocIndex = products[productIndex].documents.findIndex(
-                                  (d: ProductDocument) => d.file_name === newDocument.file_name
-                                );
-                                if (existingDocIndex === -1) {
-                                  products[productIndex].documents = [...(products[productIndex].documents || []), newDocument];
-                                  documentAdded = true;
-                                  console.log('✅ Document ajouté au produit:', editingProductDocument.productName, 'dans', client, editingProductDocument.family, 'Total documents:', products[productIndex].documents.length);
-                                  console.log('📄 Document ajouté:', newDocument);
-                                } else {
-                                  console.warn('⚠️ Document déjà existant:', newDocument.file_name);
-                                  showWarning('Ce document existe déjà pour ce produit');
-                                }
-                              } else {
-                                console.warn('⚠️ Produit non trouvé:', editingProductDocument.productName, 'dans', client, editingProductDocument.family, 'Produits disponibles:', products.map((p: Product) => p.name));
-                              }
+                              
+                              return await response.json();
                             });
-                            if (documentAdded) {
-                              console.log('💾 Sauvegarde du contenu avec documents. Produit:', editingProductDocument.productName);
-                              console.log('📦 État complet après ajout:', JSON.stringify(next, null, 2));
-                              setGpContent(next);
-                              showSuccess('Document ajouté avec succès ! N\'oubliez pas de sauvegarder le contenu.');
-                              setShowDocumentModal(false);
-                              setEditingProductDocument(null);
-                              setDocumentForm({ title: '', file: null });
-                            } else {
-                              console.error('❌ Échec ajout document. Produit:', editingProductDocument.productName, 'Famille:', editingProductDocument.family, 'Clients sélectionnés:', selectedClients);
-                              showWarning('Produit non trouvé. Veuillez réessayer.');
+                            
+                            const results = await Promise.all(uploadPromises);
+                            const totalFiles = documentForm.files.length;
+                            const totalFamilies = new Set(results.flatMap(r => r.families || [])).size;
+                            showSuccess(`✅ ${totalFiles} fichier${totalFiles > 1 ? 's' : ''} uploadé${totalFiles > 1 ? 's' : ''} avec succès dans ${totalFamilies} famille(s) pour ${selectedClients.length} type(s) de client !`);
+                            
+                            setShowDocumentModal(false);
+                            setEditingProductDocument(null);
+                            setDocumentForm({ title: '', files: [] });
+                            
+                            // Recharger la liste des fichiers si on est dans le workflow avec un produit nouvellement ajouté
+                            if (newlyAddedProduct && editingProductDocument) {
+                              const productKey = `${editingProductDocument.client || selectedClients[0]}_${editingProductDocument.family}_${editingProductDocument.productName}`;
+                              const reloadFunction = (window as any)[`reloadFiles_${productKey.replace(/[^a-zA-Z0-9]/g, '_')}`];
+                              if (reloadFunction) {
+                                setTimeout(() => reloadFunction(), 500);
+                              }
                             }
-                          };
-                          reader.readAsDataURL(documentForm.file);
+                          } catch (error: any) {
+                            console.error('Erreur upload fichiers:', error);
+                            showError(error.message || 'Erreur lors de l\'upload des fichiers');
+                          }
                         }}
                         className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors font-medium"
                       >
-                        ➕ Ajouter
+                        ➕ Ajouter {documentForm.files.length > 0 ? `(${documentForm.files.length})` : ''}
                       </button>
                     </div>
                     </div>
                   </div>
                 </div>
+                
+                {/* Bouton Done - Terminer le workflow */}
+                {newlyAddedProduct && (
+                  <div className="mt-6 pt-6 border-t border-slate-600">
+                    <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-emerald-300 font-medium mb-1">✓ Produit "{newlyAddedProduct.name}" prêt</p>
+                          <p className="text-sm text-slate-400">Vous pouvez ajouter des documents ou terminer maintenant</p>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            try {
+                              // Sauvegarder les changements
+                              await saveChangesOnly();
+                              
+                              // Réinitialiser le workflow
+                              setNewlyAddedProduct(null);
+                              setWorkflowStep('select');
+                              setNewProductName('');
+                              setNewProductDescription('');
+                              
+                              showSuccess('✅ Produit et documents sauvegardés avec succès !');
+                            } catch (error: any) {
+                              console.error('Erreur lors de la finalisation:', error);
+                              showError('Erreur lors de la sauvegarde');
+                            }
+                          }}
+                          className="px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-medium transition-colors flex items-center space-x-2"
+                        >
+                          <span>✓</span>
+                          <span>Terminé</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

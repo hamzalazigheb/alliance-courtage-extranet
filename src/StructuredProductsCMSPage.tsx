@@ -34,6 +34,7 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
 }) => {
   const [products, setProducts] = useState<StructuredProduct[]>([]);
   const [productReservations, setProductReservations] = useState<Record<number, any[]>>({}); // Réservations par produit
+  const [assurancesMontants, setAssurancesMontants] = useState<any[]>([]); // Montants des assurances
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [selectedAssurance, setSelectedAssurance] = useState('');
@@ -80,7 +81,7 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
     assurances: [] as Array<{name: string, montant: string}>, // Assurances avec leurs montants
     montant_enveloppe_total: '', // Montant total enveloppe global (saisie manuelle)
     date_strike: '', // Date de Strike du produit
-    category: [] as string[], // Catégories multiples
+    category: '', // Catégorie unique (pas multiple)
     files: [] as File[] // Modifier pour accepter plusieurs fichiers
   });
 
@@ -95,7 +96,7 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
   const [editingProduct, setEditingProduct] = useState<StructuredProduct | null>(null);
   const [editProductForm, setEditProductForm] = useState({
     date_strike: '',
-    category: [] as string[]
+    category: ''
   });
   
   // État pour gérer la modification d'un fichier spécifique
@@ -129,6 +130,7 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
     loadAssurances();
     loadContent();
     loadProductReservations();
+    loadAssurancesMontants();
   }, []);
 
   const loadContent = async () => {
@@ -357,6 +359,16 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
     }
   };
 
+  // Charger les montants des assurances
+  const loadAssurancesMontants = async () => {
+    try {
+      const response = await structuredProductsAPI.getAssurancesMontants();
+      setAssurancesMontants(response);
+    } catch (error) {
+      console.error('Erreur lors du chargement des montants:', error);
+    }
+  };
+
   // Calculer les montants pour un produit
   const getProductAmounts = (product: StructuredProduct, assuranceName?: string) => {
     // Récupérer le montant développé pour ce produit et cette assurance spécifique
@@ -408,6 +420,12 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
     }).format(safeAmount);
   };
 
+  // Récupérer les montants pour une assurance
+  const getAssuranceMontant = (assuranceName: string) => {
+    const assurance = assurancesMontants.find(a => a.assurance_name === assuranceName);
+    return assurance || { montant_enveloppe: 0, montant_reserve: 0 };
+  };
+
   const handleFileUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!uploadForm.files || uploadForm.files.length === 0) {
@@ -415,8 +433,8 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
       return;
     }
 
-    if (!uploadForm.title || uploadForm.assurances.length === 0 || uploadForm.category.length === 0 || !uploadForm.montant_enveloppe_total || !uploadForm.date_strike) {
-      alert('Veuillez remplir tous les champs obligatoires : nom, au moins une assurance avec montant, montant enveloppe total, date de strike et au moins une catégorie');
+    if (!uploadForm.title || uploadForm.assurances.length === 0 || !uploadForm.category || !uploadForm.montant_enveloppe_total || !uploadForm.date_strike) {
+      alert('Veuillez remplir tous les champs obligatoires : nom, au moins une assurance avec montant, catégorie, montant enveloppe total et date de strike');
       return;
     }
 
@@ -450,7 +468,7 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
       formData.append('description', uploadForm.description || '');
       formData.append('assurances', JSON.stringify(uploadForm.assurances)); // Envoyer les assurances avec leurs montants
       formData.append('date_strike', uploadForm.date_strike); // Date de Strike
-      formData.append('category', JSON.stringify(uploadForm.category)); // Envoyer les catégories en JSON
+      formData.append('category', uploadForm.category); // Catégorie unique
       formData.append('montant_enveloppe', montantTotalFinal.toString()); // Montant total calculé automatiquement
 
       const response = await fetch(buildAPIURL('/structured-products'), {
@@ -476,7 +494,7 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
         assurances: [],
         montant_enveloppe_total: '',
         date_strike: '',
-        category: [],
+        category: '',
         files: []
       });
       
@@ -507,14 +525,14 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
     }
   };
 
-  // Fonction pour modifier la date de strike et les catégories d'un produit
+  // Fonction pour modifier la date de strike et la catégorie d'un produit
   const handleProductEdit = async () => {
     if (!editingProduct) return;
 
     try {
       await structuredProductsAPI.update(editingProduct.id, {
         date_strike: editProductForm.date_strike || null,
-        category: JSON.stringify(editProductForm.category)
+        category: editProductForm.category
       });
 
       alert('✅ Produit modifié avec succès!');
@@ -854,23 +872,36 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
       {activeSection === 'products' && availableSections.includes('products') && (
         <div className="space-y-6">
       {/* Formulaire d'upload */}
-      <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
-        <h2 className="text-xl font-semibold text-gray-800 mb-6 flex items-center">
-          <span className="bg-blue-100 text-blue-600 rounded-lg p-2 mr-3">📤</span>
-          Upload Nouveau Produit Structuré
-        </h2>
+      <div className="bg-gradient-to-br from-slate-50 to-blue-50 rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+        <div className="bg-gradient-to-r from-slate-800 via-slate-700 to-blue-900 p-6 border-b border-slate-600">
+          <div className="flex items-center space-x-4">
+            <div className="bg-blue-500/20 p-3 rounded-xl backdrop-blur-sm border border-blue-400/30">
+              <svg className="w-7 h-7 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-white mb-1">Nouveau Produit Structuré</h2>
+              <p className="text-blue-200 text-sm">Renseignez les informations du produit financier</p>
+            </div>
+          </div>
+        </div>
+        <div className="p-8">
         
         <form onSubmit={handleFileUpload} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center">
+                <svg className="w-4 h-4 mr-2 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                </svg>
                 Nom du Produit *
               </label>
               <input
                 type="text"
                 value={uploadForm.title}
                 onChange={(e) => setUploadForm({...uploadForm, title: e.target.value})}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3.5 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm transition-all text-slate-800 font-medium"
                 placeholder="Ex: Stratégie Patrimoine S Total Dividende"
                 required
               />
@@ -975,105 +1006,116 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Montant enveloppe total (€) *
+            <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center">
+              <svg className="w-4 h-4 mr-2 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Montant Enveloppe Total (€) *
             </label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={uploadForm.montant_enveloppe_total}
-              onChange={(e) => setUploadForm({...uploadForm, montant_enveloppe_total: e.target.value})}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Ex: 1000000"
-              required
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Montant total global pour ce produit (saisie manuelle)
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-lg">€</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={uploadForm.montant_enveloppe_total}
+                onChange={(e) => setUploadForm({...uploadForm, montant_enveloppe_total: e.target.value})}
+                className="w-full pl-10 pr-4 py-3.5 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white shadow-sm transition-all text-slate-800 font-semibold text-lg"
+                placeholder="1 000 000"
+                required
+              />
+            </div>
+            <p className="text-xs text-slate-600 mt-2 flex items-center">
+              <svg className="w-3 h-3 mr-1 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Montant global pour toutes les assurances confondues
             </p>
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center">
+              <svg className="w-4 h-4 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
               Date de Strike *
             </label>
             <input
               type="date"
               value={uploadForm.date_strike}
               onChange={(e) => setUploadForm({...uploadForm, date_strike: e.target.value})}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3.5 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm transition-all text-slate-800 font-medium"
               required
             />
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-slate-600 mt-2 flex items-center">
+              <svg className="w-3 h-3 mr-1 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
               Date d'échéance du produit structuré
             </p>
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center">
+              <svg className="w-4 h-4 mr-2 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+              </svg>
               Description du Produit
             </label>
             <textarea
               value={uploadForm.description}
               onChange={(e) => setUploadForm({...uploadForm, description: e.target.value})}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3.5 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm transition-all text-slate-800 resize-none"
               rows={3}
-              placeholder="Description détaillée du produit structuré..."
+              placeholder="Décrivez les caractéristiques du produit structuré..."
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Catégorie(s) * (cochez une ou plusieurs)
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center">
+              <svg className="w-4 h-4 mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+              </svg>
+              Catégorie *
+            </label>
+            <select
+              value={uploadForm.category}
+              onChange={(e) => setUploadForm({...uploadForm, category: e.target.value})}
+              className="w-full px-4 py-3.5 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white shadow-sm transition-all text-slate-800 font-medium"
+              required
+            >
+              <option value="">Sélectionnez une catégorie</option>
+              {availableCategories.map(category => (
+                <option key={category} value={category}>{category}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center">
+                <svg className="w-4 h-4 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+                Documents du Produit * (plusieurs fichiers possibles)
               </label>
-              <div className="grid grid-cols-2 gap-3 p-4 border border-gray-300 rounded-lg bg-gray-50">
-                {availableCategories.map(category => (
-                  <label key={category} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-100 p-2 rounded transition-colors">
-                    <input
-                      type="checkbox"
-                      checked={uploadForm.category.includes(category)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setUploadForm({...uploadForm, category: [...uploadForm.category, category]});
-                        } else {
-                          setUploadForm({...uploadForm, category: uploadForm.category.filter(c => c !== category)});
-                        }
-                      }}
-                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-gray-700">{category}</span>
-                  </label>
-                ))}
+              <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 bg-slate-50 hover:bg-slate-100 transition-all">
+                <input
+                  type="file"
+                  multiple
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                  onChange={(e) => {
+                    const filesArray = Array.from(e.target.files || []);
+                    setUploadForm({...uploadForm, files: filesArray});
+                  }}
+                  className="w-full px-4 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white shadow-sm transition-all file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 file:cursor-pointer cursor-pointer"
+                  required
+                />
               </div>
-              {uploadForm.category.length > 0 && (
-                <p className="text-xs text-green-600 mt-2 font-medium">
-                  ✓ {uploadForm.category.length} catégorie(s) sélectionnée(s): {uploadForm.category.join(', ')}
-                </p>
-              )}
-              {uploadForm.category.length === 0 && (
-                <p className="text-xs text-red-600 mt-2">
-                  Veuillez sélectionner au moins une catégorie
-                </p>
-              )}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Fichiers Produit * (plusieurs fichiers possibles)
-              </label>
-              <input
-                type="file"
-                multiple
-                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
-                onChange={(e) => {
-                  const filesArray = Array.from(e.target.files || []);
-                  setUploadForm({...uploadForm, files: filesArray});
-                }}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Types supportés: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX (Max: 50MB par fichier)
+              <p className="text-xs text-slate-600 mt-2 flex items-center">
+                <svg className="w-3 h-3 mr-1 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Formats acceptés: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX • Taille max: 50MB/fichier
               </p>
               {uploadForm.files.length > 0 && (
                 <div className="mt-3 space-y-2">
@@ -1102,30 +1144,33 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                 </div>
               )}
             </div>
-          </div>
 
-          <div className="flex justify-end">
+          <div className="flex justify-end pt-4 border-t-2 border-slate-200">
             <button
               type="submit"
               disabled={uploading}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-3 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 disabled:opacity-50 flex items-center space-x-2"
+              className="bg-gradient-to-r from-slate-700 via-slate-800 to-blue-900 text-white px-10 py-4 rounded-xl hover:from-slate-800 hover:via-slate-900 hover:to-blue-950 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-3 shadow-xl font-semibold text-lg border border-slate-600 hover:shadow-2xl hover:scale-105"
             >
               {uploading ? (
                 <>
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                  <span>Upload en cours...</span>
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                  <span>Traitement en cours...</span>
                 </>
               ) : (
                 <>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <span>Uploader le Produit</span>
+                  <span>Créer le Produit Structuré</span>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
                 </>
               )}
             </button>
           </div>
         </form>
+        </div>
       </div>
 
       {/* Filtres */}
@@ -1197,18 +1242,68 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
           </div>
         ) : (
           Object.entries(productsByAssurance).map(([assurance, assuranceProducts]) => {
+            // Calculer le montant cumulé des réservations acceptées pour cette assurance
+            let montantReserveCumule = 0;
+            let montantEnveloppeTotal = 0;
+            
+            assuranceProducts.forEach(product => {
+              const amounts = getProductAmounts(product, assurance);
+              montantEnveloppeTotal += amounts.montant;
+              montantReserveCumule += amounts.reserve;
+            });
+            
+            // Utiliser le montant calculé ou celui de la base de données comme fallback
+            const montant = getAssuranceMontant(assurance);
+            const montantReserveFinal = montantReserveCumule > 0 ? montantReserveCumule : (montant.montant_reserve || 0);
+            const montantEnveloppeFinal = montantEnveloppeTotal > 0 ? montantEnveloppeTotal : (montant.montant_enveloppe || 0);
+            
+            const progressPercent = montantEnveloppeFinal > 0 
+              ? (montantReserveFinal / montantEnveloppeFinal) * 100 
+              : 0;
+            
             return (
             <div key={assurance} className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden border border-white/20">
               {/* En-tête Assurance */}
               <div className={`${getAssuranceColor(assurance)} text-white p-6`}>
-                <div className="flex items-center justify-between flex-wrap gap-4">
+                <div className="flex flex-col gap-4">
+                  {/* Assurance Info */}
                   <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                    <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center">
                       <span className="text-2xl font-bold">{assurance.charAt(0)}</span>
                     </div>
                     <div>
                       <h2 className="text-2xl font-bold">{assurance}</h2>
                       <p className="text-white/80">{assuranceProducts.length} produit{assuranceProducts.length > 1 ? 's' : ''}</p>
+                    </div>
+                  </div>
+                  
+                  {/* Progress Bar */}
+                  <div className="mt-2">
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-white/80">Progression des réservations</span>
+                      <span>{progressPercent.toFixed(1)}%</span>
+                    </div>
+                    <div className="h-2 bg-white/20 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-yellow-400 to-green-400 rounded-full transition-all duration-500"
+                        style={{ width: `${Math.min(progressPercent, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Montants */}
+                  <div className="mt-3 pt-3 border-t border-white/20">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-white/80">Montant cumulé des réservations acceptées:</span>
+                      <span className="text-white font-bold">{formatCurrency(montantReserveFinal)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs mt-1 text-white/70">
+                      <span>Enveloppe totale:</span>
+                      <span>{formatCurrency(montantEnveloppeFinal)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs mt-1 text-white/70">
+                      <span>Enveloppe restante:</span>
+                      <span className="text-white font-bold">{formatCurrency(montantEnveloppeFinal - montantReserveFinal)}</span>
                     </div>
                   </div>
                 </div>
@@ -1412,20 +1507,21 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                         <button
                           onClick={() => {
                             setEditingProduct(product);
-                            // Parser les catégories
-                            let categories: string[] = [];
+                            // Parser la catégorie (peut être JSON array ou string simple)
+                            let category = '';
                             try {
                               if (product.category && product.category.startsWith('[')) {
-                                categories = JSON.parse(product.category);
+                                const categories = JSON.parse(product.category);
+                                category = categories[0] || ''; // Prendre la première si c'est un array
                               } else {
-                                categories = [product.category];
+                                category = product.category || '';
                               }
                             } catch {
-                              categories = [product.category];
+                              category = product.category || '';
                             }
                             setEditProductForm({
                               date_strike: product.date_strike || '',
-                              category: categories
+                              category: category
                             });
                           }}
                           className="bg-blue-600 text-white text-sm py-2 px-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-1"
@@ -1488,11 +1584,20 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {(() => {
-                  // Grouper les produits par titre
-                  const productsByTitle = products.reduce((acc, product) => {
+                  // Grouper les produits par titre ET montant_total_global
+                  // Cela évite de mélanger les anciens et nouveaux produits portant le même nom
+                  const productsByTitleAndMontant = products.reduce((acc, product) => {
                     const title = product.title;
-                    if (!acc[title]) {
-                      acc[title] = {
+                    const montantTotalGlobal = parseFloat((product as any).montant_total_global) || 0;
+                    
+                    // Créer une clé unique basée sur le titre ET le montant total global
+                    // Si pas de montant_total_global, utiliser l'ID pour éviter le groupement
+                    const groupKey = montantTotalGlobal > 0 
+                      ? `${title}_${montantTotalGlobal}` 
+                      : `${title}_${product.id}`;
+                    
+                    if (!acc[groupKey]) {
+                      acc[groupKey] = {
                         title: title,
                         category: product.category,
                         products: [],
@@ -1502,19 +1607,28 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                       };
                     }
                     
-                    acc[title].products.push(product);
+                    acc[groupKey].products.push(product);
                     const assuranceNames = parseAssurances(product.assurance);
-                    assuranceNames.forEach((a: string) => acc[title].assurances.add(a));
-                    acc[title].montantTotal += parseFloat(product.montant_enveloppe as any) || 0;
+                    assuranceNames.forEach((a: string) => acc[groupKey].assurances.add(a));
                     
-                    // Ajouter les réservations
+                    // Utiliser montant_total_global si disponible (nouveau système)
+                    // Sinon, utiliser le montant enveloppe (pour les anciens produits)
+                    const montantEnveloppe = parseFloat(product.montant_enveloppe as any) || 0;
+                    
+                    if (montantTotalGlobal > 0 && montantTotalGlobal > acc[groupKey].montantTotal) {
+                      acc[groupKey].montantTotal = montantTotalGlobal;
+                    } else if (montantEnveloppe > acc[groupKey].montantTotal) {
+                      acc[groupKey].montantTotal = montantEnveloppe;
+                    }
+                    
+                    // Ajouter les réservations (uniquement pour les produits de CE groupe)
                     const reservations = productReservations[product.id] || [];
-                    acc[title].reserveTotal += reservations.reduce((sum, res) => sum + (parseFloat(res.montant) || 0), 0);
+                    acc[groupKey].reserveTotal += reservations.reduce((sum, res) => sum + (parseFloat(res.montant) || 0), 0);
                     
                     return acc;
                   }, {} as Record<string, any>);
                   
-                  const groupedProducts = Object.values(productsByTitle);
+                  const groupedProducts = Object.values(productsByTitleAndMontant);
                   
                   return groupedProducts.map((group: any) => {
                     const disponible = group.montantTotal - group.reserveTotal;
@@ -1945,40 +2059,22 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                 </p>
               </div>
 
-              {/* Catégories (checkboxes) */}
+              {/* Catégorie */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  🏷️ Catégorie(s) * (cochez une ou plusieurs)
+                  🏷️ Catégorie *
                 </label>
-                <div className="grid grid-cols-2 gap-3 p-4 border border-gray-300 rounded-lg bg-gray-50">
+                <select
+                  value={editProductForm.category}
+                  onChange={(e) => setEditProductForm({...editProductForm, category: e.target.value})}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                >
+                  <option value="">Sélectionnez une catégorie</option>
                   {availableCategories.map(category => (
-                    <label key={category} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-100 p-2 rounded transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={editProductForm.category.includes(category)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setEditProductForm({...editProductForm, category: [...editProductForm.category, category]});
-                          } else {
-                            setEditProductForm({...editProductForm, category: editProductForm.category.filter(c => c !== category)});
-                          }
-                        }}
-                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-700">{category}</span>
-                    </label>
+                    <option key={category} value={category}>{category}</option>
                   ))}
-                </div>
-                {editProductForm.category.length > 0 && (
-                  <p className="text-xs text-green-600 mt-2 font-medium">
-                    ✓ {editProductForm.category.length} catégorie(s) sélectionnée(s): {editProductForm.category.join(', ')}
-                  </p>
-                )}
-                {editProductForm.category.length === 0 && (
-                  <p className="text-xs text-red-600 mt-2">
-                    Veuillez sélectionner au moins une catégorie
-                  </p>
-                )}
+                </select>
               </div>
 
               {/* Boutons */}
@@ -1991,8 +2087,7 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                 </button>
                 <button
                   onClick={handleProductEdit}
-                  disabled={editProductForm.category.length === 0}
-                  className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
                 >
                   💾 Enregistrer
                 </button>
