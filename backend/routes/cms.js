@@ -1082,43 +1082,69 @@ router.post('/gamme-produits/files', auth, authorize('admin'), uploadGammeProduc
     
     console.log(`📦 Upload fichier pour produit "${productNameParsed}" (${clientTypeParsed}) dans ${productFamilies.length} famille(s): ${productFamilies.join(', ')}`);
     
-    // Uploader chaque fichier dans toutes les familles où le produit existe
-    for (let i = 0; i < req.files.length; i++) {
-      const file = req.files[i];
-      const fileBase64 = file.buffer.toString('base64');
-      const fileName = fixFilenameEncoding(file.originalname);
-      
-      for (const family of productFamilies) {
+    // OPTIMISATION : Préparer tous les fichiers d'abord (conversion base64)
+    const preparedFiles = req.files.map((file, i) => ({
+      buffer: file.buffer,
+      base64: file.buffer.toString('base64'),
+      fileName: fixFilenameEncoding(file.originalname),
+      size: file.size,
+      mimetype: file.mimetype,
+      displayOrder: i
+    }));
+    
+    // OPTIMISATION : Créer toutes les combinaisons fichier x famille
+    const allCombinations = [];
+    preparedFiles.forEach(file => {
+      productFamilies.forEach(family => {
         const fullProductKey = `${clientTypeParsed}_${family}_${productNameParsed}`;
-        
-        // Vérifier si le fichier existe déjà pour cette famille
-        const existing = await query(
-          `SELECT id FROM gamme_product_files 
-           WHERE product_key = ? AND file_name = ?`,
-          [fullProductKey, fileName]
-        );
-        
-        if (!existing || existing.length === 0) {
-          const result = await query(
+        allCombinations.push({
+          productKey: fullProductKey,
+          fileName: file.fileName,
+          fileBase64: file.base64,
+          fileSize: file.size,
+          fileType: file.mimetype,
+          displayOrder: file.displayOrder
+        });
+      });
+    });
+    
+    // OPTIMISATION : Vérifier tous les fichiers existants en UNE SEULE requête
+    if (allCombinations.length > 0) {
+      const conditions = allCombinations.map(() => '(product_key = ? AND file_name = ?)').join(' OR ');
+      const params = allCombinations.flatMap(c => [c.productKey, c.fileName]);
+      
+      const existingFiles = await query(
+        `SELECT product_key, file_name FROM gamme_product_files WHERE ${conditions}`,
+        params
+      );
+      
+      const existingSet = new Set(
+        existingFiles.map(f => `${f.product_key}|${f.file_name}`)
+      );
+      
+      // OPTIMISATION : Insérer tous les nouveaux fichiers en parallèle avec Promise.all()
+      const insertPromises = allCombinations
+        .filter(c => !existingSet.has(`${c.productKey}|${c.fileName}`))
+        .map(c => 
+          query(
             `INSERT INTO gamme_product_files 
              (product_key, file_name, file_content, file_size, file_type, display_order) 
              VALUES (?, ?, ?, ?, ?, ?)`,
-            [fullProductKey, fileName, fileBase64, file.size, file.mimetype, i]
-          );
-          
-          uploadedFiles.push({
+            [c.productKey, c.fileName, c.fileBase64, c.fileSize, c.fileType, c.displayOrder]
+          ).then(result => ({
             id: result.insertId,
-            product_key: fullProductKey,
-            file_name: fileName,
-            file_size: file.size,
-            file_type: file.mimetype
-          });
-          
-          console.log(`✅ Fichier uploadé: ${fullProductKey} - ${fileName}`);
-        } else {
-          console.log(`⏭️ Fichier déjà existant (ignoré): ${fullProductKey} - ${fileName}`);
-        }
-      }
+            product_key: c.productKey,
+            file_name: c.fileName,
+            file_size: c.fileSize,
+            file_type: c.fileType
+          }))
+        );
+      
+      // Exécuter tous les inserts en parallèle
+      const results = await Promise.all(insertPromises);
+      uploadedFiles.push(...results);
+      
+      console.log(`✅ ${results.length} fichier(s) uploadé(s), ${existingFiles.length} déjà existant(s)`);
     }
     
     const uniqueFamilies = [...new Set(uploadedFiles.map(f => f.product_key.split('_')[1]))];
