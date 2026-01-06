@@ -255,11 +255,11 @@ router.post('/', auth, authorize('admin'), upload.array('files', 10), handleMult
       // Créer un produit pour cette assurance
     let result;
     try {
-      // Essayer d'insérer avec montant_enveloppe et date_strike
+      // Essayer d'insérer avec montant_enveloppe, montant_total_global et date_strike
       result = await query(
         `INSERT INTO archives 
-           (title, description, category, assurance, uploaded_by, montant_enveloppe, date_strike) 
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+           (title, description, category, assurance, uploaded_by, montant_enveloppe, montant_total_global, date_strike) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           title,
           description || '',
@@ -267,6 +267,7 @@ router.post('/', auth, authorize('admin'), upload.array('files', 10), handleMult
             assuranceName, // Stocker le nom de l'assurance uniquement (pas de JSON)
           req.user.id,
             assuranceMontant,
+            montantEnveloppe, // Montant total global saisi
             date_strike || null
         ]
       );
@@ -966,11 +967,15 @@ router.get('/reservations/my', auth, async (req, res) => {
 });
 
 // @route   GET /api/structured-products/reservations/all
-// @desc    Récupérer toutes les réservations (Admin seulement)
-// @access  Private (Admin seulement)
-router.get('/reservations/all', auth, authorize('admin'), async (req, res) => {
+// @desc    Récupérer toutes les réservations
+// @access  Private (tous les utilisateurs authentifiés peuvent voir les réservations acceptées)
+router.get('/reservations/all', auth, async (req, res) => {
   try {
     const { status } = req.query;
+    
+    // Si un utilisateur non-admin essaie d'accéder, restreindre aux réservations acceptées uniquement
+    const isAdmin = req.user && req.user.role === 'admin';
+    const allowedStatus = isAdmin ? status : 'approved';
     
     let sql = `
       SELECT pr.*, 
@@ -984,9 +989,9 @@ router.get('/reservations/all', auth, authorize('admin'), async (req, res) => {
     `;
     
     const params = [];
-    if (status) {
+    if (allowedStatus) {
       sql += ' WHERE pr.status = ?';
-      params.push(status);
+      params.push(allowedStatus);
     }
     
     sql += ' ORDER BY pr.created_at DESC';

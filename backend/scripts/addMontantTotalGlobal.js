@@ -1,7 +1,7 @@
 const mysql = require('mysql2/promise');
 require('dotenv').config({ path: '../config.env' });
 
-async function addMontantEnveloppeColumn() {
+async function addMontantTotalGlobalColumn() {
   let connection;
   
   try {
@@ -17,33 +17,39 @@ async function addMontantEnveloppeColumn() {
     console.log('✅ Connexion réussie!');
     
     // Vérifier si la colonne existe déjà
-    console.log('\n📋 Vérification de la colonne montant_enveloppe...');
+    console.log('\n📋 Vérification de la colonne montant_total_global...');
     const [columns] = await connection.query(`
       SELECT COLUMN_NAME 
       FROM INFORMATION_SCHEMA.COLUMNS 
       WHERE TABLE_SCHEMA = ? 
         AND TABLE_NAME = 'archives' 
-        AND COLUMN_NAME = 'montant_enveloppe'
+        AND COLUMN_NAME = 'montant_total_global'
     `, [process.env.DB_NAME || 'alliance_courtage']);
     
     if (columns.length > 0) {
-      console.log('✅ La colonne montant_enveloppe existe déjà dans la table archives');
+      console.log('✅ La colonne montant_total_global existe déjà dans la table archives');
     } else {
-      console.log('⚠️  La colonne montant_enveloppe n\'existe pas, création...');
+      console.log('⚠️  La colonne montant_total_global n\'existe pas, création...');
       
       // Ajouter la colonne
       await connection.query(`
         ALTER TABLE archives 
-        ADD COLUMN montant_enveloppe DECIMAL(15,2) DEFAULT 0 
-        COMMENT 'Montant enveloppe du produit structuré'
+        ADD COLUMN montant_total_global DECIMAL(15,2) DEFAULT NULL
+        COMMENT 'Montant total global du produit (tous assurances confondues)'
       `);
       
-      console.log('✅ Colonne montant_enveloppe ajoutée avec succès!');
+      console.log('✅ Colonne montant_total_global ajoutée avec succès!');
     }
     
     // Afficher la structure de la table
-    console.log('\n📊 Structure de la table archives:');
-    const [structure] = await connection.query('DESCRIBE archives');
+    console.log('\n📊 Structure de la table archives (colonnes montant):');
+    const [structure] = await connection.query(`
+      SELECT COLUMN_NAME, COLUMN_TYPE, COLUMN_DEFAULT, COLUMN_COMMENT
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = ?
+        AND TABLE_NAME = 'archives'
+        AND COLUMN_NAME LIKE '%montant%'
+    `, [process.env.DB_NAME || 'alliance_courtage']);
     console.table(structure);
     
   } catch (error) {
@@ -57,4 +63,5 @@ async function addMontantEnveloppeColumn() {
   }
 }
 
-addMontantEnveloppeColumn();
+addMontantTotalGlobalColumn();
+

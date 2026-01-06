@@ -67,12 +67,24 @@ app.use(cors({
   exposedHeaders: ['Content-Type']
 }));
 
-// Rate limiting (disabled in development for testing)
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'development' ? 10000 : 1000 // 10000 en dev, 1000 en prod (augmenté pour éviter les blocages)
-});
-app.use(limiter);
+// Rate limiting - DÉSACTIVÉ TEMPORAIREMENT pour éviter les blocages
+// Si vous souhaitez le réactiver, décommentez ce bloc et configurez NODE_ENV correctement
+/*
+if (process.env.NODE_ENV === 'production') {
+  const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10000, // 10000 requêtes toutes les 15 minutes en production
+    message: 'Too many requests, please try again later.',
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  app.use(limiter);
+  console.log('✓ Rate limiting activé en mode production (10000 req/15min)');
+} else {
+  console.log('⚠️  Rate limiting désactivé en mode développement');
+}
+*/
+console.log('⚠️  Rate limiting complètement désactivé');
 
 // Metrics middleware (must be before routes to track all requests)
 app.use(metricsMiddleware);
