@@ -262,32 +262,64 @@ router.put('/gamme-produits', auth, async (req, res) => {
       size: `${contentSizeMB.toFixed(2)} MB`
     });
     
-    // Logs détaillés en arrière-plan (non bloquants)
-    setImmediate(() => {
-    try {
-      let parsed = typeof content === 'string' ? JSON.parse(content) : content;
-      if (typeof parsed === 'string') {
-        parsed = JSON.parse(parsed);
-      }
-      
-      let totalDocuments = 0;
-      if (parsed && parsed.products) {
-        Object.keys(parsed.products).forEach((clientKey) => {
-          Object.keys(parsed.products[clientKey] || {}).forEach((familyKey) => {
-            const products = parsed.products[clientKey][familyKey];
-            if (Array.isArray(products)) {
-              products.forEach((p) => {
-                if (p && p.documents && Array.isArray(p.documents)) {
-                  totalDocuments += p.documents.length;
+    // 🆕 SYNCHRONISER LES PRODUITS DANS LA DB (en arrière-plan, non bloquant)
+    setImmediate(async () => {
+      try {
+        let parsed = typeof content === 'string' ? JSON.parse(content) : content;
+        if (typeof parsed === 'string') {
+          parsed = JSON.parse(parsed);
+        }
+        
+        let totalDocuments = 0;
+        let syncedProducts = 0;
+        
+        if (parsed && parsed.products) {
+          // Pour chaque client type (particulier, professionnel, entreprise)
+          for (const clientType of Object.keys(parsed.products)) {
+            const clientProducts = parsed.products[clientType];
+            
+            // Pour chaque famille (epargne, retraite, etc.)
+            for (const family of Object.keys(clientProducts || {})) {
+              const products = clientProducts[family];
+              
+              if (Array.isArray(products)) {
+                // Pour chaque produit
+                for (const product of products) {
+                  const productName = typeof product === 'string' ? product : (product.name || '');
+                  const productDescription = typeof product === 'object' ? (product.description || '') : '';
+                  
+                  if (productName) {
+                    const productKey = `${clientType}_${family}_${productName}`;
+                    
+                    // Insérer ou mettre à jour le produit dans la DB
+                    try {
+                      await query(`
+                        INSERT INTO gamme_products (product_key, client_type, family, product_name, description)
+                        VALUES (?, ?, ?, ?, ?)
+                        ON DUPLICATE KEY UPDATE 
+                          description = VALUES(description),
+                          updated_at = NOW()
+                      `, [productKey, clientType, family, productName, productDescription]);
+                      
+                      syncedProducts++;
+                    } catch (dbError) {
+                      console.error(`⚠️ Erreur sync produit ${productKey}:`, dbError.message);
+                    }
+                  }
+                  
+                  // Compter les documents (pour les logs)
+                  if (product && product.documents && Array.isArray(product.documents)) {
+                    totalDocuments += product.documents.length;
+                  }
                 }
-              });
+              }
             }
-          });
-        });
-      }
-        console.log(`📊 Total documents sauvegardés: ${totalDocuments}`);
-    } catch (parseError) {
-        // Ignorer les erreurs de parsing pour les logs
+          }
+        }
+        
+        console.log(`📊 Sync DB terminée: ${syncedProducts} produits synchronisés, ${totalDocuments} documents référencés`);
+      } catch (parseError) {
+        console.error('⚠️ Erreur sync DB:', parseError.message);
       }
     });
     
@@ -369,6 +401,40 @@ router.put('/gamme-produits/family', auth, async (req, res) => {
       familySize: `${familyDataSize.toFixed(2)} MB`,
       totalSize: `${totalSize.toFixed(2)} MB`,
       productsCount: products.length
+    });
+    
+    // 🆕 SYNCHRONISER LES PRODUITS DE CETTE FAMILLE DANS LA DB (en arrière-plan)
+    setImmediate(async () => {
+      try {
+        let syncedProducts = 0;
+        
+        for (const product of products) {
+          const productName = typeof product === 'string' ? product : (product.name || '');
+          const productDescription = typeof product === 'object' ? (product.description || '') : '';
+          
+          if (productName) {
+            const productKey = `${clientType}_${family}_${productName}`;
+            
+            try {
+              await query(`
+                INSERT INTO gamme_products (product_key, client_type, family, product_name, description)
+                VALUES (?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE 
+                  description = VALUES(description),
+                  updated_at = NOW()
+              `, [productKey, clientType, family, productName, productDescription]);
+              
+              syncedProducts++;
+            } catch (dbError) {
+              console.error(`⚠️ Erreur sync produit ${productKey}:`, dbError.message);
+            }
+          }
+        }
+        
+        console.log(`📊 Sync DB famille ${clientType}/${family}: ${syncedProducts} produits synchronisés`);
+      } catch (syncError) {
+        console.error('⚠️ Erreur sync DB famille:', syncError.message);
+      }
     });
     
   } catch (error) {
