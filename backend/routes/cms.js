@@ -1018,7 +1018,7 @@ const handleGammeProductMulterError = (err, req, res, next) => {
 // @access  Private (Admin)
 router.post('/gamme-produits/files', auth, authorize('admin'), uploadGammeProduct.array('files', 10), handleGammeProductMulterError, async (req, res) => {
   try {
-    const { productKey, clientType, productName } = req.body; // Format: "particulier_epargne_Assurance vie"
+    const { productKey } = req.body; // Format: "particulier_epargne_Assurance vie"
     
     if (!productKey) {
       return res.status(400).json({ error: 'productKey est requis' });
@@ -1028,131 +1028,49 @@ router.post('/gamme-produits/files', auth, authorize('admin'), uploadGammeProduc
       return res.status(400).json({ error: 'Au moins un fichier est requis' });
     }
     
-    // Parser la clé produit pour extraire clientType et productName
-    const parts = productKey.split('_');
-    let clientTypeParsed = clientType || parts[0];
-    let productNameParsed = productName || parts.slice(2).join('_');
+    console.log(`📦 Upload de ${req.files.length} fichier(s) pour produit: ${productKey}`);
     
-    // Si on a clientType et productName, chercher dans toutes les familles
-    const families = ['epargne', 'retraite', 'prevoyance', 'sante', 'cif'];
     const uploadedFiles = [];
     
-    // Vérifier dans quelles familles le produit existe
-    let productFamilies = [];
-    try {
-      const cmsContent = await query(
-        'SELECT content FROM cms_content WHERE page = ?',
-        ['gamme-produits']
+    // ARCHITECTURE SIMPLE (comme Produits Structurés):
+    // 1 fichier = 1 entrée dans la DB, pas de duplication
+    for (let i = 0; i < req.files.length; i++) {
+      const file = req.files[i];
+      const fileBase64 = file.buffer.toString('base64');
+      const fileName = fixFilenameEncoding(file.originalname);
+      
+      // Vérifier si le fichier existe déjà
+      const existing = await query(
+        `SELECT id FROM gamme_product_files 
+         WHERE product_key = ? AND file_name = ?`,
+        [productKey, fileName]
       );
       
-      if (cmsContent && cmsContent.length > 0) {
-        let gpContent = cmsContent[0].content;
-        gpContent = typeof gpContent === 'string' ? JSON.parse(gpContent) : gpContent;
-        if (typeof gpContent === 'string') {
-          gpContent = JSON.parse(gpContent);
-        }
-        
-        // Trouver toutes les familles où ce produit existe
-        if (gpContent.products && gpContent.products[clientTypeParsed]) {
-          families.forEach(family => {
-            const products = gpContent.products[clientTypeParsed][family] || [];
-            const productExists = products.some(p => {
-              const pName = typeof p === 'string' ? p : (p.name || '');
-              return pName === productNameParsed;
-            });
-            if (productExists) {
-              productFamilies.push(family);
-            }
-          });
-        }
-      }
-    } catch (error) {
-      console.warn('Erreur lors de la recherche des familles, utilisation de la famille de la clé:', error);
-    }
-    
-    // Si aucune famille trouvée, utiliser la famille de la clé originale
-    if (productFamilies.length === 0 && parts.length >= 2) {
-      productFamilies = [parts[1]]; // Utiliser la famille de la clé originale
-    }
-    
-    // Si toujours aucune famille, utiliser toutes les familles par défaut
-    if (productFamilies.length === 0) {
-      productFamilies = families;
-    }
-    
-    console.log(`📦 Upload fichier pour produit "${productNameParsed}" (${clientTypeParsed}) dans ${productFamilies.length} famille(s): ${productFamilies.join(', ')}`);
-    
-    // OPTIMISATION : Préparer tous les fichiers d'abord (conversion base64)
-    const preparedFiles = req.files.map((file, i) => ({
-      buffer: file.buffer,
-      base64: file.buffer.toString('base64'),
-      fileName: fixFilenameEncoding(file.originalname),
-      size: file.size,
-      mimetype: file.mimetype,
-      displayOrder: i
-    }));
-    
-    // OPTIMISATION : Créer toutes les combinaisons fichier x famille
-    const allCombinations = [];
-    preparedFiles.forEach(file => {
-      productFamilies.forEach(family => {
-        const fullProductKey = `${clientTypeParsed}_${family}_${productNameParsed}`;
-        allCombinations.push({
-          productKey: fullProductKey,
-          fileName: file.fileName,
-          fileBase64: file.base64,
-          fileSize: file.size,
-          fileType: file.mimetype,
-          displayOrder: file.displayOrder
-        });
-      });
-    });
-    
-    // OPTIMISATION : Vérifier tous les fichiers existants en UNE SEULE requête
-    if (allCombinations.length > 0) {
-      const conditions = allCombinations.map(() => '(product_key = ? AND file_name = ?)').join(' OR ');
-      const params = allCombinations.flatMap(c => [c.productKey, c.fileName]);
-      
-      const existingFiles = await query(
-        `SELECT product_key, file_name FROM gamme_product_files WHERE ${conditions}`,
-        params
-      );
-      
-      const existingSet = new Set(
-        existingFiles.map(f => `${f.product_key}|${f.file_name}`)
-      );
-      
-      // OPTIMISATION : Insérer tous les nouveaux fichiers en parallèle avec Promise.all()
-      const insertPromises = allCombinations
-        .filter(c => !existingSet.has(`${c.productKey}|${c.fileName}`))
-        .map(c => 
-          query(
-            `INSERT INTO gamme_product_files 
-             (product_key, file_name, file_content, file_size, file_type, display_order) 
-             VALUES (?, ?, ?, ?, ?, ?)`,
-            [c.productKey, c.fileName, c.fileBase64, c.fileSize, c.fileType, c.displayOrder]
-          ).then(result => ({
-            id: result.insertId,
-            product_key: c.productKey,
-            file_name: c.fileName,
-            file_size: c.fileSize,
-            file_type: c.fileType
-          }))
+      if (!existing || existing.length === 0) {
+        const result = await query(
+          `INSERT INTO gamme_product_files 
+           (product_key, file_name, file_content, file_size, file_type, display_order) 
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [productKey, fileName, fileBase64, file.size, file.mimetype, i]
         );
-      
-      // Exécuter tous les inserts en parallèle
-      const results = await Promise.all(insertPromises);
-      uploadedFiles.push(...results);
-      
-      console.log(`✅ ${results.length} fichier(s) uploadé(s), ${existingFiles.length} déjà existant(s)`);
+        
+        uploadedFiles.push({
+          id: result.insertId,
+          product_key: productKey,
+          file_name: fileName,
+          file_size: file.size,
+          file_type: file.mimetype
+        });
+        
+        console.log(`✅ Fichier uploadé: ${fileName}`);
+      } else {
+        console.log(`⏭️ Fichier déjà existant (ignoré): ${fileName}`);
+      }
     }
-    
-    const uniqueFamilies = [...new Set(uploadedFiles.map(f => f.product_key.split('_')[1]))];
     
     res.status(201).json({
-      message: `${uploadedFiles.length} fichier(s) uploadé(s) avec succès dans ${uniqueFamilies.length} famille(s)`,
-      files: uploadedFiles,
-      families: uniqueFamilies
+      message: `${uploadedFiles.length} fichier(s) uploadé(s) avec succès`,
+      files: uploadedFiles
     });
   } catch (error) {
     console.error('Erreur upload fichiers gamme produit:', error);
@@ -1163,68 +1081,21 @@ router.post('/gamme-produits/files', auth, authorize('admin'), uploadGammeProduc
 });
 
 // @route   GET /api/cms/gamme-produits/files/:productKey
-// @desc    Get all files for a gamme product (cherche dans toutes les familles du même produit)
+// @desc    Get all files for a gamme product (ARCHITECTURE SIMPLE comme Produits Structurés)
 // @access  Public
 router.get('/gamme-produits/files/:productKey', async (req, res) => {
   try {
     const { productKey } = req.params;
     const decodedProductKey = decodeURIComponent(productKey);
     
-    // Parser la clé produit pour extraire clientType et productName
-    const parts = decodedProductKey.split('_');
-    
-    let files = [];
-    
-    if (parts.length >= 3) {
-      // Format: clientType_family_productName
-      const clientType = parts[0];
-      const productName = parts.slice(2).join('_'); // En cas de nom avec underscore
-      
-      // Chercher dans toutes les familles possibles
-      const families = ['epargne', 'retraite', 'prevoyance', 'sante', 'cif'];
-      
-      for (const family of families) {
-        const searchKey = `${clientType}_${family}_${productName}`;
-        const familyFiles = await query(
-          `SELECT id, file_name, file_size, file_type, display_order, created_at, product_key
-           FROM gamme_product_files 
-           WHERE product_key = ? AND file_size > 0
-           ORDER BY display_order`,
-          [searchKey]
-        );
-        files = files.concat(familyFiles);
-      }
-      
-      // Dédupliquer par file_name et file_size pour éviter les doublons
-      const uniqueFiles = [];
-      const seenKeys = new Set();
-      files.forEach(file => {
-        const key = `${file.file_name}_${file.file_size}`;
-        if (!seenKeys.has(key)) {
-          seenKeys.add(key);
-          uniqueFiles.push(file);
-        }
-      });
-      
-      // Trier par display_order puis par created_at
-      uniqueFiles.sort((a, b) => {
-        if (a.display_order !== b.display_order) {
-          return a.display_order - b.display_order;
-        }
-        return new Date(a.created_at) - new Date(b.created_at);
-      });
-      
-      files = uniqueFiles;
-    } else {
-      // Format simple, chercher directement
-      files = await query(
-        `SELECT id, file_name, file_size, file_type, display_order, created_at, product_key
-         FROM gamme_product_files 
-         WHERE product_key = ? AND file_size > 0
-         ORDER BY display_order`,
-        [decodedProductKey]
-      );
-    }
+    // ARCHITECTURE SIMPLE : Chercher uniquement avec le productKey fourni
+    const files = await query(
+      `SELECT id, file_name, file_size, file_type, display_order, created_at, product_key
+       FROM gamme_product_files 
+       WHERE product_key = ? AND file_size > 0
+       ORDER BY display_order`,
+      [decodedProductKey]
+    );
     
     res.json(files);
   } catch (error) {
@@ -1271,61 +1142,26 @@ router.get('/gamme-produits/files/:productKey/:fileId/download', async (req, res
 });
 
 // @route   DELETE /api/cms/gamme-produits/files/:productKey/:fileId
-// @desc    Delete a file (supprime dans toutes les familles où il existe)
+// @desc    Delete a file (ARCHITECTURE SIMPLE comme Produits Structurés)
 // @access  Private (Admin)
 router.delete('/gamme-produits/files/:productKey/:fileId', auth, authorize('admin'), async (req, res) => {
   try {
     const { productKey, fileId } = req.params;
     const decodedProductKey = decodeURIComponent(productKey);
     
-    // Récupérer le fichier pour obtenir son nom
-    const fileInfo = await query(
-      `SELECT file_name FROM gamme_product_files WHERE id = ?`,
-      [fileId]
+    // ARCHITECTURE SIMPLE : Supprimer uniquement le fichier spécifié
+    const result = await query(
+      `DELETE FROM gamme_product_files 
+       WHERE id = ? AND product_key = ?`,
+      [fileId, decodedProductKey]
     );
     
-    if (fileInfo.length === 0) {
-      return res.status(404).json({ error: 'Fichier non trouvé' });
-    }
-    
-    const fileName = fileInfo[0].file_name;
-    
-    // Parser la clé pour trouver toutes les familles
-    const parts = decodedProductKey.split('_');
-    let deletedCount = 0;
-    
-    if (parts.length >= 3) {
-      const clientType = parts[0];
-      const productName = parts.slice(2).join('_');
-      const families = ['epargne', 'retraite', 'prevoyance', 'sante', 'cif'];
-      
-      // Supprimer le fichier dans toutes les familles où il existe
-      for (const family of families) {
-        const fullProductKey = `${clientType}_${family}_${productName}`;
-        const result = await query(
-          `DELETE FROM gamme_product_files 
-           WHERE product_key = ? AND file_name = ?`,
-          [fullProductKey, fileName]
-        );
-        deletedCount += result.affectedRows;
-      }
-    } else {
-      // Supprimer uniquement pour la clé spécifiée
-      const result = await query(
-        `DELETE FROM gamme_product_files 
-         WHERE id = ? AND product_key = ?`,
-        [fileId, decodedProductKey]
-      );
-      deletedCount = result.affectedRows;
-    }
-    
-    if (deletedCount === 0) {
+    if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Fichier non trouvé' });
     }
     
     res.json({ 
-      message: `Fichier supprimé avec succès (${deletedCount} occurrence(s))`,
-      deletedCount 
+      message: 'Fichier supprimé avec succès'
     });
   } catch (error) {
     console.error('Erreur delete gamme product file:', error);
@@ -1336,7 +1172,7 @@ router.delete('/gamme-produits/files/:productKey/:fileId', auth, authorize('admi
 });
 
 // @route   PUT /api/cms/gamme-produits/files/:productKey/:fileId
-// @desc    Replace a file (remplace dans toutes les familles où il existe)
+// @desc    Replace a file (ARCHITECTURE SIMPLE comme Produits Structurés)
 // @access  Private (Admin)
 router.put('/gamme-produits/files/:productKey/:fileId', auth, authorize('admin'), uploadGammeProduct.single('file'), handleGammeProductMulterError, async (req, res) => {
   try {
@@ -1347,64 +1183,42 @@ router.put('/gamme-produits/files/:productKey/:fileId', auth, authorize('admin')
       return res.status(400).json({ error: 'Aucun fichier fourni' });
     }
     
-    // Récupérer le fichier existant pour obtenir son nom
+    // Vérifier que le fichier existe
     const existingFile = await query(
-      `SELECT file_name, product_key FROM gamme_product_files WHERE id = ?`,
-      [fileId]
+      `SELECT id FROM gamme_product_files WHERE id = ? AND product_key = ?`,
+      [fileId, decodedProductKey]
     );
     
     if (existingFile.length === 0) {
       return res.status(404).json({ error: 'Fichier non trouvé' });
     }
     
-    const oldFileName = existingFile[0].file_name;
+    // ARCHITECTURE SIMPLE : Mettre à jour uniquement le fichier spécifié
     const fileContent = req.file.buffer.toString('base64');
     const newFileName = fixFilenameEncoding(req.file.originalname);
     
-    // Parser la clé pour trouver toutes les familles
-    const parts = decodedProductKey.split('_');
-    let updatedCount = 0;
+    const result = await query(
+      `UPDATE gamme_product_files 
+       SET file_name = ?, 
+           file_content = ?, 
+           file_size = ?, 
+           file_type = ?
+       WHERE id = ? AND product_key = ?`,
+      [newFileName, fileContent, req.file.size, req.file.mimetype, fileId, decodedProductKey]
+    );
     
-    if (parts.length >= 3) {
-      const clientType = parts[0];
-      const productName = parts.slice(2).join('_');
-      const families = ['epargne', 'retraite', 'prevoyance', 'sante', 'cif'];
-      
-      // Remplacer le fichier dans toutes les familles où il existe
-      for (const family of families) {
-        const fullProductKey = `${clientType}_${family}_${productName}`;
-        const result = await query(
-          `UPDATE gamme_product_files 
-           SET file_name = ?, 
-               file_content = ?, 
-               file_size = ?, 
-               file_type = ?
-           WHERE product_key = ? AND file_name = ?`,
-          [newFileName, fileContent, req.file.size, req.file.mimetype, fullProductKey, oldFileName]
-        );
-        updatedCount += result.affectedRows;
-      }
-    } else {
-      // Remplacer uniquement pour la clé spécifiée
-      const result = await query(
-        `UPDATE gamme_product_files 
-         SET file_name = ?, 
-             file_content = ?, 
-             file_size = ?, 
-             file_type = ?
-         WHERE id = ? AND product_key = ?`,
-        [newFileName, fileContent, req.file.size, req.file.mimetype, fileId, decodedProductKey]
-      );
-      updatedCount = result.affectedRows;
-    }
-    
-    if (updatedCount === 0) {
+    if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Fichier non trouvé' });
     }
     
     res.json({ 
-      message: `Fichier remplacé avec succès (${updatedCount} occurrence(s))`,
-      updatedCount 
+      message: 'Fichier remplacé avec succès',
+      file: {
+        id: fileId,
+        name: newFileName,
+        size: req.file.size,
+        type: req.file.mimetype
+      }
     });
   } catch (error) {
     console.error('Erreur replace gamme product file:', error);
