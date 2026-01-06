@@ -5,6 +5,7 @@ import PartnerManagementPage from './PartnerManagementPage';
 import FinancialDocumentsPage from './FinancialDocumentsPage';
 import UserManagementPage from './UserManagementPage';
 import CMSManagementPage from './CMSManagementPage';
+import GammeProductsCMSPage from './GammeProductsCMSPage';
 import StructuredProductsCMSPage from './StructuredProductsCMSPage';
 import ProductReservationsPage from './ProductReservationsPage';
 import SimulatorStatsPage from './SimulatorStatsPage';
@@ -19,6 +20,7 @@ import {
   DocumentIcon,
   UserIcon,
   CMSIcon,
+  GammeProductsIcon,
   StructuredProductsIcon,
   CartIcon,
   ChartIcon
@@ -209,6 +211,12 @@ const ManagePage: React.FC = () => {
       adminOnly: false
     },
     {
+      id: 'gamme-produits',
+      label: 'Gamme Produits',
+      icon: <GammeProductsIcon className="w-4 h-4" />,
+      adminOnly: false
+    },
+    {
       id: 'produits-structures',
       label: 'Produits Structurés',
       icon: <StructuredProductsIcon className="w-4 h-4" />,
@@ -375,6 +383,7 @@ const ManagePage: React.FC = () => {
             )
           )}
           {activeTab === 'cms' && <CMSManagementPage />}
+          {activeTab === 'gamme-produits' && <GammeProductsCMSPage />}
           {activeTab === 'produits-structures' && <StructuredProductsCMSPage mode="products-only" />}
           {activeTab === 'reservations' && (
             currentUser?.role === 'admin' ? (

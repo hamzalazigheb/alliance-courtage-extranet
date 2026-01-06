@@ -3,10 +3,11 @@ import { buildAPIURL } from '../api';
 
 // Composant pour afficher les fichiers d'un produit (chargés via API)
 const ProductFilesSection: React.FC<{
+  productId: number;
   productKey: string;
   productFiles: Record<string, any[]>;
   setProductFiles: React.Dispatch<React.SetStateAction<Record<string, any[]>>>;
-}> = ({ productKey, productFiles, setProductFiles }) => {
+}> = ({ productId, productKey, productFiles, setProductFiles }) => {
   const [loading, setLoading] = useState(false);
   
   useEffect(() => {
@@ -20,22 +21,32 @@ const ProductFilesSection: React.FC<{
   const loadFiles = async () => {
     try {
       setLoading(true);
-      const encodedProductKey = encodeURIComponent(productKey);
-      const response = await fetch(buildAPIURL(`/cms/gamme-produits/files/${encodedProductKey}`));
+      console.log(`📂 Chargement fichiers pour produit ID ${productId} (${productKey})...`);
+      
+      // Charger depuis la NOUVELLE API (100% DB)
+      const response = await fetch(buildAPIURL(`/gamme-products/${productId}/files`), {
+        headers: { 'x-auth-token': localStorage.getItem('token') || '' }
+      });
+      
       if (response.ok) {
         const files = await response.json();
+        console.log(`📄 Fichiers reçus pour produit ${productId}:`, files);
+        
         // Filtrer les fichiers qui ont du contenu (file_size > 0)
         const validFiles = files.filter((f: any) => f.file_size > 0);
         setProductFiles(prev => ({ ...prev, [productKey]: validFiles }));
+        
         if (validFiles.length > 0) {
-          console.log(`✅ Fichiers chargés pour ${productKey}:`, validFiles.length);
+          console.log(`✅ ${validFiles.length} fichier(s) valide(s) chargé(s) pour produit ID ${productId}`);
+        } else {
+          console.log(`⚠️ Aucun fichier valide pour produit ID ${productId}`);
         }
       } else {
-        // Pas de fichiers pour ce produit, initialiser avec tableau vide
+        console.warn(`⚠️ Réponse non-OK (${response.status}) pour produit ID ${productId}`);
         setProductFiles(prev => ({ ...prev, [productKey]: [] }));
       }
     } catch (error) {
-      console.error('Erreur chargement fichiers:', error);
+      console.error(`❌ Erreur chargement fichiers pour produit ${productId}:`, error);
       setProductFiles(prev => ({ ...prev, [productKey]: [] }));
     } finally {
       setLoading(false);
@@ -78,7 +89,7 @@ const ProductFilesSection: React.FC<{
               </span>
             </div>
             <a
-              href={buildAPIURL(`/cms/gamme-produits/files/${productKey}/${file.id}/download`)}
+              href={buildAPIURL(`/gamme-products/${productId}/files/${file.id}/download`)}
               download={file.file_name}
               target="_blank"
               rel="noopener noreferrer"
@@ -121,17 +132,44 @@ export default function GammeProduitsPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const resp = await fetch(buildAPIURL('/cms/gamme-produits'), {
+        // Charger les produits depuis la NOUVELLE API (100% DB)
+        const resp = await fetch(buildAPIURL('/gamme-products'), {
           headers: { 'x-auth-token': localStorage.getItem('token') || '' }
         });
         if (resp.ok) {
-          const data = await resp.json();
-          if (data?.content) {
-            setCmsProducts(JSON.parse(data.content));
-          }
+          const products = await resp.json();
+          console.log('✅ Produits chargés depuis DB:', products.length);
+          
+          // Convertir les produits DB au format attendu par l'interface
+          const groupedProducts: any = {
+            particulier: { epargne: [], retraite: [], prevoyance: [], sante: [], cif: [] },
+            professionnel: { epargne: [], retraite: [], prevoyance: [], sante: [], cif: [] },
+            entreprise: { epargne: [], retraite: [], prevoyance: [], sante: [], cif: [] }
+          };
+          
+          products.forEach((product: any) => {
+            const { client_type, family, product_name, description } = product;
+            if (groupedProducts[client_type] && groupedProducts[client_type][family]) {
+              // Vérifier si le produit existe déjà (éviter doublons)
+              const exists = groupedProducts[client_type][family].some(
+                (p: any) => p.name === product_name
+              );
+              if (!exists) {
+                groupedProducts[client_type][family].push({
+                  name: product_name,
+                  description: description || '',
+                  id: product.id // Garder l'ID pour charger les fichiers
+                });
+              }
+            }
+          });
+          
+          setCmsProducts({ products: groupedProducts });
+          console.log('📦 Produits groupés chargés:', groupedProducts);
         }
-      } catch {
-        // ignore and fallback
+      } catch (error) {
+        console.error('❌ Erreur chargement produits depuis DB:', error);
+        // Fallback si erreur
       } finally {
         setLoading(false);
       }
@@ -205,12 +243,13 @@ export default function GammeProduitsPage() {
     };
     const matrix = cmsProducts?.products || fallback;
     const products = (matrix[selectedClientType] && matrix[selectedClientType][selectedProductType]) || [];
-    // Convertir les anciens produits (strings) en objets si nécessaire, en préservant les documents
+    // Convertir les anciens produits (strings) en objets si nécessaire, en préservant l'ID et les documents
     return products.map((p: any) => {
       if (typeof p === 'string') {
         return { name: p, description: '', documents: [] };
       }
       return { 
+        id: p.id, // ⭐ IMPORTANT: Inclure l'ID pour charger les fichiers depuis la DB
         name: p.name || '', 
         description: p.description || '',
         documents: p.documents && Array.isArray(p.documents) ? p.documents : []
@@ -286,8 +325,8 @@ export default function GammeProduitsPage() {
           )}
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {getProducts().map((product: { name: string; description: string; documents?: any[] }, index: number) => (
-            <div key={index} className="bg-gradient-to-br from-white to-slate-50 rounded-2xl shadow-xl border-2 border-slate-200 hover:shadow-2xl hover:border-slate-300 transition-all duration-300 overflow-hidden">
+          {getProducts().map((product: { id?: number; name: string; description: string; documents?: any[] }, index: number) => (
+            <div key={product.id || index} className="bg-gradient-to-br from-white to-slate-50 rounded-2xl shadow-xl border-2 border-slate-200 hover:shadow-2xl hover:border-slate-300 transition-all duration-300 overflow-hidden">
               <div className="bg-gradient-to-r from-slate-700 to-slate-600 p-4">
                 <h3 className="font-bold text-white text-base flex items-center">
                   <svg className="w-5 h-5 mr-2 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -303,12 +342,15 @@ export default function GammeProduitsPage() {
                   </p>
                 )}
                 
-                {/* Section Documents - Chargement via API */}
-                <ProductFilesSection 
-                  productKey={`${selectedClientType}_${selectedProductType}_${product.name}`}
-                  productFiles={productFiles}
-                  setProductFiles={setProductFiles}
-                />
+                {/* Section Documents - Chargement via API (100% DB) */}
+                {product.id && (
+                  <ProductFilesSection 
+                    productId={product.id}
+                    productKey={`${selectedClientType}_${selectedProductType}_${product.name}`}
+                    productFiles={productFiles}
+                    setProductFiles={setProductFiles}
+                  />
+                )}
               </div>
             </div>
           ))}

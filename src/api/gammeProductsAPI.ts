@@ -1,4 +1,4 @@
-import { apiRequest } from '../api';
+import apiRequest from '../api';
 
 export interface GammeProduct {
   id: number;
@@ -57,9 +57,19 @@ export const gammeProductsAPI = {
 
   // Supprimer un produit
   async delete(id: number): Promise<{ message: string }> {
-    return apiRequest(`/gamme-products/${id}`, {
-      method: 'DELETE'
-    });
+    try {
+      return await apiRequest(`/gamme-products/${id}`, {
+        method: 'DELETE'
+      });
+    } catch (error: any) {
+      // Si le produit n'existe pas (404), on retourne un succès silencieux
+      if (error.status === 404 || (error.message && error.message.includes('non trouvé'))) {
+        console.log(`✓ Produit ${id} déjà supprimé ou inexistant`);
+        return { message: 'Produit déjà supprimé ou inexistant' };
+      }
+      // Pour les autres erreurs, on les re-lance
+      throw error;
+    }
   },
 
   // Récupérer les fichiers d'un produit
@@ -74,11 +84,22 @@ export const gammeProductsAPI = {
       formData.append('files', file);
     });
 
-    return apiRequest(`/gamme-products/${productId}/files`, {
+    const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    const token = localStorage.getItem('token');
+    
+    const response = await fetch(`${baseURL}/gamme-products/${productId}/files`, {
       method: 'POST',
-      body: formData,
-      isFormData: true
+      headers: {
+        'x-auth-token': token || ''
+      },
+      body: formData
     });
+    
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Erreur lors de l\'upload des fichiers');
+    }
+    return data;
   },
 
   // Télécharger un fichier
@@ -88,8 +109,9 @@ export const gammeProductsAPI = {
   },
 
   // Supprimer un fichier
-  async deleteFile(productId: number, fileId: number): Promise<{ message: string }> {
-    return apiRequest(`/gamme-products/${productId}/files/${fileId}`, {
+  async deleteFile(productId: number, fileId: number, deleteFromAllFamilies: boolean = false): Promise<{ message: string }> {
+    const queryParam = deleteFromAllFamilies ? '?deleteFromAllFamilies=true' : '';
+    return apiRequest(`/gamme-products/${productId}/files/${fileId}${queryParam}`, {
       method: 'DELETE'
     });
   }

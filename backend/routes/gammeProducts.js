@@ -357,15 +357,16 @@ router.get('/:id/files/:fileId/download', async (req, res) => {
   }
 });
 
-// @route   DELETE /api/gamme-products/:id/files/:fileId
+// @route   DELETE /api/gamme-products/:id/files/:fileId?deleteFromAllFamilies=true
 // @desc    Supprimer un fichier
 // @access  Private (Admin)
 router.delete('/:id/files/:fileId', auth, authorize('admin'), async (req, res) => {
   try {
     const { id, fileId } = req.params;
+    const { deleteFromAllFamilies } = req.query;
     
     const product = await query(
-      'SELECT product_key FROM gamme_products WHERE id = ?',
+      'SELECT product_key, product_name FROM gamme_products WHERE id = ?',
       [id]
     );
     
@@ -373,16 +374,59 @@ router.delete('/:id/files/:fileId', auth, authorize('admin'), async (req, res) =
       return res.status(404).json({ error: 'Produit non trouvé' });
     }
     
-    const result = await query(
-      'DELETE FROM gamme_product_files WHERE id = ? AND product_key = ?',
-      [fileId, product[0].product_key]
+    const productKey = product[0].product_key;
+    const productName = product[0].product_name;
+    
+    // Récupérer le nom du fichier depuis son ID
+    const fileInfo = await query(
+      'SELECT file_name FROM gamme_product_files WHERE id = ?',
+      [fileId]
     );
     
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: 'Fichier non trouvé' });
+    if (fileInfo.length === 0) {
+      console.log(`⏭️ Fichier ${fileId} inexistant`);
+      return res.json({ message: 'Fichier déjà supprimé' });
     }
     
-    res.json({ message: 'Fichier supprimé avec succès' });
+    const fileName = fileInfo[0].file_name;
+    
+    if (deleteFromAllFamilies === 'true') {
+      // Supprimer de TOUTES les familles où ce produit existe
+      // Trouver tous les product_keys pour ce nom de produit
+      const allProducts = await query(
+        'SELECT product_key FROM gamme_products WHERE product_name = ?',
+        [productName]
+      );
+      
+      let deletedCount = 0;
+      for (const prod of allProducts) {
+        const result = await query(
+          'DELETE FROM gamme_product_files WHERE product_key = ? AND file_name = ?',
+          [prod.product_key, fileName]
+        );
+        deletedCount += result.affectedRows;
+      }
+      
+      console.log(`✅ Fichier "${fileName}" supprimé de ${deletedCount} famille(s)`);
+      return res.json({ 
+        message: 'Fichier supprimé avec succès',
+        deletedCount 
+      });
+    } else {
+      // Supprimer UNIQUEMENT de ce produit
+      const result = await query(
+        'DELETE FROM gamme_product_files WHERE id = ? AND product_key = ?',
+        [fileId, productKey]
+      );
+      
+      if (result.affectedRows === 0) {
+        console.log(`⏭️ Fichier ${fileId} non trouvé pour product_key=${productKey}`);
+        return res.json({ message: 'Fichier non trouvé pour ce produit' });
+      }
+      
+      console.log(`✅ Fichier ID ${fileId} supprimé de ${productKey}`);
+      return res.json({ message: 'Fichier supprimé avec succès' });
+    }
   } catch (error) {
     console.error('Erreur delete file:', error);
     res.status(500).json({ 
