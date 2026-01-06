@@ -204,17 +204,24 @@ function FinancialDocumentsPage() {
   return (
     <div className="h-full flex flex-col space-y-3">
       {/* En-tête - Compact */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex-shrink-0">
+      <div className="bg-gradient-to-r from-slate-800 to-slate-700 rounded-2xl shadow-2xl border-2 border-slate-600 p-6 flex-shrink-0">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900 mb-1">Documents Financiers</h1>
-            <p className="text-gray-500 text-xs">
-              Gérez les documents pour la gamme financière
-            </p>
+          <div className="flex items-center space-x-4">
+            <div className="bg-white/10 p-3 rounded-xl">
+              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white mb-1">Documents Financiers</h1>
+              <p className="text-slate-300 text-sm">
+                Accédez à tous nos documents et supports
+              </p>
+            </div>
           </div>
           <button
             onClick={() => setShowUploadForm(!showUploadForm)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg transition-all duration-200 flex items-center space-x-2 shadow-sm hover:shadow-md font-medium"
+            className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white px-6 py-3 rounded-xl transition-all duration-300 flex items-center space-x-2 shadow-lg hover:shadow-xl font-semibold"
           >
             <UploadIcon className="w-5 h-5" />
             <span>Nouveau document</span>
@@ -346,30 +353,23 @@ function FinancialDocumentsPage() {
 
       {/* Category Tabs - Compact */}
       {categories.length > 0 && (
-        <div className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-40 rounded-lg flex-shrink-0">
+        <div className="bg-gradient-to-r from-slate-50 to-white border-2 border-slate-200 shadow-lg sticky top-0 z-40 rounded-xl flex-shrink-0">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex space-x-1.5 overflow-x-auto scrollbar-hide py-2">
+            <div className="flex space-x-2 overflow-x-auto scrollbar-hide py-3">
               <button
                 onClick={() => setSelectedCategory('')}
                 className={`
-                  relative flex items-center space-x-2 px-4 py-2.5 
-                  font-medium text-sm transition-all duration-200 ease-in-out
-                  whitespace-nowrap rounded-lg
+                  relative flex items-center space-x-2 px-5 py-3
+                  font-semibold text-sm transition-all duration-300 ease-in-out
+                  whitespace-nowrap rounded-xl
                   focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
                   ${!selectedCategory
-                    ? 'text-blue-700 bg-blue-50'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                    ? 'text-white bg-gradient-to-r from-blue-600 to-blue-500 shadow-lg scale-105'
+                    : 'text-slate-700 bg-white hover:bg-slate-100 border-2 border-slate-300'
                   }
                 `}
               >
-                {/* Left indicator bar */}
-                {!selectedCategory && (
-                  <span
-                    className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-blue-600 rounded-r-full"
-                    aria-hidden="true"
-                  />
-                )}
-                <span className="font-medium">Toutes</span>
+                <span className="font-semibold">Toutes catégories</span>
               </button>
               {categories.map((category) => {
                 const isActive = selectedCategory === category;
@@ -378,24 +378,17 @@ function FinancialDocumentsPage() {
                     key={category}
                     onClick={() => setSelectedCategory(category)}
                     className={`
-                      relative flex items-center space-x-2 px-4 py-2.5 
-                      font-medium text-sm transition-all duration-200 ease-in-out
-                      whitespace-nowrap rounded-lg
+                      relative flex items-center space-x-2 px-5 py-3
+                      font-semibold text-sm transition-all duration-300 ease-in-out
+                      whitespace-nowrap rounded-xl
                       focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
                       ${isActive
-                        ? 'text-blue-700 bg-blue-50'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                        ? 'text-white bg-gradient-to-r from-blue-600 to-blue-500 shadow-lg scale-105'
+                        : 'text-slate-700 bg-white hover:bg-slate-100 border-2 border-slate-300'
                       }
                     `}
                   >
-                    {/* Left indicator bar */}
-                    {isActive && (
-                      <span
-                        className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-blue-600 rounded-r-full"
-                        aria-hidden="true"
-                      />
-                    )}
-                    <span className="font-medium">{category}</span>
+                    <span className="font-semibold">{category}</span>
                   </button>
                 );
               })}
@@ -405,27 +398,37 @@ function FinancialDocumentsPage() {
       )}
 
       {/* Filtres et recherche - Compact */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex-shrink-0">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="bg-gradient-to-br from-white to-slate-50 rounded-2xl shadow-xl border-2 border-slate-200 p-6 flex-shrink-0">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="relative">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Rechercher</label>
+            <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center">
+              <svg className="w-4 h-4 mr-2 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              Rechercher
+            </label>
             <div className="relative">
-              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Rechercher..."
-                className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                className="w-full pl-10 pr-3 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white shadow-sm"
               />
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Année</label>
+            <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center">
+              <svg className="w-4 h-4 mr-2 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              Année
+            </label>
             <select
               value={selectedYear}
               onChange={(e) => setSelectedYear(e.target.value)}
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"
+              className="w-full px-3 py-3 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white shadow-sm font-medium"
             >
               <option value="">Toutes les années</option>
               {years.map(year => (
@@ -436,7 +439,7 @@ function FinancialDocumentsPage() {
           <div className="flex items-end">
             <button
               onClick={loadDocuments}
-              className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2.5 rounded-lg transition-all duration-200 flex items-center justify-center space-x-2 font-medium border border-gray-300"
+              className="w-full bg-gradient-to-r from-slate-600 to-slate-500 hover:from-slate-700 hover:to-slate-600 text-white px-4 py-3 rounded-xl transition-all duration-300 flex items-center justify-center space-x-2 font-semibold shadow-lg hover:shadow-xl"
             >
               <RefreshIcon className="w-5 h-5" />
               <span>Actualiser</span>
@@ -476,38 +479,37 @@ function FinancialDocumentsPage() {
           ) : (
             <div className="space-y-3">
             {filteredDocuments.map((doc) => (
-              <div key={doc.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 border border-gray-200 hover:border-gray-300 transition-all duration-200">
+              <div key={doc.id} className="flex items-center justify-between p-5 bg-gradient-to-r from-white to-slate-50 rounded-2xl hover:from-slate-50 hover:to-slate-100 border-2 border-slate-200 hover:border-blue-400 transition-all duration-300 shadow-md hover:shadow-lg group">
                 <div className="flex items-center space-x-4 flex-1 min-w-0">
-                  <div className="flex-shrink-0">
+                  <div className="flex-shrink-0 bg-blue-100 p-3 rounded-xl group-hover:bg-blue-200 transition-colors">
                     {getFileIcon(doc.file_type)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-gray-900 truncate">{doc.title}</h3>
+                    <h3 className="font-bold text-slate-800 truncate text-base">{doc.title}</h3>
                     {doc.description && (
-                      <p className="text-sm text-gray-600 truncate mt-1">{doc.description}</p>
+                      <p className="text-sm text-slate-600 truncate mt-1">{doc.description}</p>
                     )}
-                    <div className="flex items-center space-x-4 text-xs text-gray-500 mt-2 flex-wrap gap-y-1">
-                      <div className="flex items-center space-x-1.5">
-                        <FolderIcon className="w-4 h-4 text-gray-400" />
-                        <span className="font-medium">{doc.category}</span>
+                    <div className="flex items-center space-x-4 text-xs text-slate-500 mt-2 flex-wrap gap-y-1">
+                      <div className="flex items-center space-x-1.5 bg-slate-100 px-2 py-1 rounded-lg">
+                        <FolderIcon className="w-4 h-4 text-slate-600" />
+                        <span className="font-semibold text-slate-700">{doc.category}</span>
                       </div>
                       {doc.subcategory && (
-                        <div className="flex items-center space-x-1.5">
-                          <span className="text-gray-400">•</span>
-                          <span>Type: {doc.subcategory}</span>
+                        <div className="flex items-center space-x-1.5 bg-blue-50 px-2 py-1 rounded-lg">
+                          <span className="font-semibold text-blue-700">{doc.subcategory}</span>
                         </div>
                       )}
                       {doc.year && (
-                        <div className="flex items-center space-x-1.5">
-                          <CalendarIcon className="w-4 h-4 text-gray-400" />
-                          <span>{doc.year}</span>
+                        <div className="flex items-center space-x-1.5 bg-emerald-50 px-2 py-1 rounded-lg">
+                          <CalendarIcon className="w-4 h-4 text-emerald-600" />
+                          <span className="font-semibold text-emerald-700">{doc.year}</span>
                         </div>
                       )}
-                      <div className="flex items-center space-x-1.5">
-                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div className="flex items-center space-x-1.5 bg-purple-50 px-2 py-1 rounded-lg">
+                        <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                         </svg>
-                        <span>{formatFileSize(doc.file_size)}</span>
+                        <span className="font-semibold text-purple-700">{formatFileSize(doc.file_size)}</span>
                       </div>
                     </div>
                   </div>
@@ -569,14 +571,14 @@ function FinancialDocumentsPage() {
                         showError('Erreur: Aucune URL de fichier disponible');
                       }
                     }}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-all duration-200 flex items-center space-x-1.5 font-medium shadow-sm hover:shadow"
+                    className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white text-sm rounded-xl transition-all duration-300 flex items-center space-x-2 font-semibold shadow-lg hover:shadow-xl"
                   >
                     <DownloadIcon className="w-4 h-4" />
                     <span>Télécharger</span>
                   </button>
                   <button
                     onClick={() => handleFileDelete(doc.id)}
-                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition-all duration-200 flex items-center space-x-1.5 font-medium shadow-sm hover:shadow"
+                    className="px-5 py-2.5 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 text-white text-sm rounded-xl transition-all duration-300 flex items-center space-x-2 font-semibold shadow-lg hover:shadow-xl"
                   >
                     <TrashIcon className="w-4 h-4" />
                     <span>Supprimer</span>
