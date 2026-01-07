@@ -12,6 +12,34 @@ export default function PartenairesPage() {
     description: '',
     headerImage: ''
   });
+  const [expandedContacts, setExpandedContacts] = useState<Set<number>>(new Set());
+  const [expandedDocuments, setExpandedDocuments] = useState<Set<number>>(new Set());
+
+  // Fonction pour toggle l'affichage des contacts
+  const toggleContacts = (partnerId: number) => {
+    setExpandedContacts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(partnerId)) {
+        newSet.delete(partnerId);
+      } else {
+        newSet.add(partnerId);
+      }
+      return newSet;
+    });
+  };
+
+  // Fonction pour toggle l'affichage des documents
+  const toggleDocuments = (partnerId: number) => {
+    setExpandedDocuments(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(partnerId)) {
+        newSet.delete(partnerId);
+      } else {
+        newSet.add(partnerId);
+      }
+      return newSet;
+    });
+  };
 
   // Charger les partenaires depuis l'API avec cache
   useEffect(() => {
@@ -300,7 +328,10 @@ export default function PartenairesPage() {
                           </svg>
                           Contacts ({partenaire.contacts.length})
                         </h4>
-                        {partenaire.contacts.slice(0, 3).map((contact: PartnerContact) => (
+                        {(expandedContacts.has(partenaire.id) 
+                          ? partenaire.contacts 
+                          : partenaire.contacts.slice(0, 3)
+                        ).map((contact: PartnerContact) => (
                           <div
                             key={contact.id}
                             className="flex items-center justify-between text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 p-2 rounded transition-colors border border-indigo-200"
@@ -335,7 +366,26 @@ export default function PartenairesPage() {
                           </div>
                         ))}
                         {partenaire.contacts.length > 3 && (
-                          <p className="text-xs text-gray-500 text-center mt-1">+{partenaire.contacts.length - 3} autre(s) contact(s)</p>
+                          <button
+                            onClick={() => toggleContacts(partenaire.id)}
+                            className="w-full text-xs text-indigo-600 hover:text-indigo-800 font-medium py-2 px-3 rounded-lg hover:bg-indigo-50 transition-colors flex items-center justify-center space-x-1"
+                          >
+                            {expandedContacts.has(partenaire.id) ? (
+                              <>
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                                </svg>
+                                <span>Voir moins</span>
+                              </>
+                            ) : (
+                              <>
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                                <span>+{partenaire.contacts.length - 3} autre(s) contact(s)</span>
+                              </>
+                            )}
+                          </button>
                         )}
                       </div>
                     )}
@@ -349,7 +399,10 @@ export default function PartenairesPage() {
                           </svg>
                           Documents ({partenaire.documents.length})
                         </h4>
-                        {partenaire.documents.slice(0, 3).map((doc: PartnerDocument) => (
+                        {(expandedDocuments.has(partenaire.id) 
+                          ? partenaire.documents 
+                          : partenaire.documents.slice(0, 3)
+                        ).map((doc: PartnerDocument) => (
                           <a
                             key={doc.id}
                             href={doc.downloadUrl}
@@ -373,7 +426,26 @@ export default function PartenairesPage() {
                           </a>
                         ))}
                         {partenaire.documents.length > 3 && (
-                          <p className="text-xs text-gray-500 text-center mt-1">+{partenaire.documents.length - 3} autre(s) document(s)</p>
+                          <button
+                            onClick={() => toggleDocuments(partenaire.id)}
+                            className="w-full text-xs text-indigo-600 hover:text-indigo-800 font-medium py-2 px-3 rounded-lg hover:bg-indigo-50 transition-colors flex items-center justify-center space-x-1"
+                          >
+                            {expandedDocuments.has(partenaire.id) ? (
+                              <>
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                                </svg>
+                                <span>Voir moins</span>
+                              </>
+                            ) : (
+                              <>
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                                <span>+{partenaire.documents.length - 3} autre(s) document(s)</span>
+                              </>
+                            )}
+                          </button>
                         )}
                       </div>
                     )}
@@ -450,7 +522,10 @@ export default function PartenairesPage() {
                           </svg>
                           Contacts ({partenaire.contacts.length})
                         </h4>
-                        {partenaire.contacts.slice(0, 3).map((contact: PartnerContact) => (
+                        {(expandedContacts.has(partenaire.id) 
+                          ? partenaire.contacts 
+                          : partenaire.contacts.slice(0, 3)
+                        ).map((contact: PartnerContact) => (
                           <div
                             key={contact.id}
                             className="flex items-center justify-between text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 p-2 rounded transition-colors border border-purple-200"
@@ -485,7 +560,26 @@ export default function PartenairesPage() {
                           </div>
                         ))}
                         {partenaire.contacts.length > 3 && (
-                          <p className="text-xs text-gray-500 text-center mt-1">+{partenaire.contacts.length - 3} autre(s) contact(s)</p>
+                          <button
+                            onClick={() => toggleContacts(partenaire.id)}
+                            className="w-full text-xs text-purple-600 hover:text-purple-800 font-medium py-2 px-3 rounded-lg hover:bg-purple-50 transition-colors flex items-center justify-center space-x-1"
+                          >
+                            {expandedContacts.has(partenaire.id) ? (
+                              <>
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                                </svg>
+                                <span>Voir moins</span>
+                              </>
+                            ) : (
+                              <>
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                                <span>+{partenaire.contacts.length - 3} autre(s) contact(s)</span>
+                              </>
+                            )}
+                          </button>
                         )}
                       </div>
                     )}
@@ -499,7 +593,10 @@ export default function PartenairesPage() {
                           </svg>
                           Documents ({partenaire.documents.length})
                         </h4>
-                        {partenaire.documents.slice(0, 3).map((doc: PartnerDocument) => (
+                        {(expandedDocuments.has(partenaire.id) 
+                          ? partenaire.documents 
+                          : partenaire.documents.slice(0, 3)
+                        ).map((doc: PartnerDocument) => (
                           <a
                             key={doc.id}
                             href={doc.downloadUrl}
@@ -523,7 +620,26 @@ export default function PartenairesPage() {
                           </a>
                         ))}
                         {partenaire.documents.length > 3 && (
-                          <p className="text-xs text-gray-500 text-center mt-1">+{partenaire.documents.length - 3} autre(s) document(s)</p>
+                          <button
+                            onClick={() => toggleDocuments(partenaire.id)}
+                            className="w-full text-xs text-purple-600 hover:text-purple-800 font-medium py-2 px-3 rounded-lg hover:bg-purple-50 transition-colors flex items-center justify-center space-x-1"
+                          >
+                            {expandedDocuments.has(partenaire.id) ? (
+                              <>
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                                </svg>
+                                <span>Voir moins</span>
+                              </>
+                            ) : (
+                              <>
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                                <span>+{partenaire.documents.length - 3} autre(s) document(s)</span>
+                              </>
+                            )}
+                          </button>
                         )}
                       </div>
                     )}
