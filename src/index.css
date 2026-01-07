@@ -1,15 +1,12 @@
-/* Global typography normalization - @import doit être avant @tailwind */
-/* Try to load Google Fonts, but fallback to system fonts if blocked */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
+/* Global typography normalization - Using system fonts for reliability */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  /* Use system fonts first for better performance and reliability */
+  /* Use system fonts - modern, fast, and always available */
   --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', 
-    Arial, 'Noto Sans', 'Liberation Sans', 'Inter', sans-serif;
+    Arial, 'Noto Sans', 'Liberation Sans', sans-serif;
 }
 
 html, body {
