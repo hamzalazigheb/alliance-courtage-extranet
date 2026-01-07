@@ -86,8 +86,9 @@ async function apiRequest(endpoint, options = {}) {
         throw new Error(errorData.error || 'Erreur de serveur');
       }
       
-      // Lire le texte UNE SEULE FOIS
-      const retryText = await retryResponse.text();
+      // Lire le texte UNE SEULE FOIS avec UTF-8
+      const retryArrayBuffer = await retryResponse.arrayBuffer();
+      const retryText = new TextDecoder('utf-8').decode(retryArrayBuffer);
       const retryData = retryText ? JSON.parse(retryText) : {};
       return retryData;
     }
@@ -103,7 +104,9 @@ async function apiRequest(endpoint, options = {}) {
 
     // Vérifier si la réponse est OK avant de parser JSON
     // Lire le texte UNE SEULE FOIS pour éviter "body stream already read"
-    const text = await response.text();
+    // Forcer UTF-8 decoding
+    const arrayBuffer = await response.arrayBuffer();
+    const text = new TextDecoder('utf-8').decode(arrayBuffer);
     let data;
     try {
       if (text) {
@@ -169,14 +172,18 @@ async function apiRequest(endpoint, options = {}) {
         if (!retryResponse.ok) {
           let errorData;
           try {
-            errorData = await retryResponse.json();
+            const errorArrayBuffer = await retryResponse.arrayBuffer();
+            const errorText = new TextDecoder('utf-8').decode(errorArrayBuffer);
+            errorData = errorText ? JSON.parse(errorText) : { error: `Erreur HTTP ${retryResponse.status}` };
           } catch (e) {
             errorData = { error: `Erreur HTTP ${retryResponse.status}: ${retryResponse.statusText}` };
           }
           throw new Error(errorData.error || `Erreur HTTP ${retryResponse.status}`);
         }
         
-        const retryData = await retryResponse.json();
+        const retryArrayBuffer = await retryResponse.arrayBuffer();
+        const retryText = new TextDecoder('utf-8').decode(retryArrayBuffer);
+        const retryData = retryText ? JSON.parse(retryText) : {};
         return retryData;
       } catch (retryError) {
         console.error('Retry failed:', retryError);
