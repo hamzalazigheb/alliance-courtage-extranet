@@ -61,7 +61,6 @@ function fixFilenameEncoding(filename) {
 // @access  Public
 router.get('/families', async (req, res) => {
   try {
-    // Récupérer les familles de la table gamme_families (filtrer les entrées vides)
     const families = await query(
       `SELECT * FROM gamme_families 
        WHERE label IS NOT NULL AND label != '' AND TRIM(label) != ''
@@ -69,12 +68,46 @@ router.get('/families', async (req, res) => {
        ORDER BY display_order, label`
     );
     
-    // Double vérification côté JavaScript
-    const validFamilies = families.filter(f => 
-      f.label && f.label.trim() && f.value && f.value.trim()
-    );
+    // Corriger le double encodage UTF-8 pour labels ET icônes
+    const correctedFamilies = families.map(f => {
+      let correctedLabel = f.label;
+      let correctedIcon = f.icon || '';
+      
+      // Corriger le label si double encodage détecté
+      if (correctedLabel && (correctedLabel.includes('Ã') || correctedLabel.match(/[Ãâ€]/))) {
+        try {
+          correctedLabel = Buffer.from(correctedLabel, 'latin1').toString('utf8');
+        } catch (e) {
+          const correctLabels = {
+            'epargne': 'Épargne',
+            'prevoyance': 'Prévoyance',
+            'sante': 'Santé'
+          };
+          correctedLabel = correctLabels[f.value] || correctedLabel;
+        }
+      }
+      
+      // Corriger l'icône si double encodage détecté (caractères étranges au lieu d'emoji)
+      if (correctedIcon && (correctedIcon.includes('ð') || correctedIcon.includes('â') || correctedIcon.length > 4)) {
+        try {
+          correctedIcon = Buffer.from(correctedIcon, 'latin1').toString('utf8');
+        } catch (e) {
+          // Fallback aux icônes par défaut
+          const defaultIcons = {
+            'epargne': '💰',
+            'retraite': '👴',
+            'prevoyance': '🛡️',
+            'sante': '❤️',
+            'cif': '📊'
+          };
+          correctedIcon = defaultIcons[f.value] || '📁';
+        }
+      }
+      
+      return { ...f, label: correctedLabel, icon: correctedIcon };
+    }).filter(f => f.label && f.label.trim() && f.value && f.value.trim());
     
-    res.json(validFamilies);
+    res.json(correctedFamilies);
   } catch (error) {
     console.error('Erreur get families:', error);
     // Si la table n'existe pas, retourner les familles par défaut
