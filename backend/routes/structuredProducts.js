@@ -80,7 +80,8 @@ router.get('/', async (req, res) => {
     let sql = `
       SELECT a.*, u.nom as uploaded_by_nom, u.prenom as uploaded_by_prenom,
              CASE WHEN a.file_content IS NOT NULL THEN 1 ELSE 0 END as has_file_content,
-             COUNT(pf.id) as files_count
+             COUNT(pf.id) as files_count,
+             COALESCE(a.is_closed, FALSE) as is_closed
       FROM archives a
       LEFT JOIN users u ON a.uploaded_by = u.id
       LEFT JOIN product_files pf ON a.id = pf.product_id

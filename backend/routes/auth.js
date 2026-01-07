@@ -134,7 +134,7 @@ router.post('/logout', auth, async (req, res) => {
 router.get('/me', auth, async (req, res) => {
   try {
     const users = await query(
-      'SELECT id, email, nom, prenom, role, created_at FROM users WHERE id = ?',
+      'SELECT id, email, nom, prenom, denomination_sociale, role, created_at FROM users WHERE id = ?',
       [req.user.id]
     );
 
@@ -152,6 +152,7 @@ router.get('/me', auth, async (req, res) => {
         email: user.email,
         nom: user.nom,
         prenom: user.prenom,
+        denomination_sociale: user.denomination_sociale,
         role: user.role,
         created_at: user.created_at
       }

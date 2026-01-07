@@ -597,6 +597,111 @@ function CapitalisationSimulator({ onClose }: { onClose: () => void }) {
   } | null>(null);
   const [showResult, setShowResult] = useState(false);
 
+  // États pour Amortissement de prêt
+  const [montantPret, setMontantPret] = useState(200000);
+  const [tauxPret, setTauxPret] = useState(3.5);
+  const [dureePret, setDureePret] = useState(20);
+  const [amortissementResult, setAmortissementResult] = useState<{
+    mensualite: number;
+    coutTotal: number;
+    interetsTotaux: number;
+    tableau: Array<{
+      mois: number;
+      mensualite: number;
+      capital: number;
+      interets: number;
+      capitalRestant: number;
+    }>;
+  } | null>(null);
+
+  // États pour Analyse ROI
+  const [investissementInitial, setInvestissementInitial] = useState(50000);
+  const [revenusAnnuels, setRevenusAnnuels] = useState(8000);
+  const [chargesAnnuelles, setChargesAnnuelles] = useState(2000);
+  const [dureeROI, setDureeROI] = useState(10);
+  const [valorisationFinale, setValorisationFinale] = useState(60000);
+  const [roiResult, setRoiResult] = useState<{
+    roi: number;
+    roiAnnualise: number;
+    cashflowTotal: number;
+    plusValue: number;
+    rendementNet: number;
+    delaiRecuperation: number;
+  } | null>(null);
+
+  // Calcul Amortissement de prêt
+  const calculateAmortissement = () => {
+    const P = montantPret;
+    const r = tauxPret / 100 / 12; // Taux mensuel
+    const n = dureePret * 12; // Nombre de mensualités
+
+    // Formule mensualité: M = P * [r(1+r)^n] / [(1+r)^n - 1]
+    const mensualite = r > 0 
+      ? P * (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1)
+      : P / n;
+
+    const coutTotal = mensualite * n;
+    const interetsTotaux = coutTotal - P;
+
+    // Génération du tableau d'amortissement (premières et dernières lignes)
+    const tableau: Array<{
+      mois: number;
+      mensualite: number;
+      capital: number;
+      interets: number;
+      capitalRestant: number;
+    }> = [];
+
+    let capitalRestant = P;
+    for (let i = 1; i <= n; i++) {
+      const interetsMois = capitalRestant * r;
+      const capitalMois = mensualite - interetsMois;
+      capitalRestant = capitalRestant - capitalMois;
+
+      // Garder uniquement les 12 premiers mois et les 12 derniers
+      if (i <= 12 || i > n - 12) {
+        tableau.push({
+          mois: i,
+          mensualite: Math.round(mensualite * 100) / 100,
+          capital: Math.round(capitalMois * 100) / 100,
+          interets: Math.round(interetsMois * 100) / 100,
+          capitalRestant: Math.max(0, Math.round(capitalRestant * 100) / 100)
+        });
+      }
+    }
+
+    setAmortissementResult({
+      mensualite: Math.round(mensualite * 100) / 100,
+      coutTotal: Math.round(coutTotal),
+      interetsTotaux: Math.round(interetsTotaux),
+      tableau
+    });
+  };
+
+  // Calcul Analyse ROI
+  const calculateROI = () => {
+    const cashflowAnnuel = revenusAnnuels - chargesAnnuelles;
+    const cashflowTotal = cashflowAnnuel * dureeROI;
+    const plusValue = valorisationFinale - investissementInitial;
+    const gainTotal = cashflowTotal + plusValue;
+    
+    const roi = (gainTotal / investissementInitial) * 100;
+    const roiAnnualise = Math.pow(1 + roi / 100, 1 / dureeROI) * 100 - 100;
+    const rendementNet = (cashflowAnnuel / investissementInitial) * 100;
+    
+    // Délai de récupération (en années)
+    const delaiRecuperation = cashflowAnnuel > 0 ? investissementInitial / cashflowAnnuel : 0;
+
+    setRoiResult({
+      roi: Math.round(roi * 10) / 10,
+      roiAnnualise: Math.round(roiAnnualise * 10) / 10,
+      cashflowTotal: Math.round(cashflowTotal),
+      plusValue: Math.round(plusValue),
+      rendementNet: Math.round(rendementNet * 10) / 10,
+      delaiRecuperation: Math.round(delaiRecuperation * 10) / 10
+    });
+  };
+
   const calculateCapitalisation = () => {
     const PV = montantInitial;
     const r = tauxAnnuel / 100;
@@ -828,14 +933,235 @@ function CapitalisationSimulator({ onClose }: { onClose: () => void }) {
         )}
 
         {activeTab === 'amortissement' && (
-          <div className="text-center py-12 text-gray-500">
-            <p>Fonctionnalité "Amortissement de prêt" à venir</p>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Paramètres */}
+            <div>
+              <h3 className="text-lg font-bold text-gray-800 mb-4">Paramètres du prêt</h3>
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Montant emprunté (€)</label>
+                  <input
+                    type="number"
+                    value={montantPret}
+                    onChange={(e) => setMontantPret(parseFloat(e.target.value) || 0)}
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 text-lg"
+                    placeholder="200000"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Taux annuel (%)</label>
+                  <input
+                    type="number"
+                    value={tauxPret}
+                    onChange={(e) => setTauxPret(parseFloat(e.target.value) || 0)}
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 text-lg"
+                    placeholder="3.5"
+                    step="0.1"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Durée (années)</label>
+                  <input
+                    type="number"
+                    value={dureePret}
+                    onChange={(e) => setDureePret(parseInt(e.target.value) || 0)}
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 text-lg"
+                    placeholder="20"
+                    min="1"
+                    max="30"
+                  />
+                </div>
+                <button
+                  onClick={calculateAmortissement}
+                  className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold transition-colors"
+                >
+                  Calculer l'amortissement
+                </button>
+              </div>
+            </div>
+
+            {/* Résultats */}
+            <div>
+              <h3 className="text-lg font-bold text-gray-800 mb-4">Résultats</h3>
+              {amortissementResult ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                      <div className="text-xs font-semibold text-purple-600 mb-1">MENSUALITÉ</div>
+                      <div className="text-2xl font-bold text-purple-800">{amortissementResult.mensualite.toLocaleString('fr-FR')} €</div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-white border border-gray-200 rounded-lg p-4">
+                        <div className="text-xs font-semibold text-gray-600 mb-1">COÛT TOTAL</div>
+                        <div className="text-lg font-bold text-gray-800">{amortissementResult.coutTotal.toLocaleString('fr-FR')} €</div>
+                      </div>
+                      <div className="bg-white border border-gray-200 rounded-lg p-4">
+                        <div className="text-xs font-semibold text-gray-600 mb-1">INTÉRÊTS TOTAUX</div>
+                        <div className="text-lg font-bold text-red-600">{amortissementResult.interetsTotaux.toLocaleString('fr-FR')} €</div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Tableau d'amortissement */}
+                  <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                    <div className="bg-gray-50 px-4 py-2 border-b">
+                      <span className="text-sm font-semibold text-gray-700">Tableau d'amortissement</span>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 sticky top-0">
+                          <tr>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Mois</th>
+                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500">Mensualité</th>
+                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500">Capital</th>
+                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500">Intérêts</th>
+                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500">Restant</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {amortissementResult.tableau.map((row, index) => (
+                            <tr key={index} className={index >= 12 && amortissementResult.tableau[index - 1]?.mois !== row.mois - 1 ? 'border-t-4 border-gray-300' : ''}>
+                              <td className="px-3 py-2 text-gray-600">{row.mois}</td>
+                              <td className="px-3 py-2 text-right text-gray-800">{row.mensualite.toLocaleString('fr-FR')} €</td>
+                              <td className="px-3 py-2 text-right text-green-600">{row.capital.toLocaleString('fr-FR')} €</td>
+                              <td className="px-3 py-2 text-right text-red-600">{row.interets.toLocaleString('fr-FR')} €</td>
+                              <td className="px-3 py-2 text-right text-gray-800">{row.capitalRestant.toLocaleString('fr-FR')} €</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="bg-gray-50 px-4 py-2 border-t text-xs text-gray-500 text-center">
+                      Affichage des 12 premiers et 12 derniers mois
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center text-gray-500">
+                  <div className="text-4xl mb-2">🏠</div>
+                  <p className="text-sm">Entrez les paramètres du prêt et cliquez sur "Calculer l'amortissement"</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
         {activeTab === 'roi' && (
-          <div className="text-center py-12 text-gray-500">
-            <p>Fonctionnalité "Analyse ROI" à venir</p>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Paramètres */}
+            <div>
+              <h3 className="text-lg font-bold text-gray-800 mb-4">Paramètres de l'investissement</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Investissement initial (€)</label>
+                  <input
+                    type="number"
+                    value={investissementInitial}
+                    onChange={(e) => setInvestissementInitial(parseFloat(e.target.value) || 0)}
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 text-lg"
+                    placeholder="50000"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Capital investi au départ</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Revenus annuels (€)</label>
+                  <input
+                    type="number"
+                    value={revenusAnnuels}
+                    onChange={(e) => setRevenusAnnuels(parseFloat(e.target.value) || 0)}
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 text-lg"
+                    placeholder="8000"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Loyers, dividendes, etc.</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Charges annuelles (€)</label>
+                  <input
+                    type="number"
+                    value={chargesAnnuelles}
+                    onChange={(e) => setChargesAnnuelles(parseFloat(e.target.value) || 0)}
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 text-lg"
+                    placeholder="2000"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Taxes, entretien, frais...</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Durée de détention (années)</label>
+                  <input
+                    type="number"
+                    value={dureeROI}
+                    onChange={(e) => setDureeROI(parseInt(e.target.value) || 0)}
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 text-lg"
+                    placeholder="10"
+                    min="1"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Valorisation finale (€)</label>
+                  <input
+                    type="number"
+                    value={valorisationFinale}
+                    onChange={(e) => setValorisationFinale(parseFloat(e.target.value) || 0)}
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 text-lg"
+                    placeholder="60000"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Valeur estimée à la revente</p>
+                </div>
+                <button
+                  onClick={calculateROI}
+                  className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold transition-colors"
+                >
+                  Calculer le ROI
+                </button>
+              </div>
+            </div>
+
+            {/* Résultats */}
+            <div>
+              <h3 className="text-lg font-bold text-gray-800 mb-4">Résultats</h3>
+              {roiResult ? (
+                <div className="space-y-4">
+                  <div className="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-lg p-6 text-white">
+                    <div className="text-sm font-medium opacity-80 mb-1">RETOUR SUR INVESTISSEMENT (ROI)</div>
+                    <div className="text-4xl font-bold">{roiResult.roi}%</div>
+                    <div className="text-sm opacity-80 mt-2">soit {roiResult.roiAnnualise}% annualisé</div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-white border border-gray-200 rounded-lg p-4">
+                      <div className="text-xs font-semibold text-gray-600 mb-1">CASHFLOW TOTAL</div>
+                      <div className="text-lg font-bold text-green-600">+{roiResult.cashflowTotal.toLocaleString('fr-FR')} €</div>
+                    </div>
+                    <div className="bg-white border border-gray-200 rounded-lg p-4">
+                      <div className="text-xs font-semibold text-gray-600 mb-1">PLUS-VALUE</div>
+                      <div className={`text-lg font-bold ${roiResult.plusValue >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {roiResult.plusValue >= 0 ? '+' : ''}{roiResult.plusValue.toLocaleString('fr-FR')} €
+                      </div>
+                    </div>
+                    <div className="bg-white border border-gray-200 rounded-lg p-4">
+                      <div className="text-xs font-semibold text-gray-600 mb-1">RENDEMENT NET</div>
+                      <div className="text-lg font-bold text-gray-800">{roiResult.rendementNet}%/an</div>
+                    </div>
+                    <div className="bg-white border border-gray-200 rounded-lg p-4">
+                      <div className="text-xs font-semibold text-gray-600 mb-1">DÉLAI RÉCUPÉRATION</div>
+                      <div className="text-lg font-bold text-gray-800">{roiResult.delaiRecuperation} ans</div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <p className="text-xs text-gray-600">
+                      <strong>ROI</strong> = (Gain total / Investissement initial) × 100<br />
+                      <strong>Gain total</strong> = Cashflow total + Plus-value
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center text-gray-500">
+                  <div className="text-4xl mb-2">📈</div>
+                  <p className="text-sm">Entrez les paramètres et cliquez sur "Calculer le ROI"</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -852,6 +1178,15 @@ function FiscalSimulator({ onClose }: { onClose: () => void }) {
   const [pensions, setPensions] = useState('');
   const [revenusFonciers, setRevenusFonciers] = useState('');
   const [revenusCapitaux, setRevenusCapitaux] = useState('');
+  
+  // Charges & Réductions
+  const [fraisReels, setFraisReels] = useState('');
+  const [pensionsAlimentaires, setPensionsAlimentaires] = useState('');
+  const [donsOrganismes, setDonsOrganismes] = useState('');
+  const [emploiDomicile, setEmploiDomicile] = useState('');
+  const [gardeEnfants, setGardeEnfants] = useState('');
+  const [investissementPME, setInvestissementPME] = useState('');
+  const [perp, setPerp] = useState('');
   
   // Famille
   const [situation, setSituation] = useState('celibataire');
@@ -1074,8 +1409,123 @@ function FiscalSimulator({ onClose }: { onClose: () => void }) {
             )}
 
             {activeTab === 'charges' && (
-              <div className="text-center py-8 text-gray-500">
-                <p>Fonctionnalité "Charges & Réductions" à venir</p>
+              <div className="space-y-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                  <p className="text-sm text-blue-800">
+                    💡 Les charges déductibles réduisent votre revenu imposable. Les réductions d'impôt s'appliquent directement sur l'impôt dû.
+                  </p>
+                </div>
+                
+                <h4 className="font-semibold text-gray-700 border-b pb-2">Charges déductibles</h4>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Frais réels professionnels (€)</label>
+                  <input
+                    type="number"
+                    value={fraisReels}
+                    onChange={(e) => setFraisReels(e.target.value)}
+                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    placeholder="0"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">À la place de l'abattement de 10%</p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Pensions alimentaires versées (€)</label>
+                  <input
+                    type="number"
+                    value={pensionsAlimentaires}
+                    onChange={(e) => setPensionsAlimentaires(e.target.value)}
+                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    placeholder="0"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Épargne retraite PERP/PER (€)</label>
+                  <input
+                    type="number"
+                    value={perp}
+                    onChange={(e) => setPerp(e.target.value)}
+                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    placeholder="0"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Plafond : 10% du revenu imposable (max 35 194 €)</p>
+                </div>
+                
+                <h4 className="font-semibold text-gray-700 border-b pb-2 mt-6">Réductions & Crédits d'impôt</h4>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Dons aux organismes d'intérêt général (€)</label>
+                  <input
+                    type="number"
+                    value={donsOrganismes}
+                    onChange={(e) => setDonsOrganismes(e.target.value)}
+                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    placeholder="0"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Réduction de 66% (75% pour aide aux personnes en difficulté)</p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Emploi à domicile (€)</label>
+                  <input
+                    type="number"
+                    value={emploiDomicile}
+                    onChange={(e) => setEmploiDomicile(e.target.value)}
+                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    placeholder="0"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Crédit d'impôt de 50% (plafond 12 000 €)</p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Frais de garde d'enfants -6 ans (€)</label>
+                  <input
+                    type="number"
+                    value={gardeEnfants}
+                    onChange={(e) => setGardeEnfants(e.target.value)}
+                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    placeholder="0"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Crédit d'impôt de 50% (plafond 3 500 € par enfant)</p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Investissement PME (€)</label>
+                  <input
+                    type="number"
+                    value={investissementPME}
+                    onChange={(e) => setInvestissementPME(e.target.value)}
+                    className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    placeholder="0"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Réduction de 18% (25% pour ESUS)</p>
+                </div>
+
+                {/* Récapitulatif des avantages fiscaux */}
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 mt-4">
+                  <h5 className="font-semibold text-green-800 mb-2">📊 Estimation des avantages fiscaux</h5>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Charges déductibles :</span>
+                      <span className="font-medium text-gray-800">
+                        {((parseFloat(fraisReels) || 0) + (parseFloat(pensionsAlimentaires) || 0) + (parseFloat(perp) || 0)).toLocaleString('fr-FR')} €
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Réductions d'impôt estimées :</span>
+                      <span className="font-medium text-green-600">
+                        -{(
+                          (parseFloat(donsOrganismes) || 0) * 0.66 +
+                          Math.min((parseFloat(emploiDomicile) || 0), 12000) * 0.5 +
+                          Math.min((parseFloat(gardeEnfants) || 0), 3500) * 0.5 +
+                          (parseFloat(investissementPME) || 0) * 0.18
+                        ).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 

@@ -219,6 +219,32 @@ function App() {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, [currentUser]);
 
+  // Recharger les données utilisateur depuis l'API au chargement
+  useEffect(() => {
+    const refreshUserData = async () => {
+      const token = localStorage.getItem('token');
+      if (!token || !isLoggedIn) return;
+
+      try {
+        const response = await fetch(buildAPIURL('/auth/me'), {
+          headers: { 'x-auth-token': token }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const userData = data.user || data;
+          // Mettre à jour l'utilisateur avec les données fraîches de l'API
+          setCurrentUser(userData);
+          localStorage.setItem('currentUser', JSON.stringify(userData));
+        }
+      } catch (error) {
+        console.error('Error refreshing user data:', error);
+      }
+    };
+
+    refreshUserData();
+  }, [isLoggedIn]);
+
   // Données bordereaux (simulation) - VIDÉES POUR LE TEST
   const [bordereaux, setBordereaux] = useState<BordereauFile[]>([]);
 
@@ -419,7 +445,7 @@ function App() {
                     : currentUser?.denomination_sociale || currentUser?.name || 'Utilisateur'}
                 </div>
                 <div className="text-xs text-gray-500">
-                  {currentUser?.role === 'admin' ? 'Super Admin' : 'Utilisateur'}
+                  {currentUser?.denomination_sociale || 'Utilisateur'}
                 </div>
               </div>
               <div className="flex-shrink-0">

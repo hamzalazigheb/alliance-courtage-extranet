@@ -15,6 +15,7 @@ interface StructuredProduct {
   created_at: string;
   uploaded_by_nom?: string;
   uploaded_by_prenom?: string;
+  is_closed?: boolean; // Produit clôturé automatiquement
 }
 
 interface PageContent {
@@ -31,7 +32,7 @@ export default function ProduitsStructuresPage() {
   const [productFiles, setProductFiles] = useState<Record<number, any[]>>({}); // Réservations par produit
   const [loading, setLoading] = useState(true);
   const [selectedAssurance, setSelectedAssurance] = useState<string>('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [selectedStatus, setSelectedStatus] = useState<string>(''); // '', 'en_cours', 'clotures'
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<StructuredProduct | null>(null);
   const [selectedProductAssurance, setSelectedProductAssurance] = useState<string>(''); // Assurance du produit pour la réservation
@@ -55,7 +56,7 @@ export default function ProduitsStructuresPage() {
     loadCMSContent();
     loadProductReservations();
     loadUserProfile();
-  }, [selectedAssurance, selectedCategory, searchTerm]);
+  }, [selectedAssurance, selectedStatus, searchTerm]);
 
   // Charger le contenu CMS
   const loadCMSContent = async () => {
@@ -106,7 +107,6 @@ export default function ProduitsStructuresPage() {
       setLoading(true);
       const params: any = {};
       if (selectedAssurance) params.assurance = selectedAssurance;
-      if (selectedCategory) params.category = selectedCategory;
       if (searchTerm) params.search = searchTerm;
       const data = await structuredProductsAPI.getAll(params);
       setProducts(data);
@@ -256,6 +256,12 @@ export default function ProduitsStructuresPage() {
       return;
     }
 
+    // Vérifier si le produit est clôturé
+    if (isProductClosed(selectedProduct)) {
+      alert('❌ Erreur : Ce produit est clôturé et ne peut plus accepter de nouvelles réservations.');
+      return;
+    }
+
     // Calculer le montant disponible pour ce produit
     const amounts = getProductAmounts(selectedProduct, selectedProductAssurance);
     const montantSaisi = parseFloat(reservationAmount);
@@ -373,9 +379,48 @@ export default function ProduitsStructuresPage() {
     }).format(safeAmount);
   };
 
-  // Grouper les produits par assurance
+  // Fonction pour déterminer si un produit est clôturé
+  const isProductClosed = (product: StructuredProduct): boolean => {
+    // Si déjà marqué comme clôturé en base
+    if (product.is_closed) return true;
+    
+    // Calculer le montant réservé approuvé pour ce produit
+    const reservations = productReservations[product.id] || [];
+    const montantReserve = reservations
+      .filter((r: any) => r.status === 'approved')
+      .reduce((sum: number, r: any) => sum + (parseFloat(r.montant) || 0), 0);
+    
+    // Clôturé si enveloppe épuisée (disponible = 0)
+    const enveloppe = product.montant_enveloppe || 0;
+    if (enveloppe > 0 && montantReserve >= enveloppe) return true;
+    
+    // Clôturé si 30 jours après la date de strike
+    if (product.date_strike) {
+      const dateStrike = new Date(product.date_strike);
+      const today = new Date();
+      const diffTime = today.getTime() - dateStrike.getTime();
+      const diffDays = diffTime / (1000 * 60 * 60 * 24);
+      if (diffDays > 30) return true;
+    }
+    
+    return false;
+  };
+
+  // Filtrer les produits par statut
+  const filteredProducts = products.filter(product => {
+    const isClosed = isProductClosed(product);
+    if (selectedStatus === '') {
+      // Par défaut, ne pas afficher les produits clôturés
+      return !isClosed;
+    }
+    if (selectedStatus === 'en_cours') return !isClosed;
+    if (selectedStatus === 'clotures') return isClosed;
+    return true;
+  });
+
+  // Grouper les produits filtrés par assurance
   // Les assurances peuvent être stockées comme JSON array ou string simple
-  const productsByAssurance = products.reduce((acc, product) => {
+  const productsByAssurance = filteredProducts.reduce((acc, product) => {
     const assurancesArray = parseAssurances(product.assurance);
     
     // Si aucune assurance, mettre dans "Autres"
@@ -393,15 +438,6 @@ export default function ProduitsStructuresPage() {
     
     return acc;
   }, {} as Record<string, StructuredProduct[]>);
-
-  const availableCategories = [
-    'Épargne',
-    'Retraite',
-    'Prévoyance',
-    'Santé',
-    'CIF',
-    'Investissements'
-  ];
 
   return (
     <div className="max-w-7xl mx-auto space-y-8">
@@ -431,13 +467,13 @@ export default function ProduitsStructuresPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Assurance</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Partenaire</label>
             <select
               value={selectedAssurance}
               onChange={(e) => setSelectedAssurance(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
-              <option value="">Toutes les assurances</option>
+              <option value="">Tous les partenaires</option>
               {assurances.filter(a => a.is_active).map(assurance => (
                 <option key={assurance.id} value={assurance.name}>
                   {assurance.name}
@@ -446,16 +482,15 @@ export default function ProduitsStructuresPage() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Catégorie</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Historique</label>
             <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
-              <option value="">Toutes les catégories</option>
-              {availableCategories.map(category => (
-                <option key={category} value={category}>{category}</option>
-              ))}
+              <option value="">Tous les produits</option>
+              <option value="en_cours">Produits en cours</option>
+              <option value="clotures">Produits clôturés</option>
             </select>
           </div>
           <div className="flex items-end">
@@ -519,35 +554,6 @@ export default function ProduitsStructuresPage() {
                     </div>
                   </div>
                   
-                  {/* Progress Bar */}
-                    <div className="mt-2">
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-blue-200">Progression des réservations</span>
-                      <span>{progressPercent.toFixed(1)}%</span>
-                    </div>
-                    <div className="h-2 bg-white/20 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-gradient-to-r from-yellow-400 to-green-400 rounded-full transition-all duration-500"
-                        style={{ width: `${Math.min(progressPercent, 100)}%` }}
-                      />
-                      </div>
-                    </div>
-                    
-                    {/* Affichage du montant cumulé des réservations acceptées */}
-                    <div className="mt-3 pt-3 border-t border-white/20">
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-blue-200">Montant cumulé des réservations acceptées:</span>
-                        <span className="text-white font-bold">{formatCurrency(montantReserveFinal)}</span>
-                      </div>
-                      <div className="flex justify-between items-center text-xs mt-1 text-blue-200">
-                        <span>Enveloppe totale:</span>
-                        <span>{formatCurrency(montantEnveloppeFinal)}</span>
-                      </div>
-                      <div className="flex justify-between items-center text-xs mt-1 text-blue-200">
-                        <span>Enveloppe restante:</span>
-                        <span className="font-semibold">{formatCurrency(montantEnveloppeFinal - montantReserveFinal)}</span>
-                      </div>
-                    </div>
                   </div>
                 </div>
 
@@ -563,12 +569,19 @@ export default function ProduitsStructuresPage() {
                         <div className="bg-gradient-to-r from-slate-700 to-slate-600 p-5">
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex-1 min-w-0">
-                              <h3 className="font-bold text-white text-lg mb-3 flex items-center">
-                                <svg className="w-5 h-5 mr-2 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                </svg>
-                                {product.title}
-                              </h3>
+                              <div className="flex items-center gap-2 mb-3">
+                                <h3 className="font-bold text-white text-lg flex items-center">
+                                  <svg className="w-5 h-5 mr-2 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                  </svg>
+                                  {product.title}
+                                </h3>
+                                {isProductClosed(product) && (
+                                  <span className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-bold bg-red-500 text-white border-2 border-red-600">
+                                    🔒 Clôturé
+                                  </span>
+                                )}
+                              </div>
                               <div className="flex flex-wrap gap-2">
                                 {(() => {
                                   // Parser les catégories (peut être JSON array ou string simple)
@@ -712,19 +725,28 @@ export default function ProduitsStructuresPage() {
                           )}
                           
                           {/* Bouton Réserver */}
-                            <button
-                              onClick={() => {
-                                setSelectedProduct(product);
-                              setSelectedProductAssurance(assurance); // Stocker l'assurance du groupe actuel
-                                setShowReservationModal(true);
-                              }}
-                            className="w-full bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 hover:from-blue-700 hover:via-blue-800 hover:to-blue-900 text-white py-4 px-6 rounded-xl transition-all duration-300 font-bold text-base shadow-xl hover:shadow-2xl hover:scale-[1.02] flex items-center justify-center space-x-2 border-2 border-blue-500"
-                            >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <span>Réserver ce produit</span>
-                            </button>
+                            {isProductClosed(product) ? (
+                              <div className="w-full bg-gray-400 text-white py-4 px-6 rounded-xl font-bold text-base flex items-center justify-center space-x-2 border-2 border-gray-500 cursor-not-allowed">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                </svg>
+                                <span>Produit clôturé</span>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  setSelectedProduct(product);
+                                  setSelectedProductAssurance(assurance); // Stocker l'assurance du groupe actuel
+                                  setShowReservationModal(true);
+                                }}
+                                className="w-full bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 hover:from-blue-700 hover:via-blue-800 hover:to-blue-900 text-white py-4 px-6 rounded-xl transition-all duration-300 font-bold text-base shadow-xl hover:shadow-2xl hover:scale-[1.02] flex items-center justify-center space-x-2 border-2 border-blue-500"
+                              >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span>Réserver ce produit</span>
+                              </button>
+                            )}
                         </div>
                       </div>
                     ))}
