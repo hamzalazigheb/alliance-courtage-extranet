@@ -410,8 +410,8 @@ export default function ProduitsStructuresPage() {
   const filteredProducts = products.filter(product => {
     const isClosed = isProductClosed(product);
     if (selectedStatus === '') {
-      // Par défaut, ne pas afficher les produits clôturés
-      return !isClosed;
+      // "Tous les produits" - afficher tous les produits (clôturés et non clôturés)
+      return true;
     }
     if (selectedStatus === 'en_cours') return !isClosed;
     if (selectedStatus === 'clotures') return isClosed;
