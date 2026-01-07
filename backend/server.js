@@ -94,11 +94,12 @@ app.use(metricsMiddleware);
 app.use(express.json({ limit: '5gb' })); // Augmenté pour supporter les gros contenus CMS (5GB)
 app.use(express.urlencoded({ extended: true, limit: '5gb' }));
 
-// Middleware pour garantir UTF-8 encoding
-app.use((req, res, next) => {
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  next();
-});
+// Middleware pour garantir UTF-8 encoding pour les réponses JSON
+const originalJson = express.response.json;
+express.response.json = function(obj) {
+  this.charset = 'utf-8';
+  return originalJson.call(this, obj);
+};
 
 // Middleware pour servir les fichiers statiques avec cache optimisé
 app.use('/uploads', express.static(path.join(__dirname, '../uploads'), { 
