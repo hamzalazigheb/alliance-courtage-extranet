@@ -135,6 +135,20 @@ async function apiRequest(endpoint, options = {}) {
         error: errorMessage,
         data: data
       });
+      
+      // Si le token est expiré (401 Unauthorized), déconnecter l'utilisateur
+      if (response.status === 401 && (errorMessage.includes('Token expiré') || errorMessage.includes('token') || errorMessage.includes('Unauthorized'))) {
+        console.warn('Token expiré ou invalide, déconnexion automatique...');
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('currentUser');
+        // Rediriger vers la page de connexion
+        if (typeof window !== 'undefined' && !window.location.hash.includes('login')) {
+          window.location.hash = '#login';
+          window.location.reload();
+        }
+      }
+      
       throw new Error(errorMessage);
     }
 

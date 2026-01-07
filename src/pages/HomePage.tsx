@@ -32,9 +32,15 @@ export default function HomePage() {
       if (response.ok) {
         const data = await response.json();
         if (data.content) setContent(JSON.parse(data.content));
+      } else if (response.status === 401) {
+        // Token expiré, ne pas logger l'erreur (la déconnexion automatique se fera)
+        console.warn('Session expirée, redirection vers la page de connexion...');
       }
-    } catch (error) {
-      console.error('Error loading CMS:', error);
+    } catch (error: any) {
+      // Ne logger que les erreurs non-authentification
+      if (!error.message?.includes('Token expiré') && !error.message?.includes('Unauthorized')) {
+        console.error('Error loading CMS:', error);
+      }
     } finally {
       setLoading(false);
     }

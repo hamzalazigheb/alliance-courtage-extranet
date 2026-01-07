@@ -105,8 +105,11 @@ function App() {
         try {
           const data = await notificationsAPI.getUnreadCount();
           setNotificationCount(data.count || 0);
-        } catch (error) {
-          console.error('Error loading unread count:', error);
+        } catch (error: any) {
+          // Si c'est une erreur d'authentification, ne pas logger (la déconnexion automatique se fera dans api.js)
+          if (!error.message?.includes('Token expiré') && !error.message?.includes('Unauthorized')) {
+            console.error('Error loading unread count:', error);
+          }
         }
       };
       

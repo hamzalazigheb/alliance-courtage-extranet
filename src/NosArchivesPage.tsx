@@ -4,11 +4,11 @@ import FavoriteButton from './components/FavoriteButton';
 
 interface ArchiveFile {
   id: number;
-  title: string;
-  description: string;
+  title: string | null;
+  description: string | null;
   file_path: string;
   file_size: number;
-  file_type: string;
+  file_type: string | null;
   category: string;
   year: number;
   created_at: string;
@@ -56,7 +56,8 @@ function NosArchivesPage() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const getFileIcon = (fileType: string) => {
+  const getFileIcon = (fileType: string | null) => {
+    if (!fileType) return '📁';
     if (fileType.includes('pdf')) return '📄';
     if (fileType.includes('word') || fileType.includes('document')) return '📝';
     if (fileType.includes('excel') || fileType.includes('spreadsheet')) return '📊';
@@ -65,8 +66,8 @@ function NosArchivesPage() {
   };
 
   const filteredFiles = files.filter(file => {
-    const matchesSearch = file.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         file.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = file.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         file.description?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = !selectedCategory || file.category === selectedCategory;
     const matchesYear = !selectedYear || file.year.toString() === selectedYear;
     
