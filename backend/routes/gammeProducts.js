@@ -52,6 +52,157 @@ function fixFilenameEncoding(filename) {
   }
 }
 
+// ============================================
+// FAMILIES API - Gestion des familles en base de données
+// ============================================
+
+// @route   GET /api/gamme-products/families
+// @desc    Récupérer toutes les familles
+// @access  Public
+router.get('/families', async (req, res) => {
+  try {
+    // Récupérer les familles de la table gamme_families (filtrer les entrées vides)
+    const families = await query(
+      `SELECT * FROM gamme_families 
+       WHERE label IS NOT NULL AND label != '' AND TRIM(label) != ''
+       AND value IS NOT NULL AND value != '' AND TRIM(value) != ''
+       ORDER BY display_order, label`
+    );
+    
+    // Double vérification côté JavaScript
+    const validFamilies = families.filter(f => 
+      f.label && f.label.trim() && f.value && f.value.trim()
+    );
+    
+    res.json(validFamilies);
+  } catch (error) {
+    console.error('Erreur get families:', error);
+    // Si la table n'existe pas, retourner les familles par défaut
+    res.json([
+      { value: 'epargne', label: 'Épargne', icon: '💰', display_order: 1 },
+      { value: 'retraite', label: 'Retraite', icon: '👴', display_order: 2 },
+      { value: 'prevoyance', label: 'Prévoyance', icon: '🛡️', display_order: 3 },
+      { value: 'sante', label: 'Santé', icon: '❤️', display_order: 4 },
+      { value: 'cif', label: 'CIF', icon: '📊', display_order: 5 }
+    ]);
+  }
+});
+
+// @route   POST /api/gamme-products/families
+// @desc    Créer une nouvelle famille
+// @access  Private (Admin)
+router.post('/families', auth, authorize('admin'), async (req, res) => {
+  try {
+    const { value, label, icon, nom } = req.body;
+    
+    // Accepter soit "label" soit "nom" comme nom de la famille
+    const rawLabel = label || nom || '';
+    const familyLabel = rawLabel.trim();
+    
+    // Validation stricte - le nom ne doit pas être vide
+    if (!familyLabel || familyLabel.length === 0) {
+      return res.status(400).json({ error: 'Le nom de la famille est requis et ne peut pas être vide' });
+    }
+    
+    // Validation longueur minimale
+    if (familyLabel.length < 2) {
+      return res.status(400).json({ error: 'Le nom de la famille doit contenir au moins 2 caractères' });
+    }
+    
+    // Générer automatiquement la valeur (slug) à partir du label
+    const familyValue = (value || familyLabel.toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Enlever les accents
+      .replace(/[^a-z0-9]/g, '_') // Remplacer les caractères spéciaux
+      .replace(/_+/g, '_') // Éviter les underscores multiples
+      .replace(/^_|_$/g, '')).trim(); // Enlever underscores au début/fin + trim
+    
+    // Validation de la valeur générée
+    if (!familyValue || familyValue.length === 0) {
+      return res.status(400).json({ error: 'Impossible de générer un identifiant valide pour cette famille' });
+    }
+    
+    // Vérifier si la famille existe déjà
+    const existing = await query(
+      'SELECT id FROM gamme_families WHERE value = ?',
+      [familyValue]
+    );
+    
+    if (existing.length > 0) {
+      return res.status(400).json({ error: 'Cette famille existe déjà' });
+    }
+    
+    // Obtenir le prochain display_order
+    const maxOrder = await query(
+      'SELECT MAX(display_order) as max_order FROM gamme_families'
+    );
+    const nextOrder = (maxOrder[0]?.max_order || 0) + 1;
+    
+    // Insérer la nouvelle famille
+    const result = await query(
+      `INSERT INTO gamme_families (value, label, icon, display_order) VALUES (?, ?, ?, ?)`,
+      [familyValue, familyLabel, icon || '📁', nextOrder]
+    );
+    
+    const newFamily = {
+      id: result.insertId,
+      value: familyValue,
+      label: familyLabel,
+      icon: icon || '📁',
+      display_order: nextOrder
+    };
+    
+    console.log(`✅ Famille créée: ${familyLabel} (${familyValue})`);
+    res.status(201).json({
+      message: 'Famille créée avec succès',
+      family: newFamily
+    });
+  } catch (error) {
+    console.error('Erreur create family:', error);
+    res.status(500).json({ error: 'Erreur lors de la création de la famille' });
+  }
+});
+
+// @route   DELETE /api/gamme-products/families/:value
+// @desc    Supprimer une famille
+// @access  Private (Admin)
+router.delete('/families/:value', auth, authorize('admin'), async (req, res) => {
+  try {
+    const { value } = req.params;
+    
+    // Vérifier si des produits utilisent cette famille
+    const productsCount = await query(
+      'SELECT COUNT(*) as count FROM gamme_products WHERE family = ?',
+      [value]
+    );
+    
+    if (productsCount[0].count > 0) {
+      return res.status(400).json({ 
+        error: `Impossible de supprimer: ${productsCount[0].count} produit(s) utilisent cette famille`
+      });
+    }
+    
+    // Supprimer la famille
+    const result = await query(
+      'DELETE FROM gamme_families WHERE value = ?',
+      [value]
+    );
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Famille non trouvée' });
+    }
+    
+    console.log(`🗑️ Famille supprimée: ${value}`);
+    res.json({ message: 'Famille supprimée avec succès' });
+  } catch (error) {
+    console.error('Erreur delete family:', error);
+    res.status(500).json({ error: 'Erreur lors de la suppression de la famille' });
+  }
+});
+
+// ============================================
+// PRODUCTS API
+// ============================================
+
 // @route   GET /api/gamme-products
 // @desc    Récupérer tous les produits (avec filtres optionnels)
 // @access  Public
@@ -161,14 +312,33 @@ router.post('/create-with-files', auth, authorize('admin'), upload.array('files'
     if (!Array.isArray(familiesArray) || familiesArray.length === 0) {
       return res.status(400).json({ error: 'families doit être un tableau non vide' });
     }
+    
+    // Nettoyer et valider les familles (enlever les valeurs vides)
+    const validFamilies = familiesArray
+      .map(f => (typeof f === 'string' ? f.trim() : String(f).trim()))
+      .filter(f => f && f.length > 0);
+    
+    if (validFamilies.length === 0) {
+      return res.status(400).json({ error: 'Aucune famille valide fournie' });
+    }
+    
+    console.log(`📋 Familles reçues:`, familiesArray);
+    console.log(`✅ Familles valides:`, validFamilies);
 
     const createdProducts = [];
     const errors = [];
 
     // Créer tous les produits
     for (const client_type of clientTypesArray) {
-      for (const family of familiesArray) {
-        const productKey = `${client_type}_${family}_${product_name}`;
+      for (const family of validFamilies) {
+        // S'assurer que la famille est une chaîne valide
+        const familyValue = (typeof family === 'string' ? family.trim() : String(family).trim());
+        if (!familyValue || familyValue.length === 0) {
+          console.warn(`⚠️  Famille vide ignorée pour client_type=${client_type}`);
+          continue;
+        }
+        
+        const productKey = `${client_type}_${familyValue}_${product_name}`;
         
         try {
           // Vérifier si le produit existe déjà
@@ -187,11 +357,11 @@ router.post('/create-with-files', auth, authorize('admin'), upload.array('files'
             continue;
           }
           
-          // Créer le produit
+          // Créer le produit avec validation stricte
           const result = await query(
             `INSERT INTO gamme_products (product_key, client_type, family, product_name, description)
              VALUES (?, ?, ?, ?, ?)`,
-            [productKey, client_type, family, product_name, description || '']
+            [productKey, client_type, familyValue, product_name, description || '']
           );
           
           createdProducts.push({
@@ -200,7 +370,7 @@ router.post('/create-with-files', auth, authorize('admin'), upload.array('files'
             already_exists: false
           });
           
-          console.log(`✅ Produit créé: ${productKey}`);
+          console.log(`✅ Produit créé: ${productKey} (family="${familyValue}")`);
         } catch (error) {
           console.error(`❌ Erreur création produit ${productKey}:`, error);
           errors.push({ productKey, error: error.message });
@@ -225,13 +395,16 @@ router.post('/create-with-files', auth, authorize('admin'), upload.array('files'
             );
             
             if (existing.length === 0) {
-              await query(
+              const insertResult = await query(
                 `INSERT INTO gamme_product_files 
                  (product_key, file_name, file_content, file_size, file_type, display_order) 
                  VALUES (?, ?, ?, ?, ?, ?)`,
                 [product.product_key, fileName, fileBase64, file.size, file.mimetype, i]
               );
               totalFilesUploaded++;
+              console.log(`✅ Fichier "${fileName}" uploadé pour ${product.product_key} (ID: ${insertResult.insertId}, Taille: ${file.size} bytes)`);
+            } else {
+              console.log(`⏭️  Fichier "${fileName}" déjà existant pour ${product.product_key}`);
             }
           }
         } catch (error) {

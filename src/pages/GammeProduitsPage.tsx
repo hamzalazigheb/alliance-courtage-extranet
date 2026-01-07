@@ -114,6 +114,13 @@ export default function GammeProduitsPage() {
   const [cmsProducts, setCmsProducts] = useState<any | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [productFiles, setProductFiles] = useState<Record<string, any[]>>({});
+  const [productTypes, setProductTypes] = useState<{ id: string; name: string }[]>([
+    { id: "epargne", name: "Épargne" },
+    { id: "retraite", name: "Retraite" },
+    { id: "prevoyance", name: "Prévoyance" },
+    { id: "sante", name: "Santé" },
+    { id: "cif", name: "CIF" }
+  ]);
 
   const clientTypes = [
     { id: "particulier", name: "Particulier", icon: "👤" },
@@ -121,17 +128,32 @@ export default function GammeProduitsPage() {
     { id: "entreprise", name: "Entreprise", icon: "🏢" }
   ];
 
-  const productTypes = [
-    { id: "epargne", name: "Épargne" },
-    { id: "retraite", name: "Retraite" },
-    { id: "prevoyance", name: "Prévoyance" },
-    { id: "sante", name: "Santé" },
-    { id: "cif", name: "Conseil en investissement financier" }
-  ];
-
   useEffect(() => {
     const load = async () => {
       try {
+        // Charger les familles depuis la DB
+        const familiesResp = await fetch(buildAPIURL('/gamme-products/families'), {
+          headers: { 'x-auth-token': localStorage.getItem('token') || '' }
+        });
+        if (familiesResp.ok) {
+          const families = await familiesResp.json();
+          console.log('✅ Familles chargées depuis DB:', families.length);
+          // Filtrer les familles vides/invalides
+          const validFamilies = families.filter((f: any) => 
+            f.value && f.value.trim() && f.label && f.label.trim()
+          );
+          if (validFamilies && validFamilies.length > 0) {
+            setProductTypes(validFamilies.map((f: any) => ({
+              id: f.value,
+              name: f.label
+            })));
+            // Si la famille sélectionnée n'existe plus, sélectionner la première
+            if (!families.some((f: any) => f.value === selectedProductType)) {
+              setSelectedProductType(families[0].value);
+            }
+          }
+        }
+
         // Charger les produits depuis la NOUVELLE API (100% DB)
         const resp = await fetch(buildAPIURL('/gamme-products'), {
           headers: { 'x-auth-token': localStorage.getItem('token') || '' }
@@ -141,15 +163,30 @@ export default function GammeProduitsPage() {
           console.log('✅ Produits chargés depuis DB:', products.length);
           
           // Convertir les produits DB au format attendu par l'interface
+          // Structure dynamique basée sur les familles chargées
           const groupedProducts: any = {
-            particulier: { epargne: [], retraite: [], prevoyance: [], sante: [], cif: [] },
-            professionnel: { epargne: [], retraite: [], prevoyance: [], sante: [], cif: [] },
-            entreprise: { epargne: [], retraite: [], prevoyance: [], sante: [], cif: [] }
+            particulier: {},
+            professionnel: {},
+            entreprise: {}
           };
+          
+          // Initialiser toutes les familles pour chaque type de client
+          const familiesResp2 = await fetch(buildAPIURL('/gamme-products/families'));
+          const allFamilies = familiesResp2.ok ? await familiesResp2.json() : productTypes.map(p => ({ value: p.id }));
+          
+          ['particulier', 'professionnel', 'entreprise'].forEach(clientType => {
+            allFamilies.forEach((family: any) => {
+              groupedProducts[clientType][family.value] = [];
+            });
+          });
           
           products.forEach((product: any) => {
             const { client_type, family, product_name, description } = product;
-            if (groupedProducts[client_type] && groupedProducts[client_type][family]) {
+            if (groupedProducts[client_type]) {
+              // S'assurer que la famille existe
+              if (!groupedProducts[client_type][family]) {
+                groupedProducts[client_type][family] = [];
+              }
               // Vérifier si le produit existe déjà (éviter doublons)
               const exists = groupedProducts[client_type][family].some(
                 (p: any) => p.name === product_name
@@ -294,7 +331,13 @@ export default function GammeProduitsPage() {
         </h2>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           {(cmsProducts?.products && Object.keys(cmsProducts.products[selectedClientType] || {}).length > 0
-            ? Object.keys(cmsProducts.products[selectedClientType] || {}).map((k: string) => ({ id: k, name: k }))
+            ? Object.keys(cmsProducts.products[selectedClientType] || {})
+                .filter((k: string) => k && k.trim()) // Filtrer les clés vides
+                .map((k: string) => {
+                  // Trouver le nom correct dans productTypes
+                  const found = productTypes.find(pt => pt.id === k);
+                  return { id: k, name: found ? found.name : k };
+                })
             : productTypes
           ).map((type: any) => (
             <button

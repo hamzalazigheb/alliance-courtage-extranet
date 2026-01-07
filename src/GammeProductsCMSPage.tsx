@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { gammeProductsAPI, GammeProduct, GammeProductFile } from './api/gammeProductsAPI';
+import { gammeProductsAPI, GammeProduct, GammeProductFile, GammeFamily } from './api/gammeProductsAPI';
 import { useAlert } from './contexts/AlertContext';
 
 type ClientType = 'particulier' | 'professionnel' | 'entreprise';
@@ -49,8 +49,8 @@ const GammeProductsCMSPage: React.FC = () => {
     { value: 'entreprise', label: 'Entreprise', icon: '🏢' }
   ];
 
-  // Familles dynamiques (stockées dans localStorage)
-  const defaultFamilies = [
+  // Familles dynamiques (stockées dans la base de données)
+  const defaultFamilies: GammeFamily[] = [
     { value: 'epargne', label: 'Épargne', icon: '💰' },
     { value: 'retraite', label: 'Retraite', icon: '👴' },
     { value: 'prevoyance', label: 'Prévoyance', icon: '🛡️' },
@@ -58,15 +58,36 @@ const GammeProductsCMSPage: React.FC = () => {
     { value: 'cif', label: 'CIF', icon: '📊' }
   ];
 
-  const [families, setFamilies] = useState<{ value: string; label: string; icon: string }[]>(() => {
-    const saved = localStorage.getItem('gamme_families');
-    return saved ? JSON.parse(saved) : defaultFamilies;
-  });
+  const [families, setFamilies] = useState<GammeFamily[]>(defaultFamilies);
+  const [familiesLoading, setFamiliesLoading] = useState(false);
 
   const [newFamilyLabel, setNewFamilyLabel] = useState('');
 
+  // Charger les familles depuis la base de données
+  const loadFamilies = async () => {
+    try {
+      setFamiliesLoading(true);
+      const data = await gammeProductsAPI.getFamilies();
+      // Filtrer les familles vides/invalides
+      const validFamilies = (data || []).filter((f: GammeFamily) => 
+        f.value && f.value.trim() && f.label && f.label.trim()
+      );
+      if (validFamilies.length > 0) {
+        setFamilies(validFamilies);
+      } else {
+        setFamilies(defaultFamilies);
+      }
+    } catch (error) {
+      console.error('Erreur chargement familles:', error);
+      setFamilies(defaultFamilies);
+    } finally {
+      setFamiliesLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadProducts();
+    loadFamilies(); // Charger les familles depuis la DB
   }, []);
 
   const loadProducts = async () => {
@@ -99,11 +120,50 @@ const GammeProductsCMSPage: React.FC = () => {
       // Charger le nombre de fichiers pour chaque produit unique
       for (const productName in uniqueProducts) {
         const product = uniqueProducts[productName];
+        let fileCount = 0;
+        
         try {
+          // D'abord essayer avec le produit sélectionné
           const files = await gammeProductsAPI.getFiles(product.id);
-          counts[productName] = files.length;
+          fileCount = files.length;
+          
+          // Si ce produit n'a pas de fichiers, vérifier les autres produits avec le même nom
+          if (fileCount === 0) {
+            const productsWithSameName = productsList.filter(p => p.product_name === productName);
+            for (const p of productsWithSameName) {
+              try {
+                const pFiles = await gammeProductsAPI.getFiles(p.id);
+                if (pFiles.length > 0) {
+                  fileCount = pFiles.length;
+                  console.log(`✅ Fichiers trouvés pour "${productName}" via produit ${p.id} (${p.family})`);
+                  break; // Prendre le premier qui a des fichiers
+                }
+              } catch (e) {
+                // Ignorer les erreurs et continuer
+              }
+            }
+          }
+          
+          counts[productName] = fileCount;
         } catch (error) {
-          counts[productName] = 0;
+          // Si erreur, essayer les autres produits avec le même nom
+          const productsWithSameName = productsList.filter(p => p.product_name === productName);
+          let found = false;
+          for (const p of productsWithSameName) {
+            try {
+              const pFiles = await gammeProductsAPI.getFiles(p.id);
+              if (pFiles.length > 0) {
+                counts[productName] = pFiles.length;
+                found = true;
+                break;
+              }
+            } catch (e) {
+              // Continuer
+            }
+          }
+          if (!found) {
+            counts[productName] = 0;
+          }
         }
       }
       
@@ -317,11 +377,48 @@ const GammeProductsCMSPage: React.FC = () => {
     setShowFilesModal(true);
     
     try {
-      const files = await gammeProductsAPI.getFiles(productsWithName[0].id);
+      // Essayer de charger les fichiers du premier produit
+      let files = await gammeProductsAPI.getFiles(productsWithName[0].id);
+      
+      // Si aucun fichier trouvé, vérifier les autres produits avec le même nom
+      if (files.length === 0 && productsWithName.length > 1) {
+        for (let i = 1; i < productsWithName.length; i++) {
+          try {
+            const otherFiles = await gammeProductsAPI.getFiles(productsWithName[i].id);
+            if (otherFiles.length > 0) {
+              files = otherFiles;
+              setSelectedProduct(productsWithName[i]); // Utiliser le produit qui a des fichiers
+              console.log(`✅ Fichiers trouvés pour "${productName}" via produit ${productsWithName[i].id} (${productsWithName[i].family})`);
+              break;
+            }
+          } catch (e) {
+            // Continuer avec le produit suivant
+          }
+        }
+      }
+      
       setProductFiles(files);
     } catch (error: any) {
-      showError(error.message || 'Erreur lors du chargement des fichiers');
-      setProductFiles([]);
+      // Si erreur sur le premier, essayer les autres
+      let filesFound = false;
+      for (const product of productsWithName) {
+        try {
+          const files = await gammeProductsAPI.getFiles(product.id);
+          if (files.length > 0) {
+            setProductFiles(files);
+            setSelectedProduct(product);
+            filesFound = true;
+            console.log(`✅ Fichiers trouvés pour "${productName}" via produit ${product.id} (${product.family})`);
+            break;
+          }
+        } catch (e) {
+          // Continuer
+        }
+      }
+      if (!filesFound) {
+        showError(error.message || 'Erreur lors du chargement des fichiers');
+        setProductFiles([]);
+      }
     }
   };
 
@@ -441,43 +538,35 @@ const GammeProductsCMSPage: React.FC = () => {
     }
   };
 
-  // GÉRER LES FAMILLES
-  const handleAddFamily = () => {
+  // GÉRER LES FAMILLES (sauvegardées dans la base de données)
+  const handleAddFamily = async () => {
     if (!newFamilyLabel.trim()) {
       showError('Veuillez saisir un nom de famille');
       return;
     }
 
-    // Générer automatiquement la valeur depuis le label
-    const generatedValue = newFamilyLabel
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '') // Supprimer les accents
-      .replace(/[^a-z0-9\s]/g, '') // Garder seulement lettres, chiffres, espaces
-      .trim()
-      .replace(/\s+/g, '_'); // Remplacer espaces par underscores
-
-    // Vérifier si la famille existe déjà
-    if (families.some(f => f.value === generatedValue)) {
-      showError('Cette famille existe déjà');
-      return;
+    try {
+      setFamiliesLoading(true);
+      
+      // Appeler l'API pour créer la famille (juste le nom suffit!)
+      const result = await gammeProductsAPI.createFamily({
+        nom: newFamilyLabel.trim()  // Le backend génère automatiquement value et icon
+      });
+      
+      // Recharger les familles depuis la DB
+      await loadFamilies();
+      
+      setNewFamilyLabel('');
+      showSuccess('✅ Famille ajoutée et sauvegardée en base de données !');
+    } catch (error: any) {
+      showError(error.message || 'Erreur lors de la création de la famille');
+    } finally {
+      setFamiliesLoading(false);
     }
-
-    const newFamily = {
-      value: generatedValue,
-      label: newFamilyLabel.trim(),
-      icon: '📁'
-    };
-
-    const updatedFamilies = [...families, newFamily];
-    setFamilies(updatedFamilies);
-    localStorage.setItem('gamme_families', JSON.stringify(updatedFamilies));
-    setNewFamilyLabel('');
-    showSuccess('✅ Famille ajoutée !');
   };
 
-  const handleDeleteFamily = (familyValue: string) => {
-    // Vérifier si des produits utilisent cette famille
+  const handleDeleteFamily = async (familyValue: string) => {
+    // Vérifier localement d'abord
     const productsUsingFamily = products.filter(p => p.family === familyValue);
     if (productsUsingFamily.length > 0) {
       showError(`Impossible de supprimer : ${productsUsingFamily.length} produit(s) utilise(nt) cette famille`);
@@ -486,10 +575,21 @@ const GammeProductsCMSPage: React.FC = () => {
 
     if (!confirm(`Supprimer la famille "${families.find(f => f.value === familyValue)?.label}" ?`)) return;
 
-    const updatedFamilies = families.filter(f => f.value !== familyValue);
-    setFamilies(updatedFamilies);
-    localStorage.setItem('gamme_families', JSON.stringify(updatedFamilies));
-    showSuccess('✅ Famille supprimée !');
+    try {
+      setFamiliesLoading(true);
+      
+      // Appeler l'API pour supprimer la famille
+      await gammeProductsAPI.deleteFamily(familyValue);
+      
+      // Recharger les familles depuis la DB
+      await loadFamilies();
+      
+      showSuccess('✅ Famille supprimée de la base de données !');
+    } catch (error: any) {
+      showError(error.message || 'Erreur lors de la suppression de la famille');
+    } finally {
+      setFamiliesLoading(false);
+    }
   };
 
   // SUPPRIMER UN PRODUIT

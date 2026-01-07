@@ -20,6 +20,14 @@ export interface GammeProductFile {
   created_at: string;
 }
 
+export interface GammeFamily {
+  id?: number;
+  value: string;
+  label: string;
+  icon?: string;
+  display_order?: number;
+}
+
 export const gammeProductsAPI = {
   // Récupérer tous les produits (avec filtres optionnels)
   async getAll(clientType?: string, family?: string): Promise<GammeProduct[]> {
@@ -150,6 +158,32 @@ export const gammeProductsAPI = {
   async deleteFile(productId: number, fileId: number, deleteFromAllFamilies: boolean = false): Promise<{ message: string }> {
     const queryParam = deleteFromAllFamilies ? '?deleteFromAllFamilies=true' : '';
     return apiRequest(`/gamme-products/${productId}/files/${fileId}${queryParam}`, {
+      method: 'DELETE'
+    });
+  },
+
+  // FAMILIES API - Gestion des familles
+  // Récupérer toutes les familles
+  async getFamilies(): Promise<GammeFamily[]> {
+    return apiRequest('/gamme-products/families', { method: 'GET' });
+  },
+
+  // Créer une nouvelle famille
+  async createFamily(familyData: { label?: string; nom?: string; icon?: string }): Promise<GammeFamily> {
+    // Accepter soit "label" soit "nom"
+    const payload = {
+      label: familyData.label || familyData.nom,
+      icon: familyData.icon
+    };
+    return apiRequest('/gamme-products/families', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+
+  // Supprimer une famille
+  async deleteFamily(value: string): Promise<{ message: string }> {
+    return apiRequest(`/gamme-products/families/${value}`, {
       method: 'DELETE'
     });
   }

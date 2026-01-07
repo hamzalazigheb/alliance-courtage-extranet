@@ -1,115 +1,126 @@
-const { query } = require('../config/database');
+/**
+ * Script pour vérifier les fichiers des produits gamme
+ * Usage: node backend/scripts/checkGammeProductFiles.js [family_name]
+ */
 
-async function checkGammeProductFiles() {
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', 'config.env') });
+
+const mysql = require('mysql2/promise');
+
+async function checkFiles(familyFilter = null) {
+  const connection = await mysql.createConnection({
+    host: process.env.DB_HOST || 'localhost',
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'alliance_courtage'
+  });
+
   try {
-    console.log('🔍 Vérification des fichiers dans le JSON CMS...\n');
+    console.log('🔍 Checking gamme product files...\n');
     
-    // Récupérer le contenu CMS
-    const cmsContent = await query(
-      'SELECT content FROM cms_content WHERE page = ?',
-      ['gamme-produits']
-    );
+    let query = `
+      SELECT 
+        gpf.id as file_id,
+        gpf.product_key,
+        gpf.file_name,
+        gpf.file_size,
+        gpf.file_type,
+        gpf.display_order,
+        gpf.created_at as file_created,
+        gp.id as product_id,
+        gp.family,
+        gp.client_type,
+        gp.product_name
+      FROM gamme_product_files gpf
+      JOIN gamme_products gp ON gpf.product_key = gp.product_key
+    `;
     
-    if (!cmsContent || cmsContent.length === 0) {
-      console.log('ℹ️ Aucun contenu CMS trouvé pour gamme-produits');
-      return;
+    const params = [];
+    if (familyFilter) {
+      query += ' WHERE gp.family = ?';
+      params.push(familyFilter);
     }
     
-    let gpContent = cmsContent[0].content;
+    query += ' ORDER BY gp.family, gp.client_type, gp.product_name, gpf.display_order';
     
-    // Parser le contenu
-    try {
-      gpContent = typeof gpContent === 'string' ? JSON.parse(gpContent) : gpContent;
-      if (typeof gpContent === 'string') {
-        gpContent = JSON.parse(gpContent);
+    const [files] = await connection.execute(query, params);
+    
+    if (files.length === 0) {
+      console.log(`❌ No files found${familyFilter ? ` for family "${familyFilter}"` : ''}`);
+      
+      // Check if products exist
+      let productQuery = 'SELECT COUNT(*) as count FROM gamme_products';
+      const productParams = [];
+      if (familyFilter) {
+        productQuery += ' WHERE family = ?';
+        productParams.push(familyFilter);
       }
-    } catch (parseError) {
-      console.error('❌ Erreur parsing contenu CMS:', parseError);
-      return;
-    }
-    
-    if (!gpContent || !gpContent.products) {
-      console.log('ℹ️ Aucun produit trouvé dans le contenu CMS');
-      return;
-    }
-    
-    let totalDocuments = 0;
-    let documentsWithContent = 0;
-    let documentsWithoutContent = 0;
-    
-    // Parcourir tous les produits
-    Object.keys(gpContent.products).forEach((clientType) => {
-      Object.keys(gpContent.products[clientType] || {}).forEach((family) => {
-        const products = gpContent.products[clientType][family];
-        if (Array.isArray(products)) {
-          products.forEach((product) => {
-            if (product.documents && Array.isArray(product.documents) && product.documents.length > 0) {
-              const productKey = `${clientType}_${family}_${product.name}`;
-              console.log(`\n📦 Produit: ${productKey}`);
-              console.log(`   Nombre de documents: ${product.documents.length}`);
-              
-              product.documents.forEach((doc, index) => {
-                totalDocuments++;
-                const hasContent = doc.file_content && typeof doc.file_content === 'string' && doc.file_content.length > 0;
-                const contentLength = doc.file_content ? doc.file_content.length : 0;
-                
-                console.log(`   📄 Document ${index + 1}:`);
-                console.log(`      - Nom: ${doc.file_name || doc.title || 'N/A'}`);
-                console.log(`      - Taille contenu: ${contentLength} caractères`);
-                console.log(`      - A du contenu: ${hasContent ? '✅ OUI' : '❌ NON'}`);
-                console.log(`      - Type: ${doc.file_type || 'N/A'}`);
-                console.log(`      - Taille fichier: ${doc.file_size || 'N/A'} bytes`);
-                
-                if (hasContent) {
-                  documentsWithContent++;
-                  // Afficher un aperçu du contenu (premiers 100 caractères)
-                  const preview = doc.file_content.substring(0, 100);
-                  console.log(`      - Aperçu contenu: ${preview}...`);
-                } else {
-                  documentsWithoutContent++;
-                  console.log(`      - ⚠️ Pas de contenu base64 à migrer`);
-                }
-              });
-            }
-          });
+      const [productCount] = await connection.execute(productQuery, productParams);
+      console.log(`📊 Products in database: ${productCount[0].count}`);
+      
+      if (productCount[0].count > 0) {
+        console.log('\n⚠️  Products exist but have no files attached!');
+      }
+    } else {
+      console.log(`✅ Found ${files.length} file(s)${familyFilter ? ` for family "${familyFilter}"` : ''}:\n`);
+      
+      // Group by product
+      const byProduct = {};
+      files.forEach(file => {
+        const key = file.product_key;
+        if (!byProduct[key]) {
+          byProduct[key] = {
+            product_key: key,
+            product_id: file.product_id,
+            family: file.family,
+            client_type: file.client_type,
+            product_name: file.product_name,
+            files: []
+          };
         }
+        byProduct[key].files.push({
+          id: file.file_id,
+          name: file.file_name,
+          size: file.file_size,
+          type: file.file_type,
+          order: file.display_order
+        });
       });
-    });
-    
-    console.log(`\n📊 Résumé:`);
-    console.log(`   Total documents: ${totalDocuments}`);
-    console.log(`   Documents avec contenu: ${documentsWithContent}`);
-    console.log(`   Documents sans contenu: ${documentsWithoutContent}`);
-    
-    // Vérifier aussi ce qui est dans la table
-    console.log(`\n🔍 Vérification de la table gamme_product_files...`);
-    const filesInTable = await query('SELECT COUNT(*) as count FROM gamme_product_files');
-    console.log(`   Fichiers dans la table: ${filesInTable[0].count}`);
-    
-    if (filesInTable[0].count > 0) {
-      const sampleFiles = await query('SELECT product_key, file_name, file_size FROM gamme_product_files LIMIT 5');
-      console.log(`   Exemples de fichiers dans la table:`);
-      sampleFiles.forEach(file => {
-        console.log(`      - ${file.product_key}: ${file.file_name} (${file.file_size} bytes)`);
+      
+      // Display grouped results
+      Object.values(byProduct).forEach(product => {
+        console.log(`\n📦 Product: ${product.product_key}`);
+        console.log(`   ID: ${product.product_id} | Family: ${product.family} | Client: ${product.client_type}`);
+        console.log(`   Files (${product.files.length}):`);
+        product.files.forEach(file => {
+          const sizeKB = (file.size / 1024).toFixed(2);
+          console.log(`      - ${file.name} (${sizeKB} KB, ${file.type})`);
+        });
+      });
+      
+      // Summary by family
+      console.log('\n📊 Summary by family:');
+      const byFamily = {};
+      files.forEach(file => {
+        if (!byFamily[file.family]) {
+          byFamily[file.family] = { products: new Set(), files: 0 };
+        }
+        byFamily[file.family].products.add(file.product_key);
+        byFamily[file.family].files++;
+      });
+      
+      Object.entries(byFamily).forEach(([family, data]) => {
+        console.log(`   ${family}: ${data.products.size} product(s), ${data.files} file(s)`);
       });
     }
     
   } catch (error) {
-    console.error('❌ Erreur:', error);
-    throw error;
+    console.error('❌ Error:', error.message);
+  } finally {
+    await connection.end();
   }
 }
 
-// Exécuter
-(async () => {
-  try {
-    console.log('🔌 Connexion à la base de données...');
-    await checkGammeProductFiles();
-    console.log('\n🔌 Terminé');
-    process.exit(0);
-  } catch (error) {
-    console.error('❌ Erreur:', error);
-    process.exit(1);
-  }
-})();
-
+const familyFilter = process.argv[2] || null;
+checkFiles(familyFilter);
