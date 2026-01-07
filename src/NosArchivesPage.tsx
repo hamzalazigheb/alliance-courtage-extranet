@@ -66,8 +66,9 @@ function NosArchivesPage() {
   };
 
   const filteredFiles = files.filter(file => {
-    const matchesSearch = file.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         file.description?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = 
+      (file.title?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (file.description?.toLowerCase() || '').includes(searchTerm.toLowerCase());
     const matchesCategory = !selectedCategory || file.category === selectedCategory;
     const matchesYear = !selectedYear || file.year.toString() === selectedYear;
     
