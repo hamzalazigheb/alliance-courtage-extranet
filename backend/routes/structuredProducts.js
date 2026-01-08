@@ -729,8 +729,22 @@ router.put('/:id', auth, authorize('admin'), async (req, res) => {
 
     // Mettre à jour la date de strike si fournie
     if (date_strike !== undefined) {
+      let formattedDate = null;
+      if (date_strike) {
+        // Convertir la date ISO en format MySQL (YYYY-MM-DD)
+        try {
+          const date = new Date(date_strike);
+          if (!isNaN(date.getTime())) {
+            // Format MySQL DATE: YYYY-MM-DD
+            formattedDate = date.toISOString().split('T')[0];
+          }
+        } catch (e) {
+          console.error('Erreur formatage date:', e);
+          return res.status(400).json({ error: 'Format de date invalide' });
+        }
+      }
       updateFields.push('date_strike = ?');
-      updateValues.push(date_strike || null);
+      updateValues.push(formattedDate);
     }
 
     // Mettre à jour la catégorie si fournie
@@ -752,21 +766,24 @@ router.put('/:id', auth, authorize('admin'), async (req, res) => {
       updateValues.push(montantValue);
 
       // Si le produit a des assurances avec montants (format JSON), mettre à jour aussi
-      try {
-        const assurances = JSON.parse(product.assurance);
-        if (Array.isArray(assurances) && assurances.length > 0) {
-          if (typeof assurances[0] === 'object' && assurances[0].name) {
-            // Mettre à jour le montant pour toutes les assurances du produit
-            const updatedAssurances = assurances.map((a) => ({
-              ...a,
-              montant: montantValue
-            }));
-            updateFields.push('assurance = ?');
-            updateValues.push(JSON.stringify(updatedAssurances));
+      if (product.assurance) {
+        try {
+          const assurances = JSON.parse(product.assurance);
+          if (Array.isArray(assurances) && assurances.length > 0) {
+            if (typeof assurances[0] === 'object' && assurances[0].name) {
+              // Mettre à jour le montant pour toutes les assurances du produit
+              const updatedAssurances = assurances.map((a) => ({
+                ...a,
+                montant: montantValue
+              }));
+              updateFields.push('assurance = ?');
+              updateValues.push(JSON.stringify(updatedAssurances));
+            }
           }
+        } catch (e) {
+          // Si l'assurance n'est pas en format JSON, on ne fait rien
+          console.log('Assurance n\'est pas en format JSON, ignoré:', e.message);
         }
-      } catch (e) {
-        // Si l'assurance n'est pas en format JSON, on ne fait rien
       }
     }
 
@@ -797,7 +814,13 @@ router.put('/:id', auth, authorize('admin'), async (req, res) => {
       montant_enveloppe
     });
   } catch (error) {
-    console.error('Erreur update structured product:', error);
+    console.error('❌ Erreur update structured product:', error);
+    console.error('❌ Stack:', error.stack);
+    console.error('❌ Error details:', {
+      message: error.message,
+      code: error.code,
+      sqlMessage: error.sqlMessage
+    });
     res.status(500).json({ 
       error: 'Erreur serveur lors de la modification du produit',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
