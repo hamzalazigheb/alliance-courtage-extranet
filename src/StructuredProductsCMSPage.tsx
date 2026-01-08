@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { structuredProductsAPI, assurancesAPI, buildAPIURL, buildFileURL } from './api';
 
 interface StructuredProduct {
@@ -92,12 +92,16 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
   // État pour stocker les fichiers de chaque produit
   const [productFiles, setProductFiles] = useState<Record<number, any[]>>({});
   
-  // État pour la modification de produit (date de strike + catégories)
+  // État pour la modification de produit (date de strike + catégories + montant)
   const [editingProduct, setEditingProduct] = useState<StructuredProduct | null>(null);
   const [editProductForm, setEditProductForm] = useState({
     date_strike: '',
-    category: ''
+    category: '',
+    montant_enveloppe: ''
   });
+  
+  // Ref pour le modal d'édition
+  const editModalRef = useRef<HTMLDivElement>(null);
   
   // État pour gérer la modification d'un fichier spécifique
   const [editingFileId, setEditingFileId] = useState<number | null>(null);
@@ -132,6 +136,32 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
     loadProductReservations();
     loadAssurancesMontants();
   }, []);
+
+  // Scroll automatique vers le haut quand le modal s'ouvre
+  useEffect(() => {
+    if (editingProduct) {
+      // Sauvegarder la position de scroll actuelle
+      const scrollY = window.scrollY;
+      
+      // Désactiver le scroll du body et forcer le scroll vers le haut
+      document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+      
+      // Scroll vers le haut de la page immédiatement
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      
+      return () => {
+        // Réactiver le scroll du body et restaurer la position
+        document.body.style.overflow = '';
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.width = '';
+        window.scrollTo({ top: scrollY, behavior: 'instant' });
+      };
+    }
+  }, [editingProduct]);
 
   const loadContent = async () => {
     try {
@@ -525,19 +555,28 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
     }
   };
 
-  // Fonction pour modifier la date de strike et la catégorie d'un produit
+  // Fonction pour modifier la date de strike, la catégorie et le montant d'un produit
   const handleProductEdit = async () => {
     if (!editingProduct) return;
+
+    // Validation du montant
+    const montantValue = parseFloat(editProductForm.montant_enveloppe);
+    if (isNaN(montantValue) || montantValue < 0) {
+      alert('❌ Le montant doit être un nombre positif');
+      return;
+    }
 
     try {
       await structuredProductsAPI.update(editingProduct.id, {
         date_strike: editProductForm.date_strike || null,
-        category: editProductForm.category
+        category: editProductForm.category,
+        montant_enveloppe: montantValue
       });
 
       alert('✅ Produit modifié avec succès!');
       setEditingProduct(null);
       await loadProducts();
+      await loadProductReservations();
     } catch (error) {
       console.error('Erreur modification:', error);
       alert('❌ Erreur lors de la modification du produit');
@@ -1506,7 +1545,16 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                       <div className="grid grid-cols-2 gap-2">
                         <button
                           onClick={() => {
-                            setEditingProduct(product);
+                            // Récupérer le montant actuel du produit
+                            const assurancesWithMontants = parseAssurancesWithMontants(product.assurance);
+                            let currentMontant = 0;
+                            
+                            if (assurancesWithMontants.length > 0 && assurancesWithMontants[0].montant > 0) {
+                              currentMontant = assurancesWithMontants[0].montant;
+                            } else {
+                              currentMontant = parseFloat(product.montant_enveloppe as any) || 0;
+                            }
+                            
                             // Parser la catégorie (peut être JSON array ou string simple)
                             let category = '';
                             try {
@@ -1519,9 +1567,12 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                             } catch {
                               category = product.category || '';
                             }
+                            
+                            setEditingProduct(product);
                             setEditProductForm({
                               date_strike: product.date_strike || '',
-                              category: category
+                              category: category,
+                              montant_enveloppe: currentMontant.toString()
                             });
                           }}
                           className="bg-blue-600 text-white text-sm py-2 px-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-1"
@@ -2025,8 +2076,11 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
 
       {/* Modal de modification de produit */}
       {editingProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div 
+            ref={editModalRef}
+            className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto my-auto"
+          >
             <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 rounded-t-xl">
               <div className="flex items-center justify-between">
                 <h3 className="text-2xl font-bold">✏️ Modifier le produit</h3>
@@ -2075,6 +2129,50 @@ const StructuredProductsCMSPage: React.FC<StructuredProductsCMSPageProps> = ({
                     <option key={category} value={category}>{category}</option>
                   ))}
                 </select>
+              </div>
+
+              {/* Montant enveloppe */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  💰 Montant enveloppe (€) *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={editProductForm.montant_enveloppe}
+                  onChange={(e) => setEditProductForm({...editProductForm, montant_enveloppe: e.target.value})}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Ex: 2000.00"
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Montant total disponible pour ce produit. Peut être modifié même en cours de commercialisation.
+                </p>
+                {(() => {
+                  const amounts = editingProduct ? getProductAmounts(editingProduct, parseAssurances(editingProduct.assurance)[0]) : null;
+                  if (amounts && amounts.reserveTotal > 0) {
+                    const newMontant = parseFloat(editProductForm.montant_enveloppe) || 0;
+                    const newDisponible = newMontant - amounts.reserveTotal;
+                    return (
+                      <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <p className="text-xs font-semibold text-yellow-800 mb-1">⚠️ Attention</p>
+                        <p className="text-xs text-yellow-700">
+                          Montant actuellement réservé: {formatCurrency(amounts.reserveTotal)}
+                        </p>
+                        <p className="text-xs text-yellow-700">
+                          Nouveau montant disponible: {formatCurrency(newDisponible)}
+                        </p>
+                        {newDisponible < 0 && (
+                          <p className="text-xs text-red-600 font-bold mt-1">
+                            ⚠️ Le nouveau montant est inférieur au montant déjà réservé !
+                          </p>
+                        )}
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
 
               {/* Boutons */}

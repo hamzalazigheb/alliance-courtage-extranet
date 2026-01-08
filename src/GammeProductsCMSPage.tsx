@@ -10,6 +10,7 @@ const GammeProductsCMSPage: React.FC = () => {
   const [products, setProducts] = useState<GammeProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedClientType, setSelectedClientType] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState<string>('');
   
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
@@ -189,8 +190,24 @@ const GammeProductsCMSPage: React.FC = () => {
         prods.some(p => p.client_type === selectedClientType)
       );
 
+  // Filtrer par terme de recherche (nom de produit ou catégorie)
+  const searchFilteredProducts = searchTerm.trim() === ''
+    ? filteredProducts
+    : filteredProducts.filter(([productName, prods]) => {
+        const searchLower = searchTerm.toLowerCase();
+        // Rechercher dans le nom du produit
+        const matchesName = productName.toLowerCase().includes(searchLower);
+        // Rechercher dans les familles/catégories
+        const matchesFamily = prods.some(p => {
+          const familyInfo = families.find(f => f.value === p.family);
+          return familyInfo?.label.toLowerCase().includes(searchLower) || 
+                 familyInfo?.value.toLowerCase().includes(searchLower);
+        });
+        return matchesName || matchesFamily;
+      });
+
   // Grouper par famille
-  const productsByFamily = filteredProducts.reduce((acc, [productName, prods]) => {
+  const productsByFamily = searchFilteredProducts.reduce((acc, [productName, prods]) => {
     prods.forEach(product => {
       if (!selectedClientType || selectedClientType === 'all' || product.client_type === selectedClientType) {
         if (!acc[product.family]) {
@@ -645,6 +662,40 @@ const GammeProductsCMSPage: React.FC = () => {
           </div>
         </div>
 
+        {/* Barre de recherche */}
+        <div className="mb-4">
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+              <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Rechercher un produit par nom ou catégorie (ex: FIP CORSE, CIF, Épargne...)"
+              className="w-full pl-12 pr-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-white transition-colors"
+                title="Effacer la recherche"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+          {searchTerm && (
+            <p className="text-sm text-slate-400 mt-2">
+              {Object.values(productsByFamily).reduce((sum, prods) => sum + prods.length, 0)} produit(s) trouvé(s)
+            </p>
+          )}
+        </div>
+
         {/* Onglets de filtrage */}
         <div className="flex space-x-2 bg-slate-800/50 p-2 rounded-xl border border-slate-700">
           <button
@@ -680,7 +731,14 @@ const GammeProductsCMSPage: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-8">
-          {Object.entries(productsByFamily).map(([family, familyProducts]) => {
+          {Object.keys(productsByFamily).length === 0 ? (
+            <div className="text-center py-20">
+              <p className="text-slate-400 text-lg">
+                {searchTerm ? 'Aucun produit trouvé pour votre recherche' : 'Aucun produit'}
+              </p>
+            </div>
+          ) : (
+            Object.entries(productsByFamily).map(([family, familyProducts]) => {
             const familyInfo = families.find(f => f.value === family);
             return (
               <div key={family} className="bg-slate-800/30 backdrop-blur rounded-2xl border border-slate-700 overflow-hidden">
@@ -768,7 +826,7 @@ const GammeProductsCMSPage: React.FC = () => {
                 </div>
               </div>
             );
-          })}
+          }))}
         </div>
       )}
 

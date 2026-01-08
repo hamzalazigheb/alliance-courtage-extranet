@@ -21,7 +21,8 @@ export default function ReglementairePage({ currentUser }: { currentUser: User |
   const [formData, setFormData] = useState({
     nom_document: '',
     date: '',
-    heures: '',
+    heures: '', // Garder pour compatibilité
+    heuresParCategorie: {} as Record<string, string>, // Nouveau: heures par catégorie
     categories: [] as string[],
     delivree_par: '',
     year: '2025',
@@ -102,61 +103,90 @@ export default function ReglementairePage({ currentUser }: { currentUser: User |
   // Handle form submission
   const handleSubmitFormation = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.file || !formData.nom_document || !formData.date || !formData.heures || formData.categories.length === 0) {
+    if (!formData.file || !formData.nom_document || !formData.date || formData.categories.length === 0) {
       alert('Veuillez remplir tous les champs requis');
       return;
     }
 
-    // Valider le format des heures
-    if (!validateHoursFormat(formData.heures)) {
-      alert('Format d\'heures invalide. Utilisez le format HH/MM (ex: 15/30 pour 15 heures 30 minutes)');
+    // Vérifier que toutes les catégories ont des heures
+    const missingHours = formData.categories.filter(cat => !formData.heuresParCategorie[cat] || formData.heuresParCategorie[cat].trim() === '');
+    if (missingHours.length > 0) {
+      alert(`Veuillez saisir les heures pour les catégories suivantes: ${missingHours.join(', ')}`);
       return;
     }
 
-    // Valider les heures minimum par catégorie
-    const minHoursByCategory: Record<string, number> = {
-      'IAS': 15,
-      'CIF': 7,
-      'IMMO': 14,
-      'IMMOBILIER': 14,
-      'IOBSP': 7,
-      'IOB': 7
-    };
-
-    const heuresDecimal = parseHHMMToDecimal(formData.heures);
+    // Valider uniquement le format des heures (plus de validation de minimum)
     const validationErrors: string[] = [];
-    
     for (const category of formData.categories) {
-      const minHours = minHoursByCategory[category.toUpperCase()];
-      if (minHours && heuresDecimal < minHours) {
-        validationErrors.push(`${category}: minimum ${minHours} heures requis (vous avez déclaré ${formatHoursToHHMM(heuresDecimal)})`);
+      const heuresStr = formData.heuresParCategorie[category];
+      if (!validateHoursFormat(heuresStr)) {
+        validationErrors.push(`${category}: Format d'heures invalide. Utilisez le format HH:MM`);
       }
     }
 
     if (validationErrors.length > 0) {
-      alert('Heures insuffisantes pour les catégories sélectionnées:\n' + validationErrors.join('\n'));
+      alert('Erreurs de validation:\n' + validationErrors.join('\n'));
       return;
     }
 
     setSubmitting(true);
     try {
-      const formationData = {
-        file: formData.file,
-        nom_document: formData.nom_document,
-        date: formData.date,
-        heures: formData.heures, // Envoyer en format HH/MM, le backend le convertira
-        categories: formData.categories,
-        delivree_par: formData.delivree_par,
-        year: formData.year
-      };
+      // Si toutes les catégories ont les mêmes heures, créer une seule formation
+      const heuresValues = formData.categories.map(cat => formData.heuresParCategorie[cat]);
+      const allSameHours = heuresValues.every(h => h === heuresValues[0]);
 
-      const data = await formationsAPI.create(formationData);
-      alert('✅ ' + data.message);
+      if (allSameHours) {
+        // Créer une seule formation avec toutes les catégories
+        const formationData = {
+          file: formData.file,
+          nom_document: formData.nom_document,
+          date: formData.date,
+          heures: formData.heuresParCategorie[formData.categories[0]],
+          categories: formData.categories,
+          delivree_par: formData.delivree_par,
+          year: formData.year
+        };
+
+        const data = await formationsAPI.create(formationData);
+        alert('✅ ' + data.message);
+      } else {
+        // Créer une formation par catégorie avec ses heures spécifiques
+        let successCount = 0;
+        let errorCount = 0;
+
+        for (const category of formData.categories) {
+          try {
+            const formationData = {
+              file: formData.file,
+              nom_document: `${formData.nom_document} (${category})`,
+              date: formData.date,
+              heures: formData.heuresParCategorie[category],
+              categories: [category],
+              delivree_par: formData.delivree_par,
+              year: formData.year
+            };
+
+            await formationsAPI.create(formationData);
+            successCount++;
+          } catch (error) {
+            console.error(`Error creating formation for ${category}:`, error);
+            errorCount++;
+          }
+        }
+
+        if (errorCount === 0) {
+          alert(`✅ ${successCount} formation(s) créée(s) avec succès !`);
+        } else {
+          alert(`⚠️ ${successCount} formation(s) créée(s), ${errorCount} erreur(s)`);
+        }
+      }
+
       setShowAddForm(false);
       setFormData({
         nom_document: '',
         date: '',
         heures: '',
+        heuresParCategorie: {},
         categories: [],
         delivree_par: '',
         year: selectedYearValidantes,
@@ -175,38 +205,64 @@ export default function ReglementairePage({ currentUser }: { currentUser: User |
 
   // Toggle category selection
   const toggleCategory = (category: string) => {
-    setFormData(prev => ({
-      ...prev,
-      categories: prev.categories.includes(category)
+    setFormData(prev => {
+      const newCategories = prev.categories.includes(category)
         ? prev.categories.filter(c => c !== category)
-        : [...prev.categories, category]
-    }));
+        : [...prev.categories, category];
+      
+      // Ajouter ou retirer les heures pour cette catégorie
+      const newHeuresParCategorie = { ...prev.heuresParCategorie };
+      if (newCategories.includes(category)) {
+        // Si on ajoute la catégorie et qu'elle n'a pas encore d'heures, initialiser avec les heures globales si disponibles
+        if (!newHeuresParCategorie[category] && prev.heures) {
+          newHeuresParCategorie[category] = prev.heures;
+        } else if (!newHeuresParCategorie[category]) {
+          newHeuresParCategorie[category] = '';
+        }
+      } else {
+        // Retirer les heures de cette catégorie
+        delete newHeuresParCategorie[category];
+      }
+      
+      return {
+        ...prev,
+        categories: newCategories,
+        heuresParCategorie: newHeuresParCategorie
+      };
+    });
   };
 
-  // Convertir heures décimales en format HH/MM
+  // Convertir heures décimales en format HH:MM
   const formatHoursToHHMM = (decimalHours: number): string => {
     const hours = Math.floor(decimalHours);
     const minutes = Math.round((decimalHours - hours) * 60);
-    return `${hours}/${minutes.toString().padStart(2, '0')}`;
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
   };
 
-  // Convertir format HH/MM en heures décimales
+  // Convertir format HH:MM en heures décimales
   const parseHHMMToDecimal = (hhmm: string): number => {
-    if (!hhmm || !hhmm.includes('/')) {
+    if (!hhmm) return 0;
+    // Accepter les deux formats pour compatibilité (:/)
+    const separator = hhmm.includes(':') ? ':' : (hhmm.includes('/') ? '/' : null);
+    if (!separator) {
       return parseFloat(hhmm) || 0;
     }
-    const [hours, minutes] = hhmm.split('/').map(Number);
-    return hours + (minutes / 60);
+    const [hours, minutes] = hhmm.split(separator).map(Number);
+    return (hours || 0) + ((minutes || 0) / 60);
   };
 
-  // Valider le format HH/MM
+  // Valider le format HH:MM
   const validateHoursFormat = (value: string): boolean => {
     if (!value) return false;
-    if (!value.includes('/')) {
+    // Accepter les deux formats pour compatibilité
+    const hasColon = value.includes(':');
+    const hasSlash = value.includes('/');
+    if (!hasColon && !hasSlash) {
       // Accepter aussi les nombres simples
       return !isNaN(parseFloat(value)) && parseFloat(value) >= 0;
     }
-    const parts = value.split('/');
+    const separator = hasColon ? ':' : '/';
+    const parts = value.split(separator);
     if (parts.length !== 2) return false;
     const hours = parseInt(parts[0]);
     const minutes = parseInt(parts[1]);
@@ -321,6 +377,53 @@ export default function ReglementairePage({ currentUser }: { currentUser: User |
           : parseHHMMToDecimal(String(formation.heures || '0'));
         return total + heures;
       }, 0);
+  };
+
+  // Calculer le total des heures déjà validées par catégorie pour l'année sélectionnée
+  const getTotalHoursByCategoryForYear = (category: string) => {
+    const approvedFormations = formations.filter(f => f.statut === 'approved');
+    return approvedFormations
+      .filter(formation => {
+        // Vérifier que la formation concerne cette catégorie et l'année sélectionnée
+        if (!formation.date) return false;
+        const formationYear = new Date(formation.date).getFullYear().toString();
+        return formation.categories.includes(category) && formationYear === formData.year;
+      })
+      .reduce((total, formation) => {
+        const heures = typeof formation.heures === 'number' 
+          ? formation.heures 
+          : parseHHMMToDecimal(String(formation.heures || '0'));
+        return total + heures;
+      }, 0);
+  };
+
+  // Calculer la répartition des heures par activité
+  const getHoursDistributionByActivity = () => {
+    const approvedFormations = formations.filter(f => f.statut === 'approved');
+    const distribution: Record<string, number> = {
+      'CIF': 0,
+      'IAS': 0,
+      'IOB': 0,
+      'IMMOBILIER': 0
+    };
+
+    approvedFormations.forEach(formation => {
+      const heures = typeof formation.heures === 'number' 
+        ? formation.heures 
+        : parseHHMMToDecimal(String(formation.heures || '0'));
+      
+      if (Array.isArray(formation.categories)) {
+        // Si la formation concerne plusieurs catégories, diviser les heures équitablement
+        const hoursPerCategory = heures / formation.categories.length;
+        formation.categories.forEach((category: string) => {
+          if (distribution.hasOwnProperty(category)) {
+            distribution[category] += hoursPerCategory;
+          }
+        });
+      }
+    });
+
+    return distribution;
   };
 
   // Get documents for a specific folder
@@ -580,6 +683,19 @@ export default function ReglementairePage({ currentUser }: { currentUser: User |
               Total heures {selectedCategory === 'all' ? 'toutes catégories' : selectedCategory}: {formatHoursToHHMM(getFilteredFormations().reduce((total, formation) => total + (typeof formation.heures === 'number' ? formation.heures : parseHHMMToDecimal(String(formation.heures))), 0))}
             </div>
           </div>
+          
+          {/* Répartition des heures par activité */}
+          <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">Répartition des heures de formation par activité :</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {Object.entries(getHoursDistributionByActivity()).map(([activity, hours]) => (
+                <div key={activity} className="bg-white p-3 rounded-lg border border-gray-300">
+                  <div className="text-xs text-gray-600 mb-1">{activity}</div>
+                  <div className="text-lg font-bold text-blue-600">{formatHoursToHHMM(hours)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -730,68 +846,17 @@ export default function ReglementairePage({ currentUser }: { currentUser: User |
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Date <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={formData.date}
-                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Nombre d'heures <span className="text-red-500">*</span>
-                    <span className="text-xs text-gray-500 ml-2">(Format: HH/MM)</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.heures}
-                    onChange={(e) => {
-                      // Valider le format HH/MM en temps réel
-                      const value = e.target.value;
-                      // Permettre: nombres, /, et format HH/MM
-                      if (value === '' || /^\d{0,2}\/?\d{0,2}$/.test(value)) {
-                        setFormData({ ...formData, heures: value });
-                      }
-                    }}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Ex: 15/30 (15h30min)"
-                    pattern="\d{1,2}/\d{1,2}"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Format: HH/MM (ex: 15/30 pour 15 heures 30 minutes)
-                  </p>
-                  {formData.categories.length > 0 && (
-                    <div className="mt-2 p-2 bg-blue-50 rounded-lg">
-                      <p className="text-xs font-semibold text-blue-800 mb-1">Heures minimum requises :</p>
-                      <ul className="text-xs text-blue-700 space-y-0.5">
-                        {formData.categories.map((cat) => {
-                          const minHours: Record<string, number> = {
-                            'IAS': 15,
-                            'CIF': 7,
-                            'IMMO': 14,
-                            'IMMOBILIER': 14,
-                            'IOBSP': 7,
-                            'IOB': 7
-                          };
-                          const min = minHours[cat] || 0;
-                          return (
-                            <li key={cat}>
-                              {cat}: {min} heures minimum
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </div>
-                  )}
-                </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Date <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={formData.date}
+                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
               </div>
 
               <div>
@@ -825,11 +890,97 @@ export default function ReglementairePage({ currentUser }: { currentUser: User |
                       </button>
                     );
                   })}
-          </div>
+                </div>
                 {formData.categories.length === 0 && (
                   <p className="text-red-500 text-sm mt-1">Sélectionnez au moins une catégorie</p>
                 )}
-        </div>
+              </div>
+
+              {/* Heures par catégorie */}
+              {formData.categories.length > 0 && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Nombre d'heures par catégorie <span className="text-red-500">*</span>
+                    <span className="text-xs text-gray-500 ml-2">(Format: HH:MM)</span>
+                  </label>
+                  <div className="space-y-3">
+                    {formData.categories.map((category) => {
+                      const minHoursByCategory: Record<string, number> = {
+                        'IAS': 15,
+                        'CIF': 7,
+                        'IMMO': 14,
+                        'IMMOBILIER': 14,
+                        'IOBSP': 7,
+                        'IOB': 7
+                      };
+                      const minHours = minHoursByCategory[category] || 0;
+                      const totalHoursExisting = getTotalHoursByCategoryForYear(category);
+                      const currentHoursInput = formData.heuresParCategorie[category] 
+                        ? parseHHMMToDecimal(formData.heuresParCategorie[category]) 
+                        : 0;
+                      const totalAfterAdd = totalHoursExisting + currentHoursInput;
+                      const isMinimumReached = totalAfterAdd >= minHours;
+                      
+                      return (
+                        <div key={category} className={`p-3 rounded-lg border-2 ${
+                          isMinimumReached 
+                            ? 'bg-green-50 border-green-300' 
+                            : 'bg-blue-50 border-blue-200'
+                        }`}>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-sm font-semibold text-gray-700">
+                              {category} <span className="text-xs text-gray-500">(min {minHours}h)</span>
+                            </label>
+                            <div className="text-xs">
+                              <span className="text-gray-600">
+                                Total actuel: {formatHoursToHHMM(totalHoursExisting)}
+                              </span>
+                              {currentHoursInput > 0 && (
+                                <span className="ml-2 text-blue-600">
+                                  + {formatHoursToHHMM(currentHoursInput)} = {formatHoursToHHMM(totalAfterAdd)}
+                                </span>
+                              )}
+                              {isMinimumReached && (
+                                <span className="ml-2 text-green-600 font-bold">✓ Minimum atteint</span>
+                              )}
+                            </div>
+                          </div>
+                          <input
+                            type="text"
+                            required
+                            value={formData.heuresParCategorie[category] || ''}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              // Valider le format HH:MM en temps réel
+                              // Permet: vide, nombres seuls, ou format HH:MM (avec ou sans les deux-points)
+                              if (value === '' || /^\d{0,2}(:?\d{0,2})?$/.test(value)) {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  heuresParCategorie: {
+                                    ...prev.heuresParCategorie,
+                                    [category]: value
+                                  }
+                                }));
+                              }
+                            }}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder={`Ex: 12:30 (12h30min) pour ${category}`}
+                            pattern="\d{1,2}:\d{1,2}"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">
+                            Format: HH:MM (ex: 12:30 pour 12 heures 30 minutes)
+                          </p>
+                          {totalHoursExisting > 0 && (
+                            <p className="text-xs text-blue-600 mt-1">
+                              Vous avez déjà {formatHoursToHHMM(totalHoursExisting)} heures validées pour {category} en {formData.year}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">

@@ -710,36 +710,91 @@ router.put('/:id/file', auth, authorize('admin'), upload.single('file'), async (
 });
 
 // @route   PUT /api/structured-products/:id
-// @desc    Modifier la date de strike et les catégories d'un produit structuré
+// @desc    Modifier la date de strike, les catégories et le montant d'un produit structuré
 // @access  Private (Admin seulement)
 router.put('/:id', auth, authorize('admin'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { date_strike, category } = req.body;
+    const { date_strike, category, montant_enveloppe } = req.body;
 
     // Vérifier que le produit existe
-    const products = await query('SELECT id FROM archives WHERE id = ?', [id]);
+    const products = await query('SELECT id, assurance FROM archives WHERE id = ?', [id]);
     if (products.length === 0) {
       return res.status(404).json({ error: 'Produit non trouvé' });
     }
 
-    // Mettre à jour la date de strike et la catégorie
+    const product = products[0];
+    let updateFields = [];
+    let updateValues = [];
+
+    // Mettre à jour la date de strike si fournie
+    if (date_strike !== undefined) {
+      updateFields.push('date_strike = ?');
+      updateValues.push(date_strike || null);
+    }
+
+    // Mettre à jour la catégorie si fournie
+    if (category !== undefined) {
+      updateFields.push('category = ?');
+      updateValues.push(category);
+    }
+
+    // Mettre à jour le montant enveloppe si fourni
+    if (montant_enveloppe !== undefined) {
+      const montantValue = parseFloat(montant_enveloppe);
+      if (isNaN(montantValue) || montantValue < 0) {
+        return res.status(400).json({ 
+          error: 'Le montant enveloppe doit être un nombre positif' 
+        });
+      }
+
+      updateFields.push('montant_enveloppe = ?');
+      updateValues.push(montantValue);
+
+      // Si le produit a des assurances avec montants (format JSON), mettre à jour aussi
+      try {
+        const assurances = JSON.parse(product.assurance);
+        if (Array.isArray(assurances) && assurances.length > 0) {
+          if (typeof assurances[0] === 'object' && assurances[0].name) {
+            // Mettre à jour le montant pour toutes les assurances du produit
+            const updatedAssurances = assurances.map((a) => ({
+              ...a,
+              montant: montantValue
+            }));
+            updateFields.push('assurance = ?');
+            updateValues.push(JSON.stringify(updatedAssurances));
+          }
+        }
+      } catch (e) {
+        // Si l'assurance n'est pas en format JSON, on ne fait rien
+      }
+    }
+
+    if (updateFields.length === 0) {
+      return res.status(400).json({ error: 'Aucun champ à mettre à jour' });
+    }
+
+    updateValues.push(id);
+
+    // Mettre à jour le produit
     await query(
-      'UPDATE archives SET date_strike = ?, category = ? WHERE id = ?',
-      [date_strike || null, category, id]
+      `UPDATE archives SET ${updateFields.join(', ')} WHERE id = ?`,
+      updateValues
     );
 
     console.log('✅ Product updated:', { 
       id, 
       date_strike: date_strike || 'null', 
-      category 
+      category,
+      montant_enveloppe: montant_enveloppe || 'null'
     });
 
     res.json({
       message: 'Produit modifié avec succès',
       id,
       date_strike,
-      category
+      category,
+      montant_enveloppe
     });
   } catch (error) {
     console.error('Erreur update structured product:', error);

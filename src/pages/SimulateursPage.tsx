@@ -88,10 +88,10 @@ function SimulateursPage() {
           >
             Calculer mes impôts
           </button>
-      </div>
+          </div>
 
-        {/* 4. Comparaison Assurance-vie vs PER */}
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8 hover:shadow-xl transition-all duration-300">
+        {/* 4. Comparaison Assurance-vie vs PER - MASQUÉ */}
+        {/* <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8 hover:shadow-xl transition-all duration-300">
             <div className="flex items-center justify-center mb-4">
             <div className="w-20 h-20 bg-gradient-to-br from-orange-500 to-orange-700 rounded-lg flex items-center justify-center">
               <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -108,7 +108,8 @@ function SimulateursPage() {
             Lancer la comparaison
           </button>
           </div>
-        </div>
+        </div> */}
+      </div>
 
       {/* Modals pour chaque simulateur */}
       {activeSimulator === 'investment' && (
@@ -120,9 +121,9 @@ function SimulateursPage() {
       {activeSimulator === 'fiscal' && (
         <FiscalSimulator onClose={() => setActiveSimulator(null)} />
       )}
-      {activeSimulator === 'comparaison' && (
+      {/* {activeSimulator === 'comparaison' && (
         <ComparaisonSimulator onClose={() => setActiveSimulator(null)} />
-      )}
+      )} */}
       </div>
   );
 }
