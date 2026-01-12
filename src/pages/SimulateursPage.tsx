@@ -88,7 +88,7 @@ function SimulateursPage() {
           >
             Calculer mes impôts
           </button>
-          </div>
+      </div>
 
         {/* 4. Comparaison Assurance-vie vs PER - MASQUÉ */}
         {/* <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8 hover:shadow-xl transition-all duration-300">
@@ -109,7 +109,7 @@ function SimulateursPage() {
           </button>
           </div>
         </div> */}
-      </div>
+        </div>
 
       {/* Modals pour chaque simulateur */}
       {activeSimulator === 'investment' && (

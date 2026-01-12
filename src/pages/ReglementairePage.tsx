@@ -137,18 +137,18 @@ export default function ReglementairePage({ currentUser }: { currentUser: User |
 
       if (allSameHours) {
         // Créer une seule formation avec toutes les catégories
-        const formationData = {
-          file: formData.file,
-          nom_document: formData.nom_document,
-          date: formData.date,
+      const formationData = {
+        file: formData.file,
+        nom_document: formData.nom_document,
+        date: formData.date,
           heures: formData.heuresParCategorie[formData.categories[0]],
-          categories: formData.categories,
-          delivree_par: formData.delivree_par,
-          year: formData.year
-        };
+        categories: formData.categories,
+        delivree_par: formData.delivree_par,
+        year: formData.year
+      };
 
-        const data = await formationsAPI.create(formationData);
-        alert('✅ ' + data.message);
+      const data = await formationsAPI.create(formationData);
+      alert('✅ ' + data.message);
       } else {
         // Créer une formation par catégorie avec ses heures spécifiques
         let successCount = 0;
@@ -846,17 +846,17 @@ export default function ReglementairePage({ currentUser }: { currentUser: User |
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Date <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={formData.date}
+                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
               </div>
 
               <div>
@@ -890,11 +890,11 @@ export default function ReglementairePage({ currentUser }: { currentUser: User |
                       </button>
                     );
                   })}
-                </div>
+          </div>
                 {formData.categories.length === 0 && (
                   <p className="text-red-500 text-sm mt-1">Sélectionnez au moins une catégorie</p>
                 )}
-              </div>
+        </div>
 
               {/* Heures par catégorie */}
               {formData.categories.length > 0 && (

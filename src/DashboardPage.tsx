@@ -278,7 +278,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
     setSendingNotification(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(buildAPIURL('/notifications/send-email'), {
+      const res = await fetch(buildAPIURL('/emails/send'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -287,12 +287,14 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
         body: JSON.stringify({
           userId: selectedUserId,
           subject: emailSubject,
-          content: emailContent
+          message: emailContent,
+          template: 'default'
         })
       });
       
       if (res.ok) {
-        showSuccess('Email envoyé avec succès');
+        const data = await res.json();
+        showSuccess(`Email envoyé avec succès${data.sent ? ` à ${data.sent} utilisateur(s)` : ''}`);
         setEmailSubject('');
         setEmailContent('');
         setSelectedUserId(null);
