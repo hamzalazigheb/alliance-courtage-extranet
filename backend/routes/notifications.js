@@ -20,7 +20,8 @@ router.get('/', auth, async (req, res) => {
     // MAIS les utilisateurs non-admin ne voient PAS les notifications de type 'reservation' globales (pour protéger les noms)
     // MAIS ils voient les notifications de type 'reservation_public' (sans noms)
     // MAIS les utilisateurs non-admin ne voient PAS les notifications de type 'user_created' (création d'utilisateurs)
-    let sql = `SELECT * FROM notifications WHERE (user_id = ? OR (user_id IS NULL AND (type = 'reservation_public' OR (type != 'reservation' AND type != 'user_created') OR ? = 1)))`;
+    // MAIS les utilisateurs non-admin ne voient PAS les notifications de type 'formation_pending' (soumissions de formations d'autres utilisateurs)
+    let sql = `SELECT * FROM notifications WHERE (user_id = ? OR (user_id IS NULL AND (type = 'reservation_public' OR (type != 'reservation' AND type != 'user_created' AND type != 'formation_pending') OR ? = 1)))`;
     const params = [req.user.id, isAdmin ? 1 : 0];
     
     if (unread_only === 'true') {
@@ -33,6 +34,7 @@ router.get('/', auth, async (req, res) => {
     
     // Les notifications 'reservation_public' n'ont déjà pas de noms d'utilisateurs
     // Les notifications 'reservation' ne sont visibles que par les admins
+    // Les notifications 'formation_pending' ne sont visibles que par les admins
     res.json(notifications);
   } catch (error) {
     console.error('Erreur get notifications:', error);
@@ -56,8 +58,9 @@ router.get('/unread-count', auth, async (req, res) => {
     // MAIS les utilisateurs non-admin ne voient PAS les notifications de type 'reservation' globales
     // MAIS ils voient les notifications de type 'reservation_public' (sans noms)
     // MAIS les utilisateurs non-admin ne voient PAS les notifications de type 'user_created'
+    // MAIS les utilisateurs non-admin ne voient PAS les notifications de type 'formation_pending'
     let sql = `SELECT COUNT(*) as count FROM notifications 
-               WHERE (user_id = ? OR (user_id IS NULL AND (type = 'reservation_public' OR (type != 'reservation' AND type != 'user_created') OR ? = 1))) AND is_read = FALSE`;
+               WHERE (user_id = ? OR (user_id IS NULL AND (type = 'reservation_public' OR (type != 'reservation' AND type != 'user_created' AND type != 'formation_pending') OR ? = 1))) AND is_read = FALSE`;
     const params = [req.user.id, isAdmin ? 1 : 0];
     
     const result = await query(sql, params);
@@ -87,8 +90,9 @@ router.put('/:id/read', auth, async (req, res) => {
     // MAIS les utilisateurs non-admin ne peuvent pas marquer les notifications de type 'reservation' globales
     // MAIS ils peuvent marquer les notifications de type 'reservation_public'
     // MAIS les utilisateurs non-admin ne peuvent pas marquer les notifications de type 'user_created'
+    // MAIS les utilisateurs non-admin ne peuvent pas marquer les notifications de type 'formation_pending'
     await query(
-      'UPDATE notifications SET is_read = TRUE WHERE id = ? AND (user_id = ? OR (user_id IS NULL AND (type = \'reservation_public\' OR (type != \'reservation\' AND type != \'user_created\') OR ? = 1)))',
+      'UPDATE notifications SET is_read = TRUE WHERE id = ? AND (user_id = ? OR (user_id IS NULL AND (type = \'reservation_public\' OR (type != \'reservation\' AND type != \'user_created\' AND type != \'formation_pending\') OR ? = 1)))',
       [notificationId, req.user.id, isAdmin ? 1 : 0]
     );
     
@@ -114,8 +118,9 @@ router.put('/read-all', auth, async (req, res) => {
     // Mark all notifications as read (personal + global, avec filtrage pour les non-admins)
     // Les utilisateurs peuvent marquer les notifications 'reservation_public' comme lues
     // MAIS les utilisateurs non-admin ne peuvent pas marquer les notifications de type 'user_created'
+    // MAIS les utilisateurs non-admin ne peuvent pas marquer les notifications de type 'formation_pending'
     await query(
-      'UPDATE notifications SET is_read = TRUE WHERE (user_id = ? OR (user_id IS NULL AND (type = \'reservation_public\' OR (type != \'reservation\' AND type != \'user_created\') OR ? = 1))) AND is_read = FALSE',
+      'UPDATE notifications SET is_read = TRUE WHERE (user_id = ? OR (user_id IS NULL AND (type = \'reservation_public\' OR (type != \'reservation\' AND type != \'user_created\' AND type != \'formation_pending\') OR ? = 1))) AND is_read = FALSE',
       [req.user.id, isAdmin ? 1 : 0]
     );
     
