@@ -249,16 +249,23 @@ async function notifyAdmins(type, title, message, relatedId = null, relatedType 
 router.get('/history', auth, authorize('admin'), async (req, res) => {
   try {
     // S'assurer que limit et offset sont des nombres entiers valides
-    const limit = parseInt(req.query.limit) || 50;
-    const offset = parseInt(req.query.offset) || 0;
+    let limit = parseInt(req.query.limit, 10);
+    let offset = parseInt(req.query.offset, 10);
     
-    // Vérifier que les valeurs sont valides
+    // Utiliser des valeurs par défaut si NaN
     if (isNaN(limit) || limit < 0) {
-      return res.status(400).json({ error: 'Paramètre limit invalide' });
+      limit = 50;
     }
     if (isNaN(offset) || offset < 0) {
-      return res.status(400).json({ error: 'Paramètre offset invalide' });
+      offset = 0;
     }
+    
+    // Forcer en entiers (au cas où)
+    limit = Math.floor(Number(limit));
+    offset = Math.floor(Number(offset));
+    
+    // Log pour déboguer
+    console.log(`📊 Notification history request: limit=${limit} (type: ${typeof limit}), offset=${offset} (type: ${typeof offset})`);
     
     // Récupérer toutes les notifications avec les informations des destinataires
     const sql = `
@@ -285,6 +292,7 @@ router.get('/history', auth, authorize('admin'), async (req, res) => {
       LIMIT ? OFFSET ?
     `;
     
+    console.log(`📋 Executing SQL with params: [${limit}, ${offset}]`);
     const notifications = await query(sql, [limit, offset]);
     
     // Compter le total
@@ -299,6 +307,13 @@ router.get('/history', auth, authorize('admin'), async (req, res) => {
     });
   } catch (error) {
     console.error('Erreur get notification history:', error);
+    console.error('Détails:', {
+      message: error.message,
+      code: error.code,
+      errno: error.errno,
+      sqlState: error.sqlState,
+      sqlMessage: error.sqlMessage
+    });
     res.status(500).json({ 
       error: 'Erreur serveur lors de la récupération de l\'historique' 
     });
