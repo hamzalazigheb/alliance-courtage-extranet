@@ -104,13 +104,14 @@ router.post('/request', async (req, res) => {
       throw new Error(`Erreur lors du hachage du mot de passe: ${hashError.message}`);
     }
 
-    // Mettre à jour le mot de passe dans la base de données
+    // Mettre à jour le mot de passe dans la base de données ET set must_change_password = TRUE
+    // L'utilisateur devra changer son mot de passe à sa prochaine connexion
     try {
       await query(
-        'UPDATE users SET password = ? WHERE id = ?',
+        'UPDATE users SET password = ?, must_change_password = TRUE WHERE id = ?',
         [hashedPassword, user.id]
       );
-      console.log(`✅ Mot de passe mis à jour dans la base de données pour l'utilisateur ${user.id}`);
+      console.log(`✅ Mot de passe mis à jour dans la base de données pour l'utilisateur ${user.id} - must_change_password set to TRUE`);
     } catch (updateError) {
       console.error('❌ Erreur lors de la mise à jour du mot de passe:', updateError);
       throw new Error(`Erreur lors de la mise à jour du mot de passe: ${updateError.message}`);

@@ -419,11 +419,22 @@ router.put('/:id/password', auth, async (req, res) => {
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
     
-    // Mettre à jour le mot de passe
-    await query(
-      'UPDATE users SET password = ? WHERE id = ?',
-      [hashedPassword, id]
-    );
+    // Mettre à jour le mot de passe et désactiver must_change_password
+    // Vérifier si la colonne must_change_password existe
+    let updateSql = 'UPDATE users SET password = ?';
+    const updateParams = [hashedPassword];
+    
+    try {
+      // Essayer d'ajouter must_change_password = FALSE
+      updateSql += ', must_change_password = FALSE';
+    } catch (e) {
+      // Si la colonne n'existe pas, on continue sans
+    }
+    
+    updateSql += ' WHERE id = ?';
+    updateParams.push(id);
+    
+    await query(updateSql, updateParams);
     
     res.json({ message: 'Mot de passe modifié avec succès' });
   } catch (error) {
@@ -488,11 +499,22 @@ router.put('/:id/change-password', auth, async (req, res) => {
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
     
-    // Mettre à jour le mot de passe
-    await query(
-      'UPDATE users SET password = ? WHERE id = ?',
-      [hashedPassword, id]
-    );
+    // Mettre à jour le mot de passe et désactiver must_change_password
+    // Vérifier si la colonne must_change_password existe
+    let updateSql = 'UPDATE users SET password = ?';
+    const updateParams = [hashedPassword];
+    
+    try {
+      // Essayer d'ajouter must_change_password = FALSE
+      updateSql += ', must_change_password = FALSE';
+    } catch (e) {
+      // Si la colonne n'existe pas, on continue sans
+    }
+    
+    updateSql += ' WHERE id = ?';
+    updateParams.push(id);
+    
+    await query(updateSql, updateParams);
     
     res.json({ message: 'Mot de passe changé avec succès' });
   } catch (error) {
@@ -534,13 +556,14 @@ router.put('/:id/password', auth, authorize('admin'), async (req, res) => {
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
     
-    // Mettre à jour le mot de passe
+    // Mettre à jour le mot de passe ET set must_change_password = TRUE
+    // L'utilisateur devra changer son mot de passe à sa prochaine connexion
     await query(
-      'UPDATE users SET password = ? WHERE id = ?',
+      'UPDATE users SET password = ?, must_change_password = TRUE WHERE id = ?',
       [hashedPassword, id]
     );
     
-    res.json({ message: 'Mot de passe mis à jour avec succès' });
+    res.json({ message: 'Mot de passe mis à jour avec succès. L\'utilisateur devra changer son mot de passe à sa prochaine connexion.' });
   } catch (error) {
     console.error('Erreur update password:', error);
     res.status(500).json({ 

@@ -23,8 +23,9 @@ router.post('/login', async (req, res) => {
 
     // Rechercher l'utilisateur (sans filtrer par is_active pour pouvoir donner un message approprié)
     // Note: validite_date peut ne pas exister dans certaines versions de la base de données
+    // Note: must_change_password peut ne pas exister, on utilise COALESCE pour gérer ça
     const users = await query(
-      'SELECT id, email, nom, prenom, role, password, is_active, created_at FROM users WHERE email = ?',
+      'SELECT id, email, nom, prenom, role, password, is_active, created_at, COALESCE(must_change_password, TRUE) as must_change_password FROM users WHERE email = ?',
       [email]
     );
 
@@ -94,7 +95,8 @@ router.post('/login', async (req, res) => {
         email: user.email,
         nom: user.nom,
         prenom: user.prenom,
-        role: user.role
+        role: user.role,
+        must_change_password: user.must_change_password === 1 || user.must_change_password === true
       }
     });
 

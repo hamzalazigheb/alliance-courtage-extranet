@@ -34,6 +34,7 @@ const favorisRoutes = require('./routes/favoris');
 const simulatorsRoutes = require('./routes/simulators');
 const emailsRoutes = require('./routes/emails');
 const dashboardRoutes = require('./routes/dashboard');
+const testRoutes = require('./routes/test');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -144,6 +145,7 @@ app.use('/api/favoris', favorisRoutes);
 app.use('/api/simulators', simulatorsRoutes);
 app.use('/api/emails', emailsRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/test', testRoutes);
 
 // Route de test
 app.get('/api/health', (req, res) => {

@@ -1,0 +1,9 @@
+# Exclure le backend et ses tests Jest
+backend/
+**/__tests__/
+**/node_modules/
+dist/
+*.test.js
+*.test.ts
+
+

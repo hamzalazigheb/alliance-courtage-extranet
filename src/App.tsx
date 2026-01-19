@@ -7,6 +7,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 // Pages de login chargées immédiatement (nécessaires avant authentification)
 import ExtranetLoginPage from './pages/ExtranetLoginPage';
 import AdminLoginPage from './pages/AdminLoginPage';
+import FirstLoginPasswordModal from './components/FirstLoginPasswordModal';
 
 // Lazy loading pour toutes les autres pages - améliore le temps de chargement initial
 const GammeFinancierePage = lazy(() => import('./GammeFinancierePage'));
@@ -92,6 +93,9 @@ function App() {
   // Profile management state
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
+  
+  // First login password change state
+  const [mustChangePassword, setMustChangePassword] = useState(false);
   const [profileData, setProfileData] = useState({
     nom: '',
     prenom: '',
@@ -324,6 +328,9 @@ function App() {
       setIsLoggedIn(true);
       localStorage.setItem('isLoggedIn', 'true');
       localStorage.setItem('currentUser', JSON.stringify(user));
+        
+        // Pour les admins sur /manage, ne pas afficher le popup de changement de mot de passe
+        // Ils peuvent changer leur mot de passe depuis leur profil dans le CMS
         setCurrentPage('manage');
         window.location.hash = 'manage';
       }} users={users} />;
@@ -334,10 +341,37 @@ function App() {
         setIsLoggedIn(true);
         localStorage.setItem('isLoggedIn', 'true');
         localStorage.setItem('currentUser', JSON.stringify(user));
+        
+        // Vérifier si changement de mot de passe requis
+        if ((user as any).must_change_password) {
+          setMustChangePassword(true);
+        } else {
         setCurrentPage('accueil');
         window.location.hash = 'accueil';
+        }
     }} users={users} />;
     }
+  }
+
+  // Afficher le modal de changement de mot de passe si requis
+  // MAIS SEULEMENT pour les utilisateurs normaux (pas pour les admins sur /manage)
+  if (mustChangePassword && currentUser && currentUser.role !== 'admin' && currentPage !== 'manage') {
+    return (
+      <FirstLoginPasswordModal
+        userId={currentUser.id}
+        onPasswordChanged={() => {
+          setMustChangePassword(false);
+          // Mettre à jour l'utilisateur dans le localStorage
+          const updatedUser = { ...currentUser, must_change_password: false };
+          setCurrentUser(updatedUser);
+          localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+          
+          // Rediriger vers la page appropriée
+          setCurrentPage('accueil');
+          window.location.hash = 'accueil';
+        }}
+      />
+    );
   }
 
   if (currentPage === "manage") {

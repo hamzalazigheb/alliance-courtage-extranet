@@ -174,9 +174,10 @@ router.put('/requests/:id/complete', auth, authorize('admin'), async (req, res) 
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(new_password, saltRounds);
 
-    // Update user password
+    // Update user password AND set must_change_password = TRUE
+    // L'utilisateur devra changer son mot de passe à sa prochaine connexion
     await query(
-      'UPDATE users SET password = ? WHERE id = ?',
+      'UPDATE users SET password = ?, must_change_password = TRUE WHERE id = ?',
       [hashedPassword, request.user_id]
     );
 
@@ -204,10 +205,10 @@ router.put('/requests/:id/complete', auth, authorize('admin'), async (req, res) 
       }
     }
 
-    console.log(`✅ Password reset completed for user ${request.user_id}`);
+    console.log(`✅ Password reset completed for user ${request.user_id} - must_change_password set to TRUE`);
 
     res.json({
-      message: 'Mot de passe réinitialisé avec succès. Un email a été envoyé à l\'utilisateur.'
+      message: 'Mot de passe réinitialisé avec succès. Un email a été envoyé à l\'utilisateur avec le nouveau mot de passe. L\'utilisateur devra changer son mot de passe à sa prochaine connexion.'
     });
 
   } catch (error) {

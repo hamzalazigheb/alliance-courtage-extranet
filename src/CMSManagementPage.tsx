@@ -1150,9 +1150,21 @@ const CMSManagementPage: React.FC = () => {
             </div>
 
             <div className="bg-slate-800 rounded-xl p-6 shadow-lg">
+              <h3 className="text-xl font-bold text-white mb-4">👥 Envoyer une notification à plusieurs utilisateurs</h3>
+              
+              <NotificationBulkForm />
+            </div>
+
+            <div className="bg-slate-800 rounded-xl p-6 shadow-lg">
               <h3 className="text-xl font-bold text-white mb-4">📧 Envoyer un email personnalisé</h3>
               
               <PersonalizedEmailForm />
+            </div>
+
+            <div className="bg-slate-800 rounded-xl p-6 shadow-lg">
+              <h3 className="text-xl font-bold text-white mb-4">📋 Historique des notifications envoyées</h3>
+              
+              <NotificationHistory />
             </div>
           </div>
         )}
@@ -1635,7 +1647,10 @@ const NotificationIndividualForm: React.FC = () => {
             <option value="">Sélectionner un utilisateur</option>
             {users.map((user) => (
               <option key={user.id} value={user.id}>
-                {user.prenom} {user.nom} ({user.email})
+                {user.denomination_sociale 
+                  ? `${user.denomination_sociale} - ${user.prenom} ${user.nom}`
+                  : `${user.prenom} ${user.nom}`
+                } ({user.email})
               </option>
             ))}
           </select>
@@ -1884,7 +1899,10 @@ const PersonalizedEmailForm: React.FC = () => {
                     className="w-4 h-4 text-purple-600 bg-slate-700 border-slate-600 rounded focus:ring-purple-500"
                   />
                   <span className="text-sm text-slate-200">
-                    {user.prenom} {user.nom} ({user.email})
+                    {user.denomination_sociale 
+                      ? `${user.denomination_sociale} - ${user.prenom} ${user.nom}`
+                      : `${user.prenom} ${user.nom}`
+                    } ({user.email})
                   </span>
                 </label>
               ))
@@ -1977,6 +1995,371 @@ const PersonalizedEmailForm: React.FC = () => {
         </button>
       </div>
     </form>
+  );
+};
+
+// Composant pour l'envoi groupé de notifications
+const NotificationBulkForm: React.FC = () => {
+  const [type, setType] = useState<string>('info');
+  const [title, setTitle] = useState<string>('');
+  const [message, setMessage] = useState<string>('');
+  const [link, setLink] = useState<string>('');
+  const [userIds, setUserIds] = useState<string[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState<boolean>(false);
+  const [sending, setSending] = useState<boolean>(false);
+  const [successMessage, setSuccessMessage] = useState<string>('');
+  const [errorMessage, setErrorMessage] = useState<string>('');
+
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        setLoadingUsers(true);
+        const response = await fetch(buildAPIURL('/users'), {
+          headers: {
+            'x-auth-token': localStorage.getItem('token') || ''
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const nonAdminUsers = data.filter((user: any) => user.role !== 'admin');
+          setUsers(nonAdminUsers);
+        }
+      } catch (error) {
+        console.error('Erreur chargement utilisateurs:', error);
+      } finally {
+        setLoadingUsers(false);
+      }
+    };
+
+    loadUsers();
+  }, []);
+
+  const handleUserToggle = (userId: string) => {
+    setUserIds(prev => 
+      prev.includes(userId) 
+        ? prev.filter(id => id !== userId)
+        : [...prev, userId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (userIds.length === users.length) {
+      setUserIds([]);
+    } else {
+      setUserIds(users.map(u => u.id.toString()));
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!title.trim() || !message.trim() || userIds.length === 0) {
+      setErrorMessage('Veuillez remplir tous les champs et sélectionner au moins un utilisateur');
+      return;
+    }
+
+    if (link.trim() && !link.trim().startsWith('http://') && !link.trim().startsWith('https://') && !link.trim().startsWith('#')) {
+      setErrorMessage('Le lien doit commencer par http://, https:// ou # pour un lien interne');
+      return;
+    }
+
+    setSending(true);
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    try {
+      const result = await notificationsAPI.sendBulk(
+        userIds.map(id => parseInt(id)),
+        type,
+        title.trim(),
+        message.trim(),
+        link.trim() || null
+      );
+      setSuccessMessage(`✅ ${result.sent} notification(s) envoyée(s) avec succès${result.failed > 0 ? `, ${result.failed} échec(s)` : ''} !`);
+      setTitle('');
+      setMessage('');
+      setLink('');
+      setUserIds([]);
+      setType('info');
+    } catch (error: any) {
+      console.error('Erreur envoi notification groupée:', error);
+      setErrorMessage(error.message || 'Erreur lors de l\'envoi des notifications');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Sélection utilisateurs (multiple) */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <label className="block text-sm font-semibold text-slate-300">Destinataires *</label>
+          <button
+            type="button"
+            onClick={handleSelectAll}
+            className="text-xs text-purple-400 hover:text-purple-300"
+          >
+            {userIds.length === users.length ? 'Tout désélectionner' : 'Tout sélectionner'}
+          </button>
+        </div>
+        {loadingUsers ? (
+          <div className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 flex items-center space-x-2">
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+            <span>Chargement des utilisateurs...</span>
+          </div>
+        ) : (
+          <div className="max-h-48 overflow-y-auto border border-slate-600 rounded-lg bg-slate-700 p-3">
+            {users.length === 0 ? (
+              <p className="text-slate-400 text-sm">Aucun utilisateur disponible</p>
+            ) : (
+              users.map((user) => (
+                <label
+                  key={user.id}
+                  className="flex items-center space-x-2 p-2 hover:bg-slate-600 rounded cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={userIds.includes(user.id.toString())}
+                    onChange={() => handleUserToggle(user.id.toString())}
+                    className="w-4 h-4 text-purple-600 bg-slate-700 border-slate-600 rounded focus:ring-purple-500"
+                  />
+                  <span className="text-sm text-slate-200">
+                    {user.denomination_sociale 
+                      ? `${user.denomination_sociale} - ${user.prenom} ${user.nom}`
+                      : `${user.prenom} ${user.nom}`
+                    } ({user.email})
+                  </span>
+                </label>
+              ))
+            )}
+          </div>
+        )}
+        <p className="mt-2 text-xs text-slate-400">
+          {userIds.length} utilisateur(s) sélectionné(s)
+        </p>
+      </div>
+
+      {/* Type de notification */}
+      <div>
+        <label className="block text-sm font-semibold text-slate-300 mb-2">Type de notification</label>
+        <select
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+          className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+        >
+          <option value="info">ℹ️ Information</option>
+          <option value="success">✅ Succès</option>
+          <option value="warning">⚠️ Avertissement</option>
+          <option value="error">❌ Erreur</option>
+          <option value="announcement">📢 Annonce</option>
+        </select>
+      </div>
+
+      {/* Titre */}
+      <div>
+        <label className="block text-sm font-semibold text-slate-300 mb-2">Titre *</label>
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+          placeholder="Ex: Notification importante"
+          required
+        />
+      </div>
+
+      {/* Message */}
+      <div>
+        <label className="block text-sm font-semibold text-slate-300 mb-2">Message *</label>
+        <textarea
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          rows={5}
+          className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+          placeholder="Ex: Nous avons le plaisir de vous informer que..."
+          required
+        />
+      </div>
+
+      {/* Lien */}
+      <div>
+        <label className="block text-sm font-semibold text-slate-300 mb-2">Lien (optionnel)</label>
+        <input
+          type="text"
+          value={link}
+          onChange={(e) => setLink(e.target.value)}
+          className="w-full px-4 py-3 rounded-lg bg-slate-700 text-white border border-slate-600 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+          placeholder="Ex: https://example.com ou #produits-structures"
+        />
+        <p className="mt-2 text-xs text-slate-400">
+          Lien externe (http:// ou https://) ou lien interne (commence par #, ex: #produits-structures)
+        </p>
+      </div>
+
+      {/* Messages d'erreur/succès */}
+      {errorMessage && (
+        <div className="bg-red-500/20 border border-red-500 rounded-lg p-4">
+          <p className="text-red-300">{errorMessage}</p>
+        </div>
+      )}
+
+      {successMessage && (
+        <div className="bg-green-500/20 border border-green-500 rounded-lg p-4">
+          <p className="text-green-300">{successMessage}</p>
+        </div>
+      )}
+
+      {/* Bouton d'envoi */}
+      <div className="flex justify-end">
+        <button
+          type="submit"
+          disabled={sending || !title.trim() || !message.trim() || userIds.length === 0}
+          className="px-6 py-3 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 disabled:from-gray-500 disabled:to-gray-600 text-white rounded-lg font-medium transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+        >
+          {sending ? (
+            <>
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+              <span>Envoi en cours...</span>
+            </>
+          ) : (
+            <>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
+              <span>Envoyer les notifications</span>
+            </>
+          )}
+        </button>
+      </div>
+    </form>
+  );
+};
+
+// Composant pour l'historique des notifications
+const NotificationHistory: React.FC = () => {
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [total, setTotal] = useState<number>(0);
+  const [page, setPage] = useState<number>(0);
+  const limit = 20;
+
+  useEffect(() => {
+    loadHistory();
+  }, [page]);
+
+  const loadHistory = async () => {
+    try {
+      setLoading(true);
+      const data = await notificationsAPI.getHistory(limit, page * limit);
+      setNotifications(data.notifications || []);
+      setTotal(data.total || 0);
+    } catch (error) {
+      console.error('Erreur chargement historique:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case 'info': return 'ℹ️';
+      case 'success': return '✅';
+      case 'warning': return '⚠️';
+      case 'error': return '❌';
+      case 'announcement': return '📢';
+      case 'formation_pending': return '🎓';
+      case 'document': return '📄';
+      case 'product': return '📦';
+      case 'reservation': return '💰';
+      case 'reservation_public': return '💰';
+      default: return '🔔';
+    }
+  };
+
+  const getTypeColor = (type: string) => {
+    switch (type) {
+      case 'success': return 'text-green-400';
+      case 'warning': return 'text-yellow-400';
+      case 'error': return 'text-red-400';
+      case 'announcement': return 'text-purple-400';
+      default: return 'text-blue-400';
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {loading ? (
+        <div className="flex items-center justify-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+        </div>
+      ) : notifications.length === 0 ? (
+        <p className="text-slate-400 text-center py-8">Aucune notification envoyée</p>
+      ) : (
+        <>
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {notifications.map((notif) => (
+              <div
+                key={notif.id}
+                className="bg-slate-700 rounded-lg p-4 border border-slate-600"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <span className="text-xl">{getTypeIcon(notif.type)}</span>
+                      <h4 className={`font-semibold ${getTypeColor(notif.type)}`}>{notif.title}</h4>
+                    </div>
+                    <p className="text-sm text-slate-300 mb-2">{notif.message}</p>
+                    <div className="text-xs text-slate-400 space-y-1">
+                      <div>
+                        <span className="font-semibold">Destinataire:</span> {notif.recipient_display}
+                      </div>
+                      <div>
+                        <span className="font-semibold">Date:</span>{' '}
+                        {new Date(notif.created_at).toLocaleString('fr-FR')}
+                      </div>
+                      {notif.link && (
+                        <div>
+                          <span className="font-semibold">Lien:</span>{' '}
+                          <a href={notif.link} className="text-purple-400 hover:underline" target="_blank" rel="noopener noreferrer">
+                            {notif.link}
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {total > limit && (
+            <div className="flex items-center justify-between pt-4 border-t border-slate-600">
+              <span className="text-sm text-slate-400">
+                Page {page + 1} sur {Math.ceil(total / limit)} ({total} notification{total > 1 ? 's' : ''})
+              </span>
+              <div className="space-x-2">
+                <button
+                  onClick={() => setPage(Math.max(0, page - 1))}
+                  disabled={page === 0}
+                  className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Précédent
+                </button>
+                <button
+                  onClick={() => setPage(Math.min(Math.ceil(total / limit) - 1, page + 1))}
+                  disabled={page >= Math.ceil(total / limit) - 1}
+                  className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Suivant
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
   );
 };
 

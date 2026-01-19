@@ -170,11 +170,11 @@ export default function AdminLoginPage({ onLogin }: AdminLoginPageProps) {
         email: response.user.email,
         role: response.user.role === 'admin' ? 'admin' : 'user',
         nom: response.user.nom,
-        prenom: response.user.prenom
+        prenom: response.user.prenom,
+        must_change_password: response.user.must_change_password || false
       };
       
       setIsLoading(false);
-      window.location.hash = 'manage';
       onLogin(user);
     } catch (error: any) {
       setIsLoading(false);

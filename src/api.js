@@ -610,6 +610,20 @@ export const notificationsAPI = {
       },
     });
   },
+
+  sendBulk: async (userIds, type, title, message, link = null) => {
+    return apiRequest('/notifications/send-bulk', {
+      method: 'POST',
+      body: JSON.stringify({ userIds, type, title, message, link }),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  },
+
+  getHistory: async (limit = 50, offset = 0) => {
+    return apiRequest(`/notifications/history?limit=${limit}&offset=${offset}`);
+  },
 };
 
 // Helper function to get the API base URL (for direct fetch calls)

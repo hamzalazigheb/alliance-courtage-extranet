@@ -6,6 +6,7 @@ export interface AuthUserRecord {
   prenom: string;
   email: string;
   role: 'admin' | 'user' | string;
+  must_change_password?: boolean;
 }
 
 export interface LoginResponse {
@@ -20,6 +21,7 @@ export interface User {
   role: 'admin' | 'user';
   nom?: string;
   prenom?: string;
+  must_change_password?: boolean;
 }
 
 export interface BordereauFile {
