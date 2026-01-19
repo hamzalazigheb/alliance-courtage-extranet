@@ -1,5 +1,5 @@
 const express = require('express');
-const { query } = require('../config/database');
+const { query, pool } = require('../config/database');
 const { auth, authorize } = require('../middleware/auth');
 
 const router = express.Router();
@@ -293,7 +293,18 @@ router.get('/history', auth, authorize('admin'), async (req, res) => {
     `;
     
     console.log(`📋 Executing SQL with params: [${limit}, ${offset}]`);
-    const notifications = await query(sql, [limit, offset]);
+    
+    // Utiliser pool.query() au lieu de query() pour éviter les problèmes avec execute() et les template strings multilignes
+    const notifications = await new Promise((resolve, reject) => {
+      pool.query(sql.trim(), [limit, offset], (err, results) => {
+        if (err) {
+          console.error('Erreur SQL query:', err);
+          reject(err);
+        } else {
+          resolve(results);
+        }
+      });
+    });
     
     // Compter le total
     const countResult = await query('SELECT COUNT(*) as total FROM notifications');
