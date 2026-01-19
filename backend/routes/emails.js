@@ -3,6 +3,7 @@ const router = express.Router();
 const { query } = require('../config/database');
 const { auth, authorize } = require('../middleware/auth');
 const { sendPersonalizedEmail } = require('../services/emailService');
+const { createNotification } = require('./notifications');
 
 // @route   POST /api/emails/send
 // @desc    Envoyer un email personnalisé à un ou plusieurs utilisateurs (Admin seulement)
@@ -85,6 +86,23 @@ router.post('/send', auth, authorize('admin'), async (req, res) => {
           message.trim(),
           template || 'default'
         );
+        
+        // Enregistrer l'email dans l'historique des notifications
+        try {
+          await createNotification(
+            'email',
+            subject.trim(),
+            message.trim(),
+            user.id,
+            null,
+            null,
+            null // pas de lien pour les emails
+          );
+          console.log(`✅ Email enregistré dans l'historique pour ${user.email}`);
+        } catch (notifError) {
+          console.warn(`⚠️  Impossible d'enregistrer l'email dans l'historique:`, notifError.message);
+          // On continue même si l'enregistrement échoue
+        }
         
         results.push({
           userId: user.id,

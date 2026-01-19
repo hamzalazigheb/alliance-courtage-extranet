@@ -2242,9 +2242,11 @@ const NotificationBulkForm: React.FC = () => {
 const NotificationHistory: React.FC = () => {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState<number>(0);
   const [page, setPage] = useState<number>(0);
   const limit = 20;
+  const { showError: showAlertError } = useAlert();
 
   useEffect(() => {
     loadHistory();
@@ -2253,11 +2255,17 @@ const NotificationHistory: React.FC = () => {
   const loadHistory = async () => {
     try {
       setLoading(true);
+      setError(null);
       const data = await notificationsAPI.getHistory(limit, page * limit);
       setNotifications(data.notifications || []);
       setTotal(data.total || 0);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erreur chargement historique:', error);
+      const errorMessage = error?.error || error?.message || 'Erreur lors du chargement de l\'historique';
+      setError(errorMessage);
+      showAlertError(errorMessage);
+      setNotifications([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
@@ -2275,6 +2283,9 @@ const NotificationHistory: React.FC = () => {
       case 'product': return '📦';
       case 'reservation': return '💰';
       case 'reservation_public': return '💰';
+      case 'email': return '📧';
+      case 'password_reset': return '🔐';
+      case 'user_created': return '👤';
       default: return '🔔';
     }
   };
@@ -2285,6 +2296,9 @@ const NotificationHistory: React.FC = () => {
       case 'warning': return 'text-yellow-400';
       case 'error': return 'text-red-400';
       case 'announcement': return 'text-purple-400';
+      case 'email': return 'text-cyan-400';
+      case 'password_reset': return 'text-orange-400';
+      case 'user_created': return 'text-indigo-400';
       default: return 'text-blue-400';
     }
   };
@@ -2294,6 +2308,18 @@ const NotificationHistory: React.FC = () => {
       {loading ? (
         <div className="flex items-center justify-center py-8">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+        </div>
+      ) : error ? (
+        <div className="bg-red-900/20 border border-red-500 rounded-lg p-4">
+          <p className="text-red-400 text-center">
+            <span className="font-semibold">Erreur:</span> {error}
+          </p>
+          <button
+            onClick={loadHistory}
+            className="mt-4 w-full px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+          >
+            Réessayer
+          </button>
         </div>
       ) : notifications.length === 0 ? (
         <p className="text-slate-400 text-center py-8">Aucune notification envoyée</p>
