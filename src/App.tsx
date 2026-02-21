@@ -646,8 +646,7 @@ function App() {
                   <span className={currentPage === "simulateurs" ? "font-semibold" : ""}>Simulateurs</span>
                 </button>
               </li>
-              {/* Page Rencontres temporairement masquée */}
-              {/* <li>
+              <li>
                 <button 
                   onClick={() => changePage("rencontres")}
                   className={`w-full flex items-center space-x-4 px-4 py-3 rounded-xl transition-all duration-200 ${
@@ -659,10 +658,9 @@ function App() {
                   <div className={`w-4 h-4 rounded-md ${
                     currentPage === "rencontres" ? "bg-white/20" : "border-2 border-gray-400"
                   }`}></div>
-                  <span className={currentPage === "rencontres" ? "font-semibold" : ""}>Rencontres Alliance Courtage</span>
+                  <span className={currentPage === "rencontres" ? "font-semibold" : ""}>Nos Événements</span>
                 </button>
-              </li> */}
-
+              </li>
               <li>
                 <button 
                   onClick={() => changePage("comptabilite")}

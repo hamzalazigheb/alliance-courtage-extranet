@@ -825,7 +825,7 @@ const CMSManagementPage: React.FC = () => {
             onClick={() => { setActivePage('rencontres'); }}
             className={`px-4 py-2 rounded-lg font-medium transition-all ${activePage === 'rencontres' ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
           >
-            🤝 Rencontres
+            📅 Événements
           </button>
           <button
             onClick={() => { setActivePage('reglementaire'); }}

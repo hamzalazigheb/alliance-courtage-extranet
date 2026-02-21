@@ -692,6 +692,227 @@ router.put('/rencontres', auth, async (req, res) => {
   }
 });
 
+// --- Rencontres File Management ---
+// Configuration multer pour rencontres (fichiers sur disque)
+const rencontresStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const fs = require('fs');
+    const uploadDir = path.join(__dirname, '../../uploads/rencontres');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const timestamp = Date.now();
+    const random = Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    const safeName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+    cb(null, `rencontre-${timestamp}-${random}${ext}`);
+  }
+});
+
+const uploadRencontreFiles = multer({
+  storage: rencontresStorage,
+  limits: {
+    fileSize: 50 * 1024 * 1024 // 50MB per file
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedExtensions = /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|jpg|jpeg|png|gif|webp|zip|rar|csv|txt)$/i;
+    const extname = allowedExtensions.test(path.extname(file.originalname).toLowerCase());
+    if (extname) {
+      return cb(null, true);
+    }
+    cb(new Error('Type de fichier non autorisé. Formats acceptés: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, Images, ZIP, RAR, CSV, TXT'));
+  }
+});
+
+// @route   POST /api/cms/rencontres/files/:meetingIndex
+// @desc    Upload files for a specific meeting event (max 20 files per event)
+// @access  Private (Admin)
+router.post('/rencontres/files/:meetingType/:meetingIndex', auth, authorize('admin'), uploadRencontreFiles.array('files', 20), handleMulterError, async (req, res) => {
+  try {
+    const { meetingType, meetingIndex } = req.params;
+    
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'Au moins un fichier est requis' });
+    }
+
+    if (!['upcoming', 'historical'].includes(meetingType)) {
+      return res.status(400).json({ error: 'meetingType invalide (upcoming ou historical)' });
+    }
+    
+    console.log(`📦 Upload de ${req.files.length} fichier(s) pour rencontre ${meetingType}[${meetingIndex}]`);
+    
+    const result = await query('SELECT content FROM cms_content WHERE page = ?', ['rencontres']);
+    let rencontresContent;
+    
+    if (result.length > 0) {
+      rencontresContent = typeof result[0].content === 'string' ? JSON.parse(result[0].content) : result[0].content;
+      if (typeof rencontresContent === 'string') rencontresContent = JSON.parse(rencontresContent);
+    } else {
+      return res.status(404).json({ error: 'Contenu rencontres non trouvé' });
+    }
+    
+    const meetingsArray = meetingType === 'upcoming' ? rencontresContent.upcomingMeetings : rencontresContent.historicalMeetings;
+    const idx = parseInt(meetingIndex);
+    
+    console.log(`📦 meetingType=${meetingType}, idx=${idx}, arrayLength=${meetingsArray ? meetingsArray.length : 'null'}`);
+    
+    if (!meetingsArray || isNaN(idx) || idx < 0 || idx >= meetingsArray.length) {
+      return res.status(400).json({ error: `Index de rencontre invalide (type=${meetingType}, index=${idx}, available=${meetingsArray ? meetingsArray.length : 0})` });
+    }
+    
+    if (!meetingsArray[idx].files) {
+      meetingsArray[idx].files = [];
+    }
+    
+    // Check max 20 files
+    if (meetingsArray[idx].files.length + req.files.length > 20) {
+      return res.status(400).json({ error: 'Maximum 20 fichiers par événement' });
+    }
+    
+    const uploadedFiles = [];
+    for (const file of req.files) {
+      const originalName = fixFilenameEncoding(file.originalname);
+      const fileInfo = {
+        id: Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+        originalName: originalName,
+        fileName: file.filename,
+        filePath: `/uploads/rencontres/${file.filename}`,
+        fileSize: file.size,
+        fileType: file.mimetype,
+        uploadedAt: new Date().toISOString()
+      };
+      meetingsArray[idx].files.push(fileInfo);
+      uploadedFiles.push(fileInfo);
+    }
+    
+    // Save updated content
+    const contentString = JSON.stringify(rencontresContent);
+    await query('UPDATE cms_content SET content = ?, updated_at = NOW() WHERE page = ?', [contentString, 'rencontres']);
+    
+    console.log(`✅ ${uploadedFiles.length} fichier(s) uploadé(s) pour rencontre ${meetingType}[${meetingIndex}]`);
+    
+    res.status(201).json({
+      message: `${uploadedFiles.length} fichier(s) uploadé(s) avec succès`,
+      files: uploadedFiles
+    });
+  } catch (error) {
+    console.error('Erreur upload fichiers rencontre:', error);
+    res.status(500).json({ error: 'Erreur serveur lors de l\'upload des fichiers' });
+  }
+});
+
+// @route   DELETE /api/cms/rencontres/files/:meetingType/:meetingIndex/:fileId
+// @desc    Delete a file from a meeting event
+// @access  Private (Admin)
+router.delete('/rencontres/files/:meetingType/:meetingIndex/:fileId', auth, authorize('admin'), async (req, res) => {
+  try {
+    const { meetingType, meetingIndex, fileId } = req.params;
+    const fs = require('fs');
+    
+    if (!['upcoming', 'historical'].includes(meetingType)) {
+      return res.status(400).json({ error: 'meetingType invalide (upcoming ou historical)' });
+    }
+    
+    const result = await query('SELECT content FROM cms_content WHERE page = ?', ['rencontres']);
+    let rencontresContent;
+    
+    if (result.length > 0) {
+      rencontresContent = typeof result[0].content === 'string' ? JSON.parse(result[0].content) : result[0].content;
+      if (typeof rencontresContent === 'string') rencontresContent = JSON.parse(rencontresContent);
+    } else {
+      return res.status(404).json({ error: 'Contenu rencontres non trouvé' });
+    }
+    
+    const meetingsArray = meetingType === 'upcoming' ? rencontresContent.upcomingMeetings : rencontresContent.historicalMeetings;
+    const idx = parseInt(meetingIndex);
+    
+    console.log(`🗑️ Delete file: meetingType=${meetingType}, idx=${idx}, arrayLength=${meetingsArray ? meetingsArray.length : 'null'}, fileId=${fileId}`);
+    
+    if (!meetingsArray || isNaN(idx) || idx < 0 || idx >= meetingsArray.length) {
+      return res.status(400).json({ error: `Index de rencontre invalide (type=${meetingType}, index=${idx}, available=${meetingsArray ? meetingsArray.length : 0})` });
+    }
+    
+    if (!meetingsArray[idx].files) {
+      return res.status(404).json({ error: 'Aucun fichier trouvé' });
+    }
+    
+    const fileIndex = meetingsArray[idx].files.findIndex((f) => f.id === fileId);
+    if (fileIndex === -1) {
+      return res.status(404).json({ error: 'Fichier non trouvé' });
+    }
+    
+    const fileToDelete = meetingsArray[idx].files[fileIndex];
+    
+    // Delete physical file
+    try {
+      const physicalPath = path.join(__dirname, '../../', fileToDelete.filePath);
+      if (fs.existsSync(physicalPath)) {
+        fs.unlinkSync(physicalPath);
+      }
+    } catch (fsError) {
+      console.warn('⚠️ Impossible de supprimer le fichier physique:', fsError.message);
+    }
+    
+    meetingsArray[idx].files.splice(fileIndex, 1);
+    
+    // Save updated content
+    const contentString = JSON.stringify(rencontresContent);
+    await query('UPDATE cms_content SET content = ?, updated_at = NOW() WHERE page = ?', [contentString, 'rencontres']);
+    
+    res.json({ message: 'Fichier supprimé avec succès' });
+  } catch (error) {
+    console.error('Erreur suppression fichier rencontre:', error);
+    res.status(500).json({ error: 'Erreur serveur lors de la suppression du fichier' });
+  }
+});
+
+// @route   GET /api/cms/rencontres/files/download/:fileName
+// @desc    Download a rencontre file
+// @access  Private
+router.get('/rencontres/files/download/:fileName', auth, async (req, res) => {
+  try {
+    const { fileName } = req.params;
+    const fs = require('fs');
+    const filePath = path.join(__dirname, '../../uploads/rencontres', fileName);
+    
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Fichier non trouvé' });
+    }
+    
+    // Find original name from CMS content
+    let originalName = fileName;
+    try {
+      const result = await query('SELECT content FROM cms_content WHERE page = ?', ['rencontres']);
+      if (result.length > 0) {
+        let content = typeof result[0].content === 'string' ? JSON.parse(result[0].content) : result[0].content;
+        if (typeof content === 'string') content = JSON.parse(content);
+        
+        const allMeetings = [...(content.upcomingMeetings || []), ...(content.historicalMeetings || [])];
+        for (const meeting of allMeetings) {
+          if (meeting.files) {
+            const found = meeting.files.find((f) => f.fileName === fileName);
+            if (found) {
+              originalName = found.originalName;
+              break;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // Use filename as fallback
+    }
+    
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(originalName)}"; filename*=UTF-8''${encodeURIComponent(originalName)}`);
+    res.sendFile(filePath);
+  } catch (error) {
+    console.error('Erreur download fichier rencontre:', error);
+    res.status(500).json({ error: 'Erreur serveur lors du téléchargement du fichier' });
+  }
+});
+
 // --- Gamme Financière CMS ---
 // @route   GET /api/cms/gamme-financiere
 // @desc    Get CMS content for Gamme Financière page
