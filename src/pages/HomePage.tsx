@@ -46,9 +46,33 @@ export default function HomePage() {
     }
   };
 
-  const getColorClass = (color: string) => {
-    const colors: { [key: string]: string } = { indigo: 'bg-indigo-500', purple: 'bg-purple-500', pink: 'bg-pink-500', green: 'bg-green-500', blue: 'bg-blue-500' };
-    return colors[color] || 'bg-indigo-500';
+  const renderNewsContent = (text: string) => {
+    if (!text || !text.trim()) return null;
+    const lines = text.split(/\r?\n/).filter((line) => line.trim() !== '');
+    if (lines.length <= 1) {
+      return <p className="text-gray-600 text-xs sm:text-sm mb-2">{text}</p>;
+    }
+    return (
+      <ul className="text-gray-600 text-xs sm:text-sm mb-2 list-disc list-inside space-y-1">
+        {lines.map((line, i) => (
+          <li key={i} className="pl-1">{line.replace(/^[\s\-•*]+\s*/, '')}</li>
+        ))}
+      </ul>
+    );
+  };
+
+  const getColorClasses = (color: string) => {
+    const colors: { [key: string]: { gradient: string; border: string; text: string } } = {
+      'indigo': { gradient: 'from-indigo-50 to-purple-50', border: 'border-indigo-200', text: 'text-indigo-800' },
+      'purple': { gradient: 'from-purple-50 to-pink-50', border: 'border-purple-200', text: 'text-purple-800' },
+      'pink': { gradient: 'from-pink-50 to-rose-50', border: 'border-pink-200', text: 'text-pink-800' },
+      'blue': { gradient: 'from-blue-50 to-cyan-50', border: 'border-blue-200', text: 'text-blue-800' },
+      'green': { gradient: 'from-green-50 to-emerald-50', border: 'border-green-200', text: 'text-green-800' },
+      'yellow': { gradient: 'from-yellow-50 to-amber-50', border: 'border-yellow-200', text: 'text-yellow-800' },
+      'red': { gradient: 'from-red-50 to-rose-50', border: 'border-red-200', text: 'text-red-800' },
+      'orange': { gradient: 'from-orange-50 to-amber-50', border: 'border-orange-200', text: 'text-orange-800' }
+    };
+    return colors[color] || colors['indigo'];
   };
 
   if (loading) {
@@ -74,15 +98,21 @@ export default function HomePage() {
         </div>
         <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
           {content.news && content.news.length > 0 ? (
-            content.news.map((newsItem, index) => (
-              <div key={index} className="p-3 sm:p-4 bg-gray-50 rounded-lg">
-            <div className="min-w-0">
-                  <h3 className="font-semibold text-gray-800 mb-2 text-sm sm:text-base">{newsItem.title}</h3>
-                  <p className="text-gray-600 text-xs sm:text-sm mb-2">{newsItem.content}</p>
-                  <span className="text-xs text-gray-500">{newsItem.date}</span>
-            </div>
-          </div>
-            ))
+            content.news.map((newsItem, index) => {
+              const colors = getColorClasses(newsItem.color || 'indigo');
+              return (
+                <div
+                  key={index}
+                  className={`p-4 sm:p-5 rounded-xl border bg-gradient-to-br ${colors.gradient} ${colors.border}`}
+                >
+                  <div className="min-w-0">
+                    <h3 className={`font-semibold mb-2 text-sm sm:text-base ${colors.text}`}>{newsItem.title}</h3>
+                    {renderNewsContent(newsItem.content)}
+                    <span className={`text-xs ${colors.text} opacity-80`}>{newsItem.date}</span>
+                  </div>
+                </div>
+              );
+            })
           ) : null}
         </div>
       </div>

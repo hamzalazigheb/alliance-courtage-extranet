@@ -12,7 +12,7 @@ interface NewsItem {
   title: string;
   content: string;
   date: string;
-  color: 'indigo' | 'purple' | 'pink';
+  color: 'indigo' | 'purple' | 'pink' | 'blue' | 'green' | 'yellow' | 'red' | 'orange';
 }
 
 interface NewsletterItem {
@@ -1266,6 +1266,11 @@ const CMSManagementPage: React.FC = () => {
                       <option value="indigo">Indigo</option>
                       <option value="purple">Violet</option>
                       <option value="pink">Rose</option>
+                      <option value="blue">Bleu</option>
+                      <option value="green">Vert</option>
+                      <option value="yellow">Jaune</option>
+                      <option value="red">Rouge</option>
+                      <option value="orange">Orange</option>
                     </select>
                   </div>
                 </div>
