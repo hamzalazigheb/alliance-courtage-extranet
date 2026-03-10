@@ -261,25 +261,22 @@ const RencontresCMSPage: React.FC = () => {
   const addUpcomingMeeting = () => {
     const defaultExpiration = new Date();
     defaultExpiration.setDate(defaultExpiration.getDate() + 30);
+    const newMeeting = {
+      title: 'Nouvel Événement',
+      date: new Date().toLocaleDateString('fr-FR'),
+      expirationDate: defaultExpiration.toISOString().split('T')[0],
+      description: '',
+      location: '',
+      time: '',
+      color: 'indigo',
+      eventType: 'event' as EventType,
+      files: []
+    };
     setContent({
       ...content,
-      upcomingMeetings: [
-        ...content.upcomingMeetings,
-        {
-          title: 'Nouvel Événement',
-          date: new Date().toLocaleDateString('fr-FR'),
-          expirationDate: defaultExpiration.toISOString().split('T')[0],
-          description: '',
-          location: '',
-          time: '',
-          color: 'indigo',
-          eventType: 'event' as EventType,
-          files: []
-        }
-      ]
+      upcomingMeetings: [newMeeting, ...content.upcomingMeetings]
     });
-    const newKey = `upcoming_${content.upcomingMeetings.length}`;
-    setExpandedMeetings(prev => ({ ...prev, [newKey]: true }));
+    setExpandedMeetings(prev => ({ ...prev, ['upcoming_0']: true }));
   };
 
   const removeUpcomingMeeting = (index: number) => {
@@ -299,21 +296,18 @@ const RencontresCMSPage: React.FC = () => {
   };
 
   const addHistoricalMeeting = () => {
+    const newMeeting = {
+      title: 'Événement passé',
+      date: '',
+      reportUrl: '',
+      eventType: 'event' as EventType,
+      files: []
+    };
     setContent({
       ...content,
-      historicalMeetings: [
-        ...content.historicalMeetings,
-        {
-          title: 'Événement passé',
-          date: '',
-          reportUrl: '',
-          eventType: 'event' as EventType,
-          files: []
-        }
-      ]
+      historicalMeetings: [newMeeting, ...content.historicalMeetings]
     });
-    const newKey = `historical_${content.historicalMeetings.length}`;
-    setExpandedMeetings(prev => ({ ...prev, [newKey]: true }));
+    setExpandedMeetings(prev => ({ ...prev, ['historical_0']: true }));
   };
 
   const removeHistoricalMeeting = (index: number) => {

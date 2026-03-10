@@ -645,13 +645,13 @@ const CMSManagementPage: React.FC = () => {
     setContent({
       ...content,
       news: [
-        ...content.news,
         {
           title: 'Nouvelle actualité',
           content: 'Description de l\'actualité...',
           date: new Date().toLocaleDateString('fr-FR'),
           color: 'indigo'
-        }
+        },
+        ...content.news
       ]
     });
   };
