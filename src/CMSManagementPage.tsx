@@ -663,6 +663,14 @@ const CMSManagementPage: React.FC = () => {
     });
   };
 
+  const moveNewsItem = (index: number, direction: 'up' | 'down') => {
+    const newNews = [...content.news];
+    const swapIndex = direction === 'up' ? index - 1 : index + 1;
+    if (swapIndex < 0 || swapIndex >= newNews.length) return;
+    [newNews[index], newNews[swapIndex]] = [newNews[swapIndex], newNews[index]];
+    setContent({ ...content, news: newNews });
+  };
+
   const addService = () => {
     setContent({
       ...content,
@@ -1201,12 +1209,30 @@ const CMSManagementPage: React.FC = () => {
               <div key={index} className="bg-slate-700/50 rounded-lg p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="text-white font-semibold">Actualité #{index + 1}</h4>
-                  <button
-                    onClick={() => removeNewsItem(index)}
-                    className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded transition-all"
-                  >
-                    Supprimer
-                  </button>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => moveNewsItem(index, 'up')}
+                      disabled={index === 0}
+                      className="px-2 py-1 bg-slate-500 hover:bg-slate-400 disabled:opacity-30 disabled:cursor-not-allowed text-white rounded text-xs transition-all"
+                      title="Monter"
+                    >
+                      ▲
+                    </button>
+                    <button
+                      onClick={() => moveNewsItem(index, 'down')}
+                      disabled={index === content.news.length - 1}
+                      className="px-2 py-1 bg-slate-500 hover:bg-slate-400 disabled:opacity-30 disabled:cursor-not-allowed text-white rounded text-xs transition-all"
+                      title="Descendre"
+                    >
+                      ▼
+                    </button>
+                    <button
+                      onClick={() => removeNewsItem(index)}
+                      className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded transition-all"
+                    >
+                      Supprimer
+                    </button>
+                  </div>
                 </div>
                 
                 <div>

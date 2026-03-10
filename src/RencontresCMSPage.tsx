@@ -290,6 +290,14 @@ const RencontresCMSPage: React.FC = () => {
     });
   };
 
+  const moveUpcomingMeeting = (index: number, direction: 'up' | 'down') => {
+    const updated = [...content.upcomingMeetings];
+    const swapIndex = direction === 'up' ? index - 1 : index + 1;
+    if (swapIndex < 0 || swapIndex >= updated.length) return;
+    [updated[index], updated[swapIndex]] = [updated[swapIndex], updated[index]];
+    setContent({ ...content, upcomingMeetings: updated });
+  };
+
   const addHistoricalMeeting = () => {
     setContent({
       ...content,
@@ -314,6 +322,14 @@ const RencontresCMSPage: React.FC = () => {
       ...content,
       historicalMeetings: content.historicalMeetings.filter((_, i) => i !== index)
     });
+  };
+
+  const moveHistoricalMeeting = (index: number, direction: 'up' | 'down') => {
+    const updated = [...content.historicalMeetings];
+    const swapIndex = direction === 'up' ? index - 1 : index + 1;
+    if (swapIndex < 0 || swapIndex >= updated.length) return;
+    [updated[index], updated[swapIndex]] = [updated[swapIndex], updated[index]];
+    setContent({ ...content, historicalMeetings: updated });
   };
 
   const eventTypeOptions: { value: EventType; label: string; icon: string }[] = [
@@ -593,6 +609,22 @@ const RencontresCMSPage: React.FC = () => {
                       </div>
                       <div className="flex items-center space-x-2 flex-shrink-0">
                         <button
+                          onClick={(e) => { e.stopPropagation(); moveUpcomingMeeting(index, 'up'); }}
+                          disabled={index === 0}
+                          className="px-2 py-1 bg-slate-500 hover:bg-slate-400 disabled:opacity-30 disabled:cursor-not-allowed text-white rounded text-xs transition-colors"
+                          title="Monter"
+                        >
+                          ↑
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); moveUpcomingMeeting(index, 'down'); }}
+                          disabled={index === content.upcomingMeetings.length - 1}
+                          className="px-2 py-1 bg-slate-500 hover:bg-slate-400 disabled:opacity-30 disabled:cursor-not-allowed text-white rounded text-xs transition-colors"
+                          title="Descendre"
+                        >
+                          ↓
+                        </button>
+                        <button
                           onClick={(e) => { e.stopPropagation(); removeUpcomingMeeting(index); }}
                           className="px-3 py-1 bg-red-500/70 hover:bg-red-500 text-white rounded text-xs"
                         >
@@ -786,6 +818,22 @@ const RencontresCMSPage: React.FC = () => {
                         </div>
                       </div>
                       <div className="flex items-center space-x-2 flex-shrink-0">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); moveHistoricalMeeting(index, 'up'); }}
+                          disabled={index === 0}
+                          className="px-2 py-1 bg-slate-500 hover:bg-slate-400 disabled:opacity-30 disabled:cursor-not-allowed text-white rounded text-xs transition-colors"
+                          title="Monter"
+                        >
+                          ↑
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); moveHistoricalMeeting(index, 'down'); }}
+                          disabled={index === content.historicalMeetings.length - 1}
+                          className="px-2 py-1 bg-slate-500 hover:bg-slate-400 disabled:opacity-30 disabled:cursor-not-allowed text-white rounded text-xs transition-colors"
+                          title="Descendre"
+                        >
+                          ↓
+                        </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); removeHistoricalMeeting(index); }}
                           className="px-3 py-1 bg-red-500/70 hover:bg-red-500 text-white rounded text-xs"
