@@ -146,6 +146,14 @@ export default function RencontresPage() {
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
+  const fixEncoding = (str: string): string => {
+    try {
+      return decodeURIComponent(escape(str));
+    } catch {
+      return str;
+    }
+  };
+
   const getFileMeta = (type: string): { bg: string; text: string; badge: string; label: string; icon: React.ReactNode } => {
     if (type?.includes('pdf'))
       return {
@@ -263,7 +271,7 @@ export default function RencontresPage() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = file.originalName;
+              a.download = fixEncoding(file.originalName);
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -296,7 +304,7 @@ export default function RencontresPage() {
                 </span>
                 {/* Info */}
                 <div className="min-w-0 flex-1">
-                  <p className={`text-xs font-semibold truncate ${meta.text}`}>{file.originalName}</p>
+                  <p className={`text-xs font-semibold truncate ${meta.text}`}>{fixEncoding(file.originalName)}</p>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${meta.badge}`}>{meta.label}</span>
                     <span className="text-[10px] text-gray-400">{formatFileSize(file.fileSize)}</span>

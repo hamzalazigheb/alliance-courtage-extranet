@@ -248,6 +248,14 @@ const RencontresCMSPage: React.FC = () => {
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
+  const fixEncoding = (str: string): string => {
+    try {
+      return decodeURIComponent(escape(str));
+    } catch {
+      return str;
+    }
+  };
+
   const getFileMeta = (type: string): { color: string; label: string; dot: string } => {
     if (type?.includes('pdf'))        return { color: 'text-red-300',    label: 'PDF',     dot: 'bg-red-400' };
     if (type?.includes('word') || type?.includes('doc'))
@@ -483,7 +491,7 @@ const RencontresCMSPage: React.FC = () => {
 
                   {/* Filename */}
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-slate-100 truncate">{file.originalName}</p>
+                    <p className="text-xs font-medium text-slate-100 truncate">{fixEncoding(file.originalName)}</p>
                     <p className="text-[10px] text-slate-500 mt-0.5">{formatFileSize(file.fileSize)}</p>
                   </div>
 
@@ -502,7 +510,7 @@ const RencontresCMSPage: React.FC = () => {
                             const url = window.URL.createObjectURL(blob);
                             const a = document.createElement('a');
                             a.href = url;
-                            a.download = file.originalName;
+                            a.download = fixEncoding(file.originalName);
                             a.click();
                             window.URL.revokeObjectURL(url);
                           })
