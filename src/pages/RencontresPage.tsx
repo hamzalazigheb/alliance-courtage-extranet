@@ -120,14 +120,22 @@ export default function RencontresPage() {
 
   const getColorClasses = (color: string) => {
     const colors: { [key: string]: { gradient: string; border: string; text: string; button: string } } = {
-      'indigo': { gradient: 'from-indigo-50 to-purple-50', border: 'border-indigo-200', text: 'text-indigo-800', button: 'bg-indigo-500' },
-      'purple': { gradient: 'from-purple-50 to-pink-50', border: 'border-purple-200', text: 'text-purple-800', button: 'bg-purple-500' },
-      'pink': { gradient: 'from-pink-50 to-rose-50', border: 'border-pink-200', text: 'text-pink-800', button: 'bg-pink-500' },
-      'blue': { gradient: 'from-blue-50 to-cyan-50', border: 'border-blue-200', text: 'text-blue-800', button: 'bg-blue-500' },
-      'green': { gradient: 'from-green-50 to-emerald-50', border: 'border-green-200', text: 'text-green-800', button: 'bg-green-500' },
-      'yellow': { gradient: 'from-yellow-50 to-amber-50', border: 'border-yellow-200', text: 'text-yellow-800', button: 'bg-yellow-500' },
-      'red': { gradient: 'from-red-50 to-rose-50', border: 'border-red-200', text: 'text-red-800', button: 'bg-red-500' },
-      'orange': { gradient: 'from-orange-50 to-amber-50', border: 'border-orange-200', text: 'text-orange-800', button: 'bg-orange-500' }
+      'indigo':  { gradient: 'from-indigo-50 to-purple-50',   border: 'border-indigo-200',  text: 'text-indigo-800',  button: 'bg-indigo-500' },
+      'purple':  { gradient: 'from-purple-50 to-pink-50',     border: 'border-purple-200',  text: 'text-purple-800',  button: 'bg-purple-500' },
+      'violet':  { gradient: 'from-violet-50 to-purple-50',   border: 'border-violet-200',  text: 'text-violet-800',  button: 'bg-violet-500' },
+      'fuchsia': { gradient: 'from-fuchsia-50 to-pink-50',    border: 'border-fuchsia-200', text: 'text-fuchsia-800', button: 'bg-fuchsia-500' },
+      'pink':    { gradient: 'from-pink-50 to-rose-50',       border: 'border-pink-200',    text: 'text-pink-800',    button: 'bg-pink-500' },
+      'rose':    { gradient: 'from-rose-50 to-pink-50',       border: 'border-rose-200',    text: 'text-rose-800',    button: 'bg-rose-500' },
+      'red':     { gradient: 'from-red-50 to-rose-50',        border: 'border-red-200',     text: 'text-red-800',     button: 'bg-red-500' },
+      'orange':  { gradient: 'from-orange-50 to-amber-50',    border: 'border-orange-200',  text: 'text-orange-800',  button: 'bg-orange-500' },
+      'amber':   { gradient: 'from-amber-50 to-yellow-50',    border: 'border-amber-200',   text: 'text-amber-800',   button: 'bg-amber-500' },
+      'yellow':  { gradient: 'from-yellow-50 to-amber-50',    border: 'border-yellow-200',  text: 'text-yellow-800',  button: 'bg-yellow-500' },
+      'lime':    { gradient: 'from-lime-50 to-green-50',      border: 'border-lime-200',    text: 'text-lime-800',    button: 'bg-lime-500' },
+      'green':   { gradient: 'from-green-50 to-emerald-50',   border: 'border-green-200',   text: 'text-green-800',   button: 'bg-green-500' },
+      'teal':    { gradient: 'from-teal-50 to-cyan-50',       border: 'border-teal-200',    text: 'text-teal-800',    button: 'bg-teal-500' },
+      'cyan':    { gradient: 'from-cyan-50 to-sky-50',        border: 'border-cyan-200',    text: 'text-cyan-800',    button: 'bg-cyan-500' },
+      'sky':     { gradient: 'from-sky-50 to-blue-50',        border: 'border-sky-200',     text: 'text-sky-800',     button: 'bg-sky-500' },
+      'blue':    { gradient: 'from-blue-50 to-cyan-50',       border: 'border-blue-200',    text: 'text-blue-800',    button: 'bg-blue-500' },
     };
     return colors[color] || colors['indigo'];
   };
@@ -138,14 +146,69 @@ export default function RencontresPage() {
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
-  const getFileIcon = (type: string) => {
-    if (type?.includes('pdf')) return '📄';
-    if (type?.includes('word') || type?.includes('doc')) return '📝';
-    if (type?.includes('excel') || type?.includes('sheet') || type?.includes('xls')) return '📊';
-    if (type?.includes('powerpoint') || type?.includes('presentation') || type?.includes('ppt')) return '📎';
-    if (type?.includes('image')) return '🖼️';
-    if (type?.includes('zip') || type?.includes('rar')) return '📦';
-    return '📁';
+  const getFileMeta = (type: string): { bg: string; text: string; badge: string; label: string; icon: React.ReactNode } => {
+    if (type?.includes('pdf'))
+      return {
+        bg: 'bg-red-50', text: 'text-red-700', badge: 'bg-red-100 text-red-600 border-red-200', label: 'PDF',
+        icon: (
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM8.5 17.5h-1v-5h1.8c1.1 0 1.7.6 1.7 1.5 0 1-.7 1.5-1.8 1.5H8.5v2zm0-2.7h.7c.5 0 .8-.2.8-.7s-.3-.7-.8-.7H8.5v1.4zm4.2 2.7h-1.3v-5h1.3c1.5 0 2.3.9 2.3 2.5s-.8 2.5-2.3 2.5zm0-4h-.3v3h.3c.8 0 1.3-.5 1.3-1.5s-.5-1.5-1.3-1.5zm4.3 4h-1v-5h3v1h-2v1.2h1.8v1H16v1.8z"/>
+          </svg>
+        )
+      };
+    if (type?.includes('word') || type?.includes('doc'))
+      return {
+        bg: 'bg-blue-50', text: 'text-blue-700', badge: 'bg-blue-100 text-blue-600 border-blue-200', label: 'Word',
+        icon: (
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM7 17l1.5-5h1l1.5 5h-1l-.3-1H8.3L8 17H7zm1.6-2h1l-.5-1.8-.5 1.8zm3.4 2v-5h1v4h2v1h-3z"/>
+          </svg>
+        )
+      };
+    if (type?.includes('excel') || type?.includes('sheet') || type?.includes('xls'))
+      return {
+        bg: 'bg-green-50', text: 'text-green-700', badge: 'bg-green-100 text-green-600 border-green-200', label: 'Excel',
+        icon: (
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM7 12h2.5l1.5 2.5L12.5 12H15l-2.5 4 2.5 4h-2.5L11 17.5 9.5 20H7l2.5-4L7 12z"/>
+          </svg>
+        )
+      };
+    if (type?.includes('powerpoint') || type?.includes('presentation') || type?.includes('ppt'))
+      return {
+        bg: 'bg-orange-50', text: 'text-orange-700', badge: 'bg-orange-100 text-orange-600 border-orange-200', label: 'PPT',
+        icon: (
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM8 12h3c1.1 0 2 .9 2 2s-.9 2-2 2H9v2H8v-6zm1 1v2h2c.6 0 1-.4 1-1s-.4-1-1-1H9z"/>
+          </svg>
+        )
+      };
+    if (type?.includes('image'))
+      return {
+        bg: 'bg-purple-50', text: 'text-purple-700', badge: 'bg-purple-100 text-purple-600 border-purple-200', label: 'Image',
+        icon: (
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3 3.5-4.5 4.5 6H5l3.5-4.5z"/>
+          </svg>
+        )
+      };
+    if (type?.includes('zip') || type?.includes('rar'))
+      return {
+        bg: 'bg-amber-50', text: 'text-amber-700', badge: 'bg-amber-100 text-amber-600 border-amber-200', label: 'Archive',
+        icon: (
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6 1h2v2h-2V7zm0 3h2v2h-2v-2zm-2-3h2v2h-2V7zm0 3h2v2h-2v-2z"/>
+          </svg>
+        )
+      };
+    return {
+      bg: 'bg-slate-50', text: 'text-slate-600', badge: 'bg-slate-100 text-slate-500 border-slate-200', label: 'Fichier',
+      icon: (
+        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 1.5L18.5 9H13V3.5z"/>
+        </svg>
+      )
+    };
   };
 
   const getEventTypeLabel = (eventType?: string) => {
@@ -213,31 +276,39 @@ export default function RencontresPage() {
 
   const renderFiles = (files: MeetingFile[] | undefined) => {
     if (!files || files.length === 0) return null;
-    
     return (
-      <div className="mt-4 pt-3 border-t border-gray-200">
-        <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center">
-          📎 Documents ({files.length})
-        </h4>
+      <div className="mt-4 pt-4 border-t border-gray-100">
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">
+          Documents joints · {files.length}
+        </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {files.map((file) => (
-            <button
-              key={file.id}
-              onClick={() => handleDownload(file)}
-              className="flex items-center space-x-2 p-2.5 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-indigo-300 hover:shadow-sm transition-all text-left group"
-            >
-              <span className="text-lg flex-shrink-0">{getFileIcon(file.fileType)}</span>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-gray-700 truncate group-hover:text-indigo-600">
-                  {file.originalName}
-                </p>
-                <p className="text-xs text-gray-400">{formatFileSize(file.fileSize)}</p>
-              </div>
-              <svg className="w-4 h-4 text-gray-400 group-hover:text-indigo-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </button>
-          ))}
+          {files.map((file) => {
+            const meta = getFileMeta(file.fileType);
+            return (
+              <button
+                key={file.id}
+                onClick={() => handleDownload(file)}
+                className={`group flex items-center gap-3 p-3 rounded-xl border ${meta.bg} border-transparent hover:border-gray-200 hover:shadow-sm transition-all text-left`}
+              >
+                {/* File type icon */}
+                <span className={`flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center ${meta.bg} ${meta.text} border ${meta.badge.split(' ')[2]}`}>
+                  {meta.icon}
+                </span>
+                {/* Info */}
+                <div className="min-w-0 flex-1">
+                  <p className={`text-xs font-semibold truncate ${meta.text}`}>{file.originalName}</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${meta.badge}`}>{meta.label}</span>
+                    <span className="text-[10px] text-gray-400">{formatFileSize(file.fileSize)}</span>
+                  </div>
+                </div>
+                {/* Download arrow */}
+                <svg className={`w-4 h-4 flex-shrink-0 transition-transform group-hover:translate-y-0.5 ${meta.text} opacity-60`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+              </button>
+            );
+          })}
         </div>
       </div>
     );
@@ -257,38 +328,33 @@ export default function RencontresPage() {
   return (
     <div className="max-w-7xl mx-auto space-y-8">
       {/* Page Header */}
-      <div 
-        className={`bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-white/20 relative ${content.headerImage ? '' : ''}`}
+      <div
+        className="rounded-2xl overflow-hidden shadow-md relative bg-gradient-to-r from-[#0B1220] to-[#1D4ED8]"
         style={content.headerImage ? {
           backgroundImage: `url(${content.headerImage})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
-          minHeight: '300px'
         } : {}}
       >
         {content.headerImage && (
-          <div className="absolute inset-0 bg-black/20 rounded-2xl"></div>
+          <div className="absolute inset-0 bg-gradient-to-r from-[#0B1220]/80 to-[#1D4ED8]/60"></div>
         )}
-        <div className="relative z-10">
-          <div className={content.headerImage ? 'bg-white/10 backdrop-blur-sm rounded-lg p-4 shadow-lg' : ''}>
-            <h1 className={`text-3xl font-bold mb-4 ${content.headerImage ? 'text-white drop-shadow-lg' : 'text-gray-800'}`}>
-              {content.title || 'NOS ÉVÉNEMENTS'}
-            </h1>
-            <p className={`text-lg ${content.headerImage ? 'text-white drop-shadow-md' : 'text-gray-600'}`}>
-              {content.subtitle || 'Espace dédié aux événements et échanges de la communauté Alliance Courtage'}
-            </p>
-            {content.introText && (
-              <div className={`mt-4 p-4 rounded-lg ${content.headerImage ? 'bg-white/10 backdrop-blur-sm border border-white/20' : 'bg-gray-50'}`}>
-                <p className={content.headerImage ? 'text-white italic' : 'text-gray-700 italic'}>{content.introText}</p>
-              </div>
-            )}
-          </div>
+        <div className="relative z-10 px-8 py-10">
+          <h1 className="text-3xl font-bold text-white mb-2 tracking-wide">
+            {content.title || 'NOS ÉVÉNEMENTS'}
+          </h1>
+          <p className="text-blue-100 text-base max-w-2xl">
+            {content.subtitle || 'Espace dédié aux événements et échanges de la communauté Alliance Courtage'}
+          </p>
+          {content.introText && (
+            <p className="mt-4 text-blue-50 italic text-sm max-w-2xl">{content.introText}</p>
+          )}
         </div>
       </div>
 
       {/* Search & Filter Bar */}
       {totalEvents > 0 && (
-        <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-5 border border-white/20">
+        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-md p-5 border border-gray-200">
           <div className="flex flex-col lg:flex-row gap-3">
             {/* Search */}
             <div className="relative flex-1">
@@ -366,13 +432,13 @@ export default function RencontresPage() {
 
       {/* No results */}
       {hasActiveFilter && totalResults === 0 && (
-        <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-8 border border-white/20 text-center">
-          <div className="text-5xl mb-4">🔍</div>
-          <h3 className="text-lg font-semibold text-gray-700 mb-2">Aucun événement trouvé</h3>
-          <p className="text-gray-500 mb-4">Essayez de modifier vos critères de recherche ou de réinitialiser les filtres.</p>
+        <div className="bg-white/90 rounded-2xl shadow-md border border-gray-200 p-10 text-center">
+          <div className="text-4xl mb-3">🔍</div>
+          <h3 className="text-base font-semibold text-gray-700 mb-1">Aucun événement trouvé</h3>
+          <p className="text-sm text-gray-400 mb-4">Essayez de modifier vos critères de recherche ou réinitialisez les filtres.</p>
           <button
             onClick={() => { setSearchQuery(''); setFilterType('all'); setFilterSection('all'); }}
-            className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors text-sm font-medium"
+            className="px-4 py-2 bg-[#1D4ED8] text-white rounded-lg hover:bg-[#1e40af] transition-colors text-sm font-medium"
           >
             Réinitialiser les filtres
           </button>
@@ -381,82 +447,113 @@ export default function RencontresPage() {
 
       {/* Section Prochains Événements */}
       {filteredUpcoming.length > 0 && (
-        <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
-            <span className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center text-white text-sm font-bold mr-3">📅</span>
-            Prochains Événements
-          </h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {filteredUpcoming.map((meeting: any, index: number) => {
-              const colors = getColorClasses(meeting.color || 'indigo');
-              
-              return (
-                <div key={index} className={`bg-gradient-to-br ${colors.gradient} p-6 rounded-xl border ${colors.border}`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className={`text-xl font-semibold ${colors.text}`}>{meeting.title}</h3>
-                    <span className={`${colors.button} text-white px-3 py-1 rounded-full text-sm font-medium`}>
-                      {meeting.date}
-                    </span>
+        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-md border border-gray-200 overflow-hidden">
+          {/* Section header — dark navy like the rest of the app */}
+          <div className="bg-gradient-to-r from-[#0B1220] to-[#1D4ED8] px-6 py-4 flex items-center gap-3">
+            <span className="text-xl">📅</span>
+            <h2 className="text-xl font-semibold text-white tracking-wide">Prochains Événements</h2>
+            <span className="ml-auto text-xs font-medium bg-white/15 text-white px-2.5 py-1 rounded-full">
+              {filteredUpcoming.length} événement{filteredUpcoming.length > 1 ? 's' : ''}
+            </span>
+          </div>
+
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {filteredUpcoming.map((meeting: any, index: number) => {
+                const colors = getColorClasses(meeting.color || 'indigo');
+                return (
+                  <div key={index} className={`bg-gradient-to-br ${colors.gradient} rounded-xl border ${colors.border} shadow-sm hover:shadow-md transition-shadow flex flex-col`}>
+                    {/* Card top accent bar */}
+                    <div className={`h-1 w-full ${colors.button} rounded-t-xl`}></div>
+                    <div className="p-5 flex flex-col flex-1">
+                      {/* Type badge + date */}
+                      <div className="flex items-center justify-between mb-3">
+                        <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ${colors.button} text-white`}>
+                          {getEventTypeLabel(meeting.eventType).icon} {getEventTypeLabel(meeting.eventType).label}
+                        </span>
+                        <span className="text-xs font-medium text-gray-500 bg-white/70 px-2.5 py-1 rounded-full border border-gray-200">
+                          📅 {meeting.date}
+                        </span>
+                      </div>
+
+                      {/* Title */}
+                      <h3 className={`text-base font-bold ${colors.text} mb-2 leading-snug`}>{meeting.title}</h3>
+
+                      {/* Description */}
+                      {meeting.description && (
+                        <p className="text-gray-600 text-sm mb-3 leading-relaxed flex-1">{meeting.description}</p>
+                      )}
+
+                      {/* Location & time */}
+                      {(meeting.location || meeting.time) && (
+                        <div className="flex flex-wrap gap-2 mb-4 text-xs text-gray-500">
+                          {meeting.location && (
+                            <span className="flex items-center gap-1 bg-white/70 border border-gray-200 rounded-md px-2 py-1">
+                              📍 {meeting.location}
+                            </span>
+                          )}
+                          {meeting.time && (
+                            <span className="flex items-center gap-1 bg-white/70 border border-gray-200 rounded-md px-2 py-1">
+                              ⏰ {meeting.time}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* CTA */}
+                      <button className={`self-start mt-auto ${colors.button} hover:opacity-90 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-opacity shadow-sm`}>
+                        S'inscrire →
+                      </button>
+
+                      {renderFiles(meeting.files)}
+                    </div>
                   </div>
-                  <div className="mb-4">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-white/60 text-gray-700 border border-gray-200">
-                      {getEventTypeLabel(meeting.eventType).icon} {getEventTypeLabel(meeting.eventType).label}
-                    </span>
-                  </div>
-                  {meeting.description && (
-                    <p className="text-gray-700 mb-4">{meeting.description}</p>
-                  )}
-                  <div className="flex items-center space-x-4 text-sm text-gray-600">
-                    {meeting.location && <span>📍 {meeting.location}</span>}
-                    {meeting.time && <span>⏰ {meeting.time}</span>}
-                  </div>
-                  <button className={`mt-4 ${colors.button} hover:opacity-90 text-white px-4 py-2 rounded-lg transition-colors`}>
-                    S'inscrire
-                  </button>
-                  
-                  {renderFiles(meeting.files)}
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
 
       {/* Section Historique des Événements */}
       {filteredHistorical.length > 0 && (
-        <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
-            <span className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center text-white text-sm font-bold mr-3">📚</span>
-            Historique des Événements
-          </h2>
-          
-          <div className="space-y-4">
+        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-md border border-gray-200 overflow-hidden">
+          {/* Section header */}
+          <div className="bg-gradient-to-r from-[#0B1220] to-[#1D4ED8] px-6 py-4 flex items-center gap-3">
+            <span className="text-xl">📋</span>
+            <h2 className="text-xl font-semibold text-white tracking-wide">Historique des Événements</h2>
+            <span className="ml-auto text-xs font-medium bg-white/15 text-white px-2.5 py-1 rounded-full">
+              {filteredHistorical.length} événement{filteredHistorical.length > 1 ? 's' : ''}
+            </span>
+          </div>
+
+          <div className="divide-y divide-gray-100">
             {filteredHistorical.map((meeting: any, index: number) => (
-              <div key={index} className="p-4 bg-gray-50 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="flex items-center space-x-2">
-                      <h3 className="font-semibold text-gray-800">{meeting.title}</h3>
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-200 text-gray-600">
+              <div key={index} className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors">
+                <div className="flex items-center gap-4 min-w-0 flex-1">
+                  {/* Accent dot */}
+                  <div className="w-2.5 h-2.5 rounded-full bg-indigo-400 flex-shrink-0"></div>
+                  <div className="min-w-0">
+                    <div className="flex items-center flex-wrap gap-2 mb-0.5">
+                      <h3 className="text-sm font-semibold text-gray-800 truncate">{meeting.title}</h3>
+                      <span className="inline-flex items-center gap-0.5 text-xs font-medium text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full flex-shrink-0">
                         {getEventTypeLabel(meeting.eventType).icon} {getEventTypeLabel(meeting.eventType).label}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-600">{meeting.date}</p>
+                    <p className="text-xs text-gray-400">{meeting.date}</p>
+                    {meeting.files && meeting.files.length > 0 && renderFiles(meeting.files)}
                   </div>
-                  {meeting.reportUrl ? (
-                    <a
-                      href={meeting.reportUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-indigo-600 hover:text-indigo-800 text-sm font-medium flex-shrink-0"
-                    >
-                      📄 Voir le compte-rendu
-                    </a>
-                  ) : null}
                 </div>
-                
-                {renderFiles(meeting.files)}
+                {meeting.reportUrl && (
+                  <a
+                    href={meeting.reportUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-shrink-0 ml-4 inline-flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    📄 Compte-rendu
+                  </a>
+                )}
               </div>
             ))}
           </div>
@@ -464,21 +561,19 @@ export default function RencontresPage() {
       )}
 
       {/* Section Echanges - Cachée pour l'instant */}
-      <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20 opacity-50">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
-          <span className="w-8 h-8 bg-yellow-500 rounded-lg flex items-center justify-center text-white text-sm font-bold mr-3">💬</span>
-          Espace Echanges
-          <span className="ml-3 bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium">
+      <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-md border border-gray-200 overflow-hidden opacity-60">
+        <div className="bg-gradient-to-r from-[#0B1220] to-[#1D4ED8] px-6 py-4 flex items-center gap-3">
+          <span className="text-xl">💬</span>
+          <h2 className="text-xl font-semibold text-white tracking-wide">Espace Échanges</h2>
+          <span className="ml-auto text-xs font-medium bg-amber-400 text-amber-900 px-2.5 py-1 rounded-full">
             Bientôt disponible
           </span>
-        </h2>
-        
-        <div className="text-center py-12">
-          <div className="text-6xl mb-4">🚧</div>
-          <h3 className="text-xl font-semibold text-gray-600 mb-2">Espace en construction</h3>
-          <p className="text-gray-500">
-            L'espace d'échanges sera bientôt disponible pour permettre aux membres GNCA 
-            de partager leurs expériences et de collaborer.
+        </div>
+        <div className="text-center py-10">
+          <div className="text-4xl mb-3">🚧</div>
+          <h3 className="text-base font-semibold text-gray-600 mb-1">Espace en construction</h3>
+          <p className="text-sm text-gray-400 max-w-md mx-auto">
+            L'espace d'échanges sera bientôt disponible pour permettre aux membres GNCA de partager leurs expériences et collaborer.
           </p>
         </div>
       </div>
