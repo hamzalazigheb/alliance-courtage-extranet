@@ -4,7 +4,7 @@ import { buildAPIURL, buildFileURL } from '../api';
 
 // Comptabilité Page Component
 function ComptabilitePage({ currentUser, bordereaux }: { currentUser: User | null, bordereaux: BordereauFile[] }) {
-  const [selectedYear, setSelectedYear] = useState("2025");
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [userFiles, setUserFiles] = useState<any[]>([]);
   const [availableYears, setAvailableYears] = useState<string[]>([]);
   const [allUserBordereaux, setAllUserBordereaux] = useState<any[]>([]);
