@@ -4,9 +4,16 @@ import { buildAPIURL, buildFileURL } from '../api';
 
 // Comptabilité Page Component
 function ComptabilitePage({ currentUser, bordereaux }: { currentUser: User | null, bordereaux: BordereauFile[] }) {
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
+  const currentYear = new Date().getFullYear();
+  // Fixed year list: from 2023 up to current year + 1, descending
+  const fixedYears = Array.from(
+    { length: currentYear - 2023 + 2 },
+    (_, i) => (currentYear + 1 - i).toString()
+  );
+
+  const [selectedYear, setSelectedYear] = useState(currentYear.toString());
   const [userFiles, setUserFiles] = useState<any[]>([]);
-  const [availableYears, setAvailableYears] = useState<string[]>([]);
+  const [availableYears] = useState<string[]>(fixedYears);
   const [allUserBordereaux, setAllUserBordereaux] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const isAdmin = currentUser?.role === 'admin';
@@ -18,8 +25,8 @@ function ComptabilitePage({ currentUser, bordereaux }: { currentUser: User | nul
       try {
         setLoading(true);
         
-        // Si admin : charger tous les bordereaux (sauf ceux des admins)
-        // Si user : charger seulement ses propres bordereaux
+        // Admin: fetch only selected year (server-side filter)
+        // Regular user: fetch all their bordereaux, filter client-side
         const apiUrl = isAdmin 
           ? buildAPIURL(`/bordereaux?year=${selectedYear}`)
           : buildAPIURL(`/bordereaux?user_id=${currentUser.id}`);
@@ -33,8 +40,6 @@ function ComptabilitePage({ currentUser, bordereaux }: { currentUser: User | nul
         if (response.ok) {
           const data = await response.json();
           
-          // Si admin, les données sont déjà filtrées (pas de bordereaux d'admins)
-          // Si user, filtrer seulement par user_id
           const allData = isAdmin 
             ? data 
             : data.filter((b: any) => {
@@ -45,50 +50,15 @@ function ComptabilitePage({ currentUser, bordereaux }: { currentUser: User | nul
           
           setAllUserBordereaux(allData);
           
-          // Extraire toutes les années disponibles depuis les bordereaux
-          const years = new Set<string>();
-          allData.forEach((b: any) => {
-            const year = b.periodYear 
-              ? b.periodYear.toString() 
-              : (b.createdAt ? new Date(b.createdAt).getFullYear().toString() : null);
-            if (year) {
-              years.add(year);
-            }
-          });
-          
-          // Trier les années par ordre décroissant
-          const sortedYears = Array.from(years).sort((a, b) => parseInt(b) - parseInt(a));
-          
-          // Si aucune année trouvée, utiliser les années par défaut
-          if (sortedYears.length === 0) {
-            sortedYears.push('2026', '2025', '2024');
-          } else {
-            // S'assurer que 2026 est présent si on est en 2025 ou après
-            const currentYear = new Date().getFullYear();
-            if (currentYear >= 2025 && !sortedYears.includes('2026')) {
-              sortedYears.unshift('2026');
-            }
-          }
-          
-          setAvailableYears(sortedYears);
-          
-          // Si l'année sélectionnée n'est pas dans la liste, sélectionner la première année disponible
-          if (!sortedYears.includes(selectedYear) && sortedYears.length > 0) {
-            setSelectedYear(sortedYears[0]);
-          }
-          
-          // Filter by selected year
-          const filteredData = allData.filter((b: any) => {
-            if (selectedYear) {
-              const bordereauYear = b.periodYear 
-                ? b.periodYear.toString() 
-                : (b.createdAt ? new Date(b.createdAt).getFullYear().toString() : null);
-              if (!bordereauYear || bordereauYear !== selectedYear) {
-                return false;
-              }
-            }
-            return true;
-          });
+          // For regular users: filter client-side by selected year
+          const filteredData = isAdmin
+            ? allData
+            : allData.filter((b: any) => {
+                const bordereauYear = b.periodYear 
+                  ? b.periodYear.toString() 
+                  : (b.createdAt ? new Date(b.createdAt).getFullYear().toString() : null);
+                return bordereauYear === selectedYear;
+              });
           
           setUserFiles(filteredData);
         }
