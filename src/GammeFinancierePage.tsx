@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { financialDocumentsAPI, buildAPIURL } from './api';
 import FavoriteButton from './components/FavoriteButton';
+import GammeCatalogue from './components/GammeCatalogue';
 
 interface PageContent {
   title: string;
@@ -129,6 +130,9 @@ const GammeFinancierePage = () => {
             </div>
           </div>
         </div>
+
+        {/* Catalogue des Fonds 2026 */}
+        <GammeCatalogue />
 
         {/* Documents Section - Following project's graphic charter */}
         <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-6 sm:p-8">
