@@ -135,7 +135,8 @@ const GammeFinancierePage = () => {
         <GammeCatalogue />
 
         {/* Documents Section - Following project's graphic charter */}
-        <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-6 sm:p-8">
+        {/* <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-6 sm:p-8"> */}
+        {false && <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-6 sm:p-8">
           {/* Section Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 pb-6 border-b border-gray-200">
             <div className="flex items-center mb-4 sm:mb-0">
@@ -312,7 +313,7 @@ const GammeFinancierePage = () => {
               ))}
           </div>
         )}
-        </div>
+        </div>}
       </div>
     </div>
   );

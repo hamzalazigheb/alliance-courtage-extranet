@@ -1,5 +1,15 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { FONDS, CONTRATS, SRI_DESCRIPTIONS, Fond } from '../data/gammeFinanciere';
+
+function useWindowWidth() {
+  const [width, setWidth] = useState(window.innerWidth);
+  useEffect(() => {
+    const handler = () => setWidth(window.innerWidth);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+  return width;
+}
 
 /* ─────────────────────────── constants ─────────────────────────── */
 
@@ -72,6 +82,8 @@ function SfdrBadge({ sfdr }: { sfdr: string }) {
 /* ─────────────────────────── Fund Modal ─────────────────────────── */
 
 function FundModal({ fond, onClose }: { fond: Fond; onClose: () => void }) {
+  const width = useWindowWidth();
+  const isMobile = width < 640;
   const classeLabel = fond.classe.replace(/^\d+ - /, '').toUpperCase();
   const avContrats = fond.contrats.map(k => CONTRATS[k]).filter(c => c?.type === 'AV');
   const capiContrats = fond.contrats.map(k => CONTRATS[k]).filter(c => c?.type === 'CAPI');
@@ -115,14 +127,15 @@ function FundModal({ fond, onClose }: { fond: Fond; onClose: () => void }) {
     >
       <div style={{
         background: '#fff',
-        borderRadius: 16,
+        borderRadius: isMobile ? '16px 16px 0 0' : 16,
         width: '100%',
-        maxWidth: 560,
-        maxHeight: '90vh',
+        maxWidth: isMobile ? '100%' : 560,
+        maxHeight: isMobile ? '92vh' : '90vh',
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
         boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+        ...(isMobile ? { position: 'fixed', bottom: 0, left: 0, right: 0, margin: 0 } : {}),
       }}>
         {/* Modal header */}
         <div style={{
@@ -156,7 +169,7 @@ function FundModal({ fond, onClose }: { fond: Fond; onClose: () => void }) {
         </div>
 
         {/* Score boxes */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 1, background: '#e5e7eb' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 1, background: '#e5e7eb' }}>
           {[
             { label: 'NOTE', value: <Stars value={fond.note} /> },
             { label: 'SCORE QUANTALYS', value: <span style={{ fontSize: 18, fontWeight: 800, color: '#1e3a5f' }}>{fond.score}/100</span> },
@@ -174,7 +187,7 @@ function FundModal({ fond, onClose }: { fond: Fond; onClose: () => void }) {
         <div style={{ overflowY: 'auto', padding: '20px 24px', flex: 1 }}>
           {/* Métriques */}
           <h3 style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Métriques</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr', gap: 12, marginBottom: 20 }}>
             {[
               { label: 'Perf cumulée 5A', value: fond.perf_5a !== null ? `${(fond.perf_5a * 100).toFixed(2)}%` : '—', green: fond.perf_5a !== null && fond.perf_5a > 0 },
               { label: 'Sharpe 3A', value: fond.sharpe_3a.toFixed(2), green: false },
@@ -224,6 +237,8 @@ function FundModal({ fond, onClose }: { fond: Fond; onClose: () => void }) {
 function FundCard({ fond }: { fond: Fond }) {
   const [open, setOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const width = useWindowWidth();
+  const isMobile = width < 480;
   const contratCount = fond.contrats.length;
   const classeLabel = fond.classe.replace(/^\d+ - /, '').toUpperCase();
 
@@ -284,7 +299,7 @@ function FundCard({ fond }: { fond: Fond }) {
       <div style={{ height: 1, background: '#f3f4f6', margin: '0 20px' }} />
 
       {/* Stats grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0, padding: '12px 20px 0' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 0, padding: '12px 20px 0' }}>
         <div style={{ paddingBottom: 10 }}>
           <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Perf 5A</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: fond.perf_5a !== null && fond.perf_5a > 0 ? '#16a34a' : fond.perf_5a === null ? '#9ca3af' : '#dc2626' }}>
@@ -364,6 +379,8 @@ function FiltersPanel({
   onChange: (f: FilterState) => void;
   fondCount: number;
 }) {
+  const width = useWindowWidth();
+  const isMobile = width < 640;
   function toggleClass(c: string) {
     const next = filters.classes.includes(c)
       ? filters.classes.filter(x => x !== c)
@@ -397,15 +414,15 @@ function FiltersPanel({
         <div style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
           Contrat du client
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: isMobile ? 'stretch' : 'center', flexDirection: isMobile ? 'column' : 'row', gap: 12, flexWrap: 'wrap' }}>
           <select
             value={filters.contrat}
             onChange={e => onChange({ ...filters, contrat: e.target.value })}
             style={{
-              flex: '1 1 260px', maxWidth: 400, padding: '9px 12px',
+              flex: '1 1 260px', maxWidth: isMobile ? '100%' : 400, padding: '9px 12px',
               border: '1px solid #d1d5db', borderRadius: 8,
               fontSize: 13, color: '#374151', background: '#fff',
-              outline: 'none', cursor: 'pointer',
+              outline: 'none', cursor: 'pointer', width: isMobile ? '100%' : undefined,
             }}
           >
             <option value="">— Tous les contrats (gamme complète) —</option>
@@ -857,6 +874,10 @@ function TabMethodologie() {
 export default function GammeCatalogue() {
   const [activeTab, setActiveTab] = useState<TabKey>('contrat');
   const [filters, setFilters] = useState<FilterState>({ contrat: '', classes: [], sris: [] });
+  const width = useWindowWidth();
+  const isMobile = width < 640;
+  const pad = isMobile ? '0 12px' : '0 32px';
+  const padContent = isMobile ? '16px 12px 24px' : '24px 32px 32px';
 
   const fondCount = useMemo(() => {
     return FONDS.filter(fond => {
@@ -874,7 +895,10 @@ export default function GammeCatalogue() {
         background: '#fff',
         borderRadius: '16px 16px 0 0',
         borderBottom: '2px solid #e5e7eb',
-        display: 'flex', gap: 0, padding: '0 32px',
+        display: 'flex', gap: 0, padding: pad,
+        overflowX: 'auto',
+        WebkitOverflowScrolling: 'touch' as any,
+        scrollbarWidth: 'none' as any,
       }}>
         {TABS.map(tab => {
           const isActive = activeTab === tab.key;
@@ -883,7 +907,8 @@ export default function GammeCatalogue() {
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
               style={{
-                padding: '14px 18px',
+                padding: isMobile ? '12px 12px' : '14px 18px',
+                whiteSpace: 'nowrap',
                 background: 'transparent',
                 color: isActive ? '#1e3a5f' : '#6b7280',
                 border: 'none',
@@ -904,7 +929,7 @@ export default function GammeCatalogue() {
       </div>
 
       {/* ─── Content ─── */}
-      <div style={{ background: '#f1f5f9', padding: '24px 32px 32px', border: '1px solid #e2e8f0', borderTop: 'none' }}>
+      <div style={{ background: '#f1f5f9', padding: padContent, border: '1px solid #e2e8f0', borderTop: 'none' }}>
         <FiltersPanel filters={filters} onChange={setFilters} fondCount={fondCount} />
         {activeTab === 'contrat' && <TabFunds filters={filters} />}
         {activeTab === 'classe' && <TabParClasse filters={filters} />}
@@ -914,7 +939,7 @@ export default function GammeCatalogue() {
       </div>
 
       {/* ─── Footer disclaimer ─── */}
-      <div style={{ background: '#fff', borderTop: '1px solid #e5e7eb', padding: '10px 32px', borderRadius: '0 0 16px 16px', border: '1px solid #e2e8f0' }}>
+      <div style={{ background: '#fff', borderTop: '1px solid #e5e7eb', padding: isMobile ? '10px 12px' : '10px 32px', borderRadius: '0 0 16px 16px', border: '1px solid #e2e8f0' }}>
         <p style={{ margin: 0, fontSize: 11, color: '#9ca3af' }}>
           ⚠️ Document réservé aux professionnels · Données arrêtées au 31/03/2026 · Performances passées non garanties · SFDR selon classification Quantalys
         </p>
